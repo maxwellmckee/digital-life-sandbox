@@ -1,0 +1,12 @@
+# Personal data created by the app
+saves/
+images/
+videos/
+
+# Local tool settings
+.claude/
+
+# System files
+desktop.ini
+Thumbs.db
+.DS_Store
