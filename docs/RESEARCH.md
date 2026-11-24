@@ -10,7 +10,7 @@ Breeding originally copied only settings, so every child regrew from nothing. Li
 
 | Idea | Source | In the sandbox | Main difference from the source |
 |---|---|---|---|
-| Inherited structure | Beisson & Sonneborn, 1965 | **INHERIT: BODY** copies every agent, trail, vein and chemical into the child | Theirs is a change in a cell's cortex passed to descendants. Ours is a full copy of a simulated world |
+| Inherited structure | Beisson & Sonneborn, 1965 | **PASS ON: BODY + RULES** copies every agent, trail, vein and chemical into the child | Theirs is a change in a cell's cortex passed to descendants. Ours is a full copy of a simulated world |
 | Use-it-or-lose-it tubes | Tero, Kobayashi & Nakagaki, 2007 and Tero et al., 2010 | **VEINS** strengthen where trail is busy and fade where it is not | Local trail level stands in for true fluid flux, with no pressure network |
 | Parameters that travel with matter | Plantec et al., 2022 (Flow-Lenia) | **CELLS** each carry their own inherited copy of the movement rules | Stored per agent rather than per grid cell |
 | Growth sweet spot | Lenia growth function, as given in Flow-Lenia | Cells gain energy at a preferred density and lose it when too sparse or crowded | Applied to the trail an agent stands on |
@@ -36,7 +36,7 @@ All tests ran on the project's RTX 4070 at LOW quality with randomly generated o
 
 | Child's start, 600 steps after birth | Match with parent | Test size |
 |---|---|---|
-| Recipe only | 0.29 | 8 organisms |
+| Rules only | 0.29 | 8 organisms |
 | Inherited body | 0.54 | 8 organisms |
 | Inherited body, veins off | 0.45 | 6 organisms |
 | Inherited body, vein memory 0.60 | 0.54 | 6 organisms |

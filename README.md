@@ -42,7 +42,7 @@ There is nothing to install and no build step. The project was built for a deskt
 | `Digital Life Sandbox Project Notes.md` | The original vision and design document |
 | `Digital Life Sandbox Build Update 2.md` | The next planned changes. It overrides the Project Notes where they conflict |
 | `saves/` | Saved organisms (`dl-*.json`) and `taste.json` |
-| `saves/bodies/` | Full living states (`.dlbody`) for moment saves and organisms with inherited bodies |
+| `saves/bodies/` | The grown body of each save (`.dlbody`): every agent, trail, vein and chemical |
 | `saves/thumbs/` | Library pictures. They can be regrown if missing |
 | `saves/removed/` | Saves removed in the Library. Nothing is permanently deleted there |
 | `images/`, `videos/` | PNG and MP4 exports |
@@ -64,12 +64,11 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 
 | Control | Key | What it does |
 |---|---|---|
-| MUTATE / BREED | `M` / `Enter` | Changes the rules. With INHERIT BODY, the grown structure carries over |
+| MUTATE / BREED | `M` / `Enter` | Changes the rules. **PASS ON** decides whether the grown body carries over |
 | RANDOM | `N` | Rolls unrelated new organisms. Batch keeps picked tiles |
 | REROLL | `R` | Same settings, fresh start, leaving any inherited body behind |
 | REPLAY | `P` | Same settings and same start. An inherited body returns to its moment of birth |
-| SAVE | `S` | Saves the organism, or every picked tile |
-| SAVE THIS MOMENT | `Shift`+`S` | Stores the exact living state |
+| SAVE | `S` | Saves the body and rules of the organism, or of every picked tile |
 | PAUSE | `Space` | Freezes or resumes |
 | UNDO | `U`, `Ctrl+Z` | Reverses the last change, brush stroke or generation |
 | LIBRARY | `L` | Browse saves as a grid or family tree |
@@ -84,7 +83,7 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 ### Control pages
 
 - **ORGANISM:** species count, ecology and movement sliders.
-- **LIFE:** what children inherit, plus optional veins and living cells.
+- **LIFE:** optional veins and living cells.
 - **FIELD:** an optional reaction-diffusion chemical that agents interact with.
 - **LIGHT:** color gradients, glow and exposure. These change the look only.
 - **DRAW:** barrier and organism brushes, in Solo.
@@ -102,16 +101,26 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 
 ### Inheritance and early life
 
-- **INHERIT: BODY** (default) starts each child inside its parent's grown structure with mutated rules. **RECIPE** regrows from settings alone.
+Every organism has two parts. The **rules** are its settings. The **body** is the grown structure itself: every agent, trail, vein and chemical.
+
+- **PASS ON** sits under MUTATION in the main controls and decides what children receive. **BODY + RULES** (default) starts each child inside its parent's grown body with mutated rules. **RULES ONLY** regrows each child from nothing.
+- Every bred Batch tile is labeled **BODY + RULES** or **RULES ONLY** with what it actually received. In Batch, the display's fourth line shows **PASS BODY** or **PASS RULES**, and after BREED it confirms what the generation got.
+- A child gets the rules only when there was no body to give, such as an unpainted BLANK sandbox. The tile label and the confirmation say so.
 - With two picked parents, the child lives in one parent's body and mixes rules from both.
 - **BIOLOGY: VEINS** thickens busy paths and withers unused ones, which helps structure survive new rules.
 - **BIOLOGY: CELLS** adds veins plus energy, feeding, division, death and per-cell inherited rules. Followed trails act as food and fled trails as poison.
 
 ### Saves and breeding
 
-A normal save stores the **recipe and seed** and regrows when opened. A **moment save** also stores the complete living state and reopens exactly as it was. Organisms with an inherited body always save this way, because a recipe cannot rebuild them. With CELLS on, moment files are about 7 MB at LOW or from a Batch tile, 27 MB at MED and 49 MB at HIGH.
+- **SAVE always stores the body and the rules**, so a save reopens exactly as it looked. Each save uses about 5 to 20 MB. With CELLS on, expect about 7 MB at LOW or from a Batch tile, 27 MB at MED and 49 MB at HIGH.
+- **No duplicates.** Saving the same organism again updates its existing entry, keeping its name, tags and family links. "Same organism" means the same seed, start, rules, biology, barriers and painting. Colors don't count.
+- Opening the Library folds any older duplicate saves into their newest copy. The kept save takes over their names, tags and family links, and the copies move to `saves/removed/`.
+- **Automatic names.** A new save is named from its picture's main colors and its measured shape, such as "Dense Amber-Azure Lace". Repeats get II, III and so on. Unnamed older saves are named when the Library opens. Typing a name replaces it.
+- Each Library card shows **BODY + RULES** or **RULES ONLY**. RULES ONLY marks an older save that regrows from settings. Open it and SAVE again to store its body.
+- Library **BREED** passes on whatever PASS ON says, so with BODY + RULES the children start inside the saved body.
+- In the TREE view, a label like **+2 GEN** on a line is not a copy. It means two generations were bred in between without being saved.
 
-Breeding never changes a save file. Children are new organisms until you save them. The Library's **TREE** view shows which save came from which.
+Breeding never changes a save file. Children are new organisms until you save them.
 
 ## How it works
 
@@ -138,7 +147,12 @@ Breeding never changes a save file. Children are new organisms until you save th
 - **Family records:** an in-memory graph connects unsaved generations, so a save links to its nearest saved ancestors.
 - **Export:** a custom PNG writer, plus WebCodecs H.264 with a custom MP4 muxer.
 
-**Save format (version 7):** `id, parents, generation, name, tags, createdAt, seed, step, quality, init, grownAt, count, species, field, life, view, metrics`, plus optional `walls`, `spawns` and `body`. `body` points to a gzip file in `saves/bodies/`. Older versions still load. When changing the format, keep them loading.
+**Save format (version 7):** `id, parents, generation, name, tags, createdAt, seed, step, quality, init, grownAt, count, species, field, life, view, metrics`, plus these optional fields:
+
+- `walls`, `spawns` and `body`. `body` points to a gzip file in `saves/bodies/`. `spawns` is left out when a body is saved.
+- `paint`, a fingerprint of `spawns`.
+- `updatedAt`, set when a save is updated.
+- `autoName`, set while the name is automatic. Older versions still load. When changing the format, keep them loading.
 
 ## Rules for future changes
 
@@ -164,10 +178,11 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 
 ## Known limitations
 
-- Reopening a recipe save regrows at most 3,000 steps. Use SAVE THIS MOMENT to keep a long run's exact structure.
-- Slider changes made during a run are not recorded. A recipe save regrows with its final settings from step 0.
-- After a moment save is reopened, REPLAY returns to that saved moment rather than the organism's birth.
-- A moment file is compressed with very slightly rounded trail values. Agents, genes and chemical are exact.
+- Older RULES ONLY saves regrow at most 3,000 steps when reopened. Saving them again stores their body.
+- A browser without folder access can only download the rules.
+- After a save is reopened, REPLAY returns to the saved moment rather than the organism's birth.
+- A body file is compressed with very slightly rounded trail values. Agents, genes and chemical are exact.
+- Automatic names are simple word choices from color and measurements, so similar organisms can get similar names.
 - Undo and old generations may fall back to their recipe once the 1.5 GB body memory fills.
 - A child inherits one parent's body. Merging two bodies is not built yet.
 - Cells have no true self-made membrane yet, and evidence of in-world selection is still small.
@@ -176,12 +191,12 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 
 ## Status and roadmap
 
-**Built:** WebGPU simulation, Solo and Batch, breeding, 3 species, ecologies, reaction-diffusion hybrids, 12 color gradients, metrics and dead-variant filter, Help mode, taste learning, PNG and MP4 export, visual Library, family tree, RANDOM, barrier brush, organism brush, BLANK start, inherited bodies, moment saves, veins, and living cells with energy, division, death and per-cell inherited rules.
+**Built:** WebGPU simulation, Solo and Batch, breeding, 3 species, ecologies, reaction-diffusion hybrids, 12 color gradients, metrics and dead-variant filter, Help mode, taste learning, PNG and MP4 export, visual Library, family tree, RANDOM, barrier brush, organism brush, BLANK start, inherited bodies, full-body saves with automatic names and no duplicates, veins, and living cells with energy, division, death and per-cell inherited rules.
 
 **Build Update 2 progress:**
 
 1. Done: children inherit the grown structure.
-2. Done: "Save this moment" full-state saves.
+2. Done: full-state saves. Every save now keeps the body.
 3. Done: per-agent inherited parameters, through CELLS.
 4. **Next:** merge two saved structures into one world.
 5. Partly done: energy and a food web from the FOLLOW matrix. Separate food sources are not built.

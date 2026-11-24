@@ -53,6 +53,8 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .tile-pick[aria-pressed=true] .num{background:var(--active);color:#04201a}
 .chip.life{position:absolute;left:7px;bottom:7px}
 .chip.life.bad{color:#ffc79e}
+.chip.got{position:absolute;right:7px;bottom:7px;color:#c9c4b8}
+.chip.got.body,.lib-thumb .chip.keep.body{color:#6ff0cf;box-shadow:inset 0 0 0 1px #6ff0cf66}
 .screen-note{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:9px 14px;border-radius:8px;
   background:#030607e6;color:#6ff0cf;font-size:12px;white-space:nowrap;box-shadow:0 4px 16px #0008;pointer-events:none}
 .screen-note[hidden]{display:none}
@@ -75,6 +77,7 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .lib-thumb img[hidden]{display:none}
 .lib-thumb .chip{position:absolute;left:7px;bottom:7px}
 .lib-thumb .chip.bad{color:#ffc79e}
+.lib-thumb .chip.keep{left:auto;right:7px;color:#c9c4b8}
 .lib-wait{position:absolute;inset:0;display:grid;place-items:center;color:#6ff0cf;font-size:10px}
 .lib-wait[hidden]{display:none}
 .lib-info{display:flex;flex-direction:column;gap:5px;padding:9px}
@@ -198,8 +201,6 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .group[hidden]{display:none}
 .tabs{flex:none}
 .tabs button{height:24px;font-size:9.5px;letter-spacing:.01em}
-#saveMoment{flex:1;height:22px;padding:0 9px;border:0;border-radius:5px;background:var(--chassis-hi);
-  box-shadow:0 1px 0 #a5a29a;cursor:pointer;font-size:10px}
 .saves-row{display:flex;align-items:center;gap:6px;min-width:0}
 #savesName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft)}
 #savesName.set{color:var(--ink)}
@@ -277,6 +278,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
     <section class="group">
       <div class="row wide"><span>VIEW [B]</span><div class="seg" id="segMode"></div></div>
       <div class="row wide"><span>MUTATION</span><div class="seg" id="segStrength"></div></div>
+      <div class="row wide"><span>PASS ON</span><div class="seg" id="segInherit"></div></div>
       <div class="row wide"><span>FILTER</span><div class="seg" id="segFilter"></div></div>
       <div class="row wide"><span>QUALITY</span><div class="seg" id="segQuality"></div></div>
       <div class="row wide"><span>SPEED [ ]</span><div class="seg" id="segSpeed"></div></div>
@@ -298,10 +300,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <div id="simSliders"></div>
     </section>
     <section class="group" id="tabLife" hidden><h2>LIFE</h2>
-      <div class="row wide"><span>INHERIT</span><div class="seg" id="segInherit"></div></div>
       <div class="row wide"><span>BIOLOGY</span><div class="seg" id="segLife"></div></div>
       <div id="lifeSliders"></div>
-      <div class="row wide" data-help="moment"><span>KEEP</span><div class="saves-row"><button type="button" id="saveMoment">SAVE THIS MOMENT</button></div></div>
       <p class="taste-note" id="lifeNote"></p>
     </section>
     <section class="group" id="tabField" hidden><h2 id="fieldTitle">REACTION FIELD</h2>
@@ -458,7 +458,8 @@ const HYBRIDS = {
 const DEFAULT_FIELD = { on:false, feed:.0545, kill:.062, seeding:.5 };
 // Early-life layers. Each is off by default, so existing organisms grow exactly as they always have.
 const LIFE_MODES = { off:'OFF', veins:'VEINS', cells:'CELLS' };
-const INHERIT_MODES = { body:'BODY', recipe:'RECIPE' };
+// What a child receives. The body is the grown structure itself: every agent, trail, vein and chemical.
+const INHERIT_MODES = { body:'BODY + RULES', recipe:'RULES ONLY' };
 const DEFAULT_LIFE = { mode:'off', veins:.6, hunger:.4, drift:.35 };
 const lifeOf = g => g.life || (g.life = { ...DEFAULT_LIFE });
 const LIFE_PARAMS = [
@@ -1599,7 +1600,7 @@ function restartSim(sim, g) {
     device.queue.submit([enc.finish()]);
     if (lifeOf(g).mode === 'cells') seedGenes(sim, g);
   }
-  sim.cur = 0; sim.step = 0;
+  sim.cur = 0; sim.step = 0; sim.fromBody = !!body;
   sim.analysis = null; sim.judged = null; sim.fromTile = false; sim.run = (sim.run || 0) + 1;
 }
 function restart() { cancelRegrow(); restartSim(R, st); acc = 0; }
@@ -1609,7 +1610,7 @@ function restart() { cancelRegrow(); restartSim(R, st); acc = 0; }
 async function continueFrom(src, g) {
   const dst = R, step = src.step, judged = src.judged, fromTile = src.q === TILE || src.fromTile;
   placeState(stateOf(src), dst, g, { seed: (g.seed ^ step ^ 0x5BD1E995) >>> 0 });
-  dst.cur = 0; dst.step = step; dst.analysis = null; dst.judged = judged; dst.fromTile = fromTile; dst.run = (dst.run || 0) + 1;
+  dst.cur = 0; dst.step = step; dst.analysis = null; dst.judged = judged; dst.fromTile = fromTile; dst.fromBody = src.fromBody; dst.run = (dst.run || 0) + 1;
   dst.spawnNext = src.spawnNext; dst.spawnCursor = [...src.spawnCursor];
   dst.grownWalls = src.grownWalls;
   syncWalls(dst, g);
@@ -1800,7 +1801,7 @@ function lcdLines() {
       rate,
       BATCH_SIZE + 'X' + Math.round(TILE.agents / 1000) + 'K ' + TILE.w + 'X' + TILE.h + ' ' + gpuName.slice(0, 6),
       capture?.live ? captureLabel() : batch.screening ? 'SCREENING ' + batch.screening.done + ' OF ' + batch.screening.total
-        : flashing ? flashText : 'PICKED ' + batch.picks.length + ' OF ' + BATCH_SIZE + ' ' + STRENGTHS[st.strength][0],
+        : flashing ? flashText : 'PICKED ' + batch.picks.length + '/' + BATCH_SIZE + ' PASS ' + (st.inherit === 'body' ? 'BODY' : 'RULES'),
     ];
   }
   const q = R ? R.q : QUALITY[st.quality];
@@ -2471,7 +2472,9 @@ async function breed() {
   if (picked.length) { batch.parents = parents; batch.gen++; }
   setBatchGenomes(next);
   syncUi();
-  flash((picked.length ? 'BRED GEN ' + batch.gen : 'NEW VARIANTS') + (steered ? ' +TASTE' : ''));
+  // Says what the children actually received, including when there was no grown body to give.
+  const got = st.inherit !== 'body' ? 'RULES ONLY' : batch.tiles.some(t => t.sim.fromBody) ? 'BODY + RULES' : 'NO BODY TO PASS';
+  flash(picked.length ? 'GEN ' + batch.gen + ' ' + got : 'NEW VARIANTS' + (steered ? ' +TASTE' : ''));
 }
 function undoBatch() {
   if (batch.screening) { cancelScreening(); flash('CANCELLED'); return; }
@@ -2556,12 +2559,12 @@ function driftOf(genomes, picks) {
   }
   return drift;
 }
-function genomeKey(g) {
-  const text = JSON.stringify([g.seed, g.init, g.count, g.species.slice(0, g.count), g.field]);
+function hashText(text) {
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
-  return hex8(g.seed) + hex8(h);
+  return hex8(h);
 }
+function genomeKey(g) { return hex8(g.seed) + hashText(JSON.stringify([g.seed, g.init, g.count, g.species.slice(0, g.count), g.field])); }
 
 // Passes matter as much as picks: comparing the two is what separates taste from whatever happened to be on screen.
 function recordGeneration(tiles, picks, lineage) {
@@ -2766,27 +2769,29 @@ const HELP = {
     ['LINE 1', 'Running or on HOLD, the generation in BATCH, and steps so far.'],
     ['LINE 2', 'Frames per second, simulation steps per second, and speed.'],
     ['LINE 3', 'Agent count and trail resolution, plus the LIFE score in SOLO.'],
-    ['LINE 4', 'Seed and species count, or your picks in BATCH. Confirmations flash here too.'],
+    ['LINE 4', 'Seed and species count. In BATCH, your picks and what children will receive (PASS BODY or PASS RULES). Confirmations flash here too.'],
   ] },
 
-  'pad.mutate': { t: 'MUTATE / BREED', d: 'In SOLO, changes the rules while the grown structure carries on. In BATCH, each child starts inside the body of a tile you picked.', tip: 'Nothing picked? BREED offers fresh variations of the last parents. To regrow from settings alone, set INHERIT to RECIPE on the LIFE page.' },
+  'pad.mutate': { t: 'MUTATE / BREED', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'Nothing picked? BREED offers fresh variations of the last parents.' },
   'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'Colors stay as they are. UNDO brings back what you had.' },
   'pad.reroll': { t: 'REROLL', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'If a look survives a reroll, it comes from the settings and not a lucky start.' },
   'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.' },
-  'pad.save': { t: 'SAVE', d: 'Stores this organism in your saves folder. In BATCH, saves every tile you picked.', tip: 'Organisms with an inherited body automatically save their living state too. Shift + S saves the exact moment for any organism.' },
+  'pad.save': { t: 'SAVE', d: 'Always stores the body and the rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked.', tip: 'Saving the same organism again updates its library entry instead of adding a copy. It is named automatically, and you can rename it in the library.' },
   'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation.' },
   'pad.undo': { t: 'UNDO', d: 'In SOLO, reverses the last settings change. In BATCH, returns to the previous generation.' },
   'pad.load': { t: 'LIBRARY', d: 'Browse all your saved organisms as pictures. Open one, name it, or breed from it.' },
   'lib.search': { t: 'SEARCH', d: 'Filters by name, tags, color, species count, or the word hybrid.' },
   'lib.sort': { t: 'SORT', d: 'Newest first, highest LIFE score first, or alphabetical by name.' },
   'lib.view': { t: 'GRID OR TREE', d: 'GRID shows every save as a card. TREE shows your family history, with parents on the left and children on the right.' },
-  'tree.node': { t: 'FAMILY MEMBER', d: 'Point at it to light up its ancestors and descendants. Click to select it, or double-click to open it.', tip: 'A +3 on a line means 3 bred generations in between were never saved.' },
+  'tree.node': { t: 'FAMILY MEMBER', d: 'Point at it to light up its ancestors and descendants. Click to select it, or double-click to open it.', tip: 'A label like +3 GEN on a line is not a copy. It means 3 generations were bred in between without being saved.' },
   'lib.file': { t: 'OPEN FILE', d: 'Opens a save from anywhere on your computer.' },
-  'lib.thumb': { t: 'OPEN', d: 'Click the picture to open this organism. It fast-forwards to the moment you saved it.', tip: 'Very long runs regrow their first 3,000 steps, so they can differ from the picture.' },
-  'lib.name': { t: 'NAME', d: 'Give it a name, like "coral lace". It saves automatically.' },
+  'lib.thumb': { t: 'OPEN', d: 'Click the picture to open this organism at the moment you saved it.' },
+  'lib.keep.body': { t: 'BODY + RULES', d: 'This save holds the grown body itself, so it opens exactly as saved. When you breed from it, children can start inside this body.' },
+  'lib.keep.rules': { t: 'RULES ONLY', d: 'An older save with settings only. It regrows from nothing when opened, so it can differ from the picture.', tip: 'Open it and SAVE again to store its body too.' },
+  'lib.name': { t: 'NAME', d: 'Named automatically from its colors and shape. Type to rename it. It saves automatically.' },
   'lib.tags': { t: 'TAGS', d: 'Words to find it by later, separated by commas.' },
   'lib.open': { t: 'OPEN', d: 'Loads this organism in SOLO view at the moment you saved it.' },
-  'lib.breed': { t: 'BREED', d: 'Starts a new 9-tile grid of variations from this organism. The save itself never changes.' },
+  'lib.breed': { t: 'BREED', d: 'Starts a new 9-tile grid of children from this organism. They get what PASS ON says: the body and rules, or the rules only.', tip: 'The save itself never changes.' },
   'lib.remove': { t: 'REMOVE', d: 'Moves this save into a "removed" subfolder, so you can always bring it back.', tip: 'Click twice to confirm.' },
   'pad.full': { t: 'FULLSCREEN', d: 'Hides the controls so only the simulation shows. Press F or Esc to come back.' },
 
@@ -2815,10 +2820,12 @@ const HELP = {
   'pad.record': { t: 'RECORD', d: 'Records to a 1080p MP4 until you press it again, up to 10 minutes. You can move sliders while it runs.', tip: 'PAUSE also pauses the recording.' },
 
   'tab.organism': { t: 'ORGANISM PAGE', d: 'How the agents sense, move and relate to each other.' },
-  'tab.life': { t: 'LIFE PAGE', d: 'How structure passes between generations, and whether agents behave like simple living cells.' },
-  inherit: { t: 'INHERIT', d: 'What a child receives from its parent when you BREED or MUTATE.' },
-  'inherit.body': { t: 'INHERIT BODY', d: "The child starts inside its parent's actual grown structure with changed rules, so the structure must adapt or dissolve." },
-  'inherit.recipe': { t: 'INHERIT RECIPE', d: 'The child receives settings only and grows again from nothing, the way breeding worked originally.' },
+  'tab.life': { t: 'LIFE PAGE', d: 'Whether paths thicken into veins, and whether agents behave like simple living cells.' },
+  inherit: { t: 'PASS ON', d: 'What children receive when you BREED or MUTATE. The rules are the settings. The body is the grown structure itself: every agent, trail and vein.' },
+  'inherit.body': { t: 'BODY + RULES', d: "Each child starts inside its parent's grown body, with changed rules. The structure carries on and has to adapt or dissolve.", tip: 'With several picks, each child lives in one parent\'s body and mixes rules from another.' },
+  'inherit.recipe': { t: 'RULES ONLY', d: 'Each child gets changed rules and grows again from nothing, so the shape is rebuilt from scratch.' },
+  'got.body': { t: 'GOT BODY + RULES', d: "This child started inside its parent's grown body, then its rules were changed." },
+  'got.rules': { t: 'GOT RULES ONLY', d: 'This child received settings only and grew from nothing.', tip: 'With PASS ON set to BODY + RULES, this happens only when the parent had no grown body to give, such as an unpainted BLANK sandbox.' },
   biology: { t: 'BIOLOGY', d: 'Adds early-life mechanisms on top of the slime mold. You can change this while an organism runs.' },
   'biology.off': { t: 'NO BIOLOGY', d: 'Classic slime mold: agents follow trails and never eat, divide or die.' },
   'biology.veins': { t: 'VEINS', d: 'Heavily used paths thicken and last longer, while unused ones wither, like tubes in real slime mold.', tip: 'This helps an inherited structure survive changed rules.' },
@@ -2826,7 +2833,6 @@ const HELP = {
   veins: { t: 'VEIN MEMORY', d: 'How strongly thick veins hold their trail and attract traffic.', lo: 'Structure changes freely', hi: 'Established networks persist' },
   hunger: { t: 'METABOLISM', d: 'How quickly cells gain and lose energy.', lo: 'Slow, stable populations', hi: 'Fast boom, bust and turnover' },
   drift: { t: 'GENE DRIFT', d: 'How much a daughter cell’s rules can differ from its parent’s.', lo: 'Faithful copies', hi: 'Rapid variation and more failed offspring' },
-  moment: { t: 'SAVE THIS MOMENT', d: 'Stores the complete living state, so it reopens exactly as it is now instead of regrowing.', tip: 'Shift + S does the same. With CELLS on, expect about 7 MB at LOW or from a Batch tile, 27 MB at MED and 49 MB at HIGH.' },
   'tab.field': { t: 'FIELD PAGE', d: 'The optional chemical layer that grows beneath the agents.' },
   'tab.light': { t: 'LIGHT PAGE', d: 'Color and glow. These change the look only, never the behavior.' },
   'tab.draw': { t: 'DRAW PAGE', d: 'Paint barriers that shape the organism, or gather a species under your cursor. Works in SOLO. Press D to jump here.' },
@@ -2962,6 +2968,7 @@ function initHelp() {
   const rows = {
     segMode: 'view', segStrength: 'strength', segFilter: 'filter', segQuality: 'quality', segSpeed: 'speed', segInit: 'init',
     segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology', segSandbox: 'sandbox',
+    // Help keys match the internal values, so 'recipe' explains RULES ONLY.
     segPal0: 'palette', segPal1: 'palette', segPal2: 'palette', segPalField: 'fieldPalette',
   };
   for (const [id, key] of Object.entries(rows)) {
@@ -3135,7 +3142,7 @@ function timeStamp(d) {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 function buildSave(g, sim) {
-  const d = new Date();
+  const d = new Date(), spawns = g.spawns?.length ? g.spawns.map(e => [e.s, e.k, e.x, e.y, e.r, e.n].join(' ')) : null;
   return {
     format: 'digital-life-save', version: 7, id: `dl-${timeStamp(d)}-${hex8(g.seed).toLowerCase()}`,
     parents: lineageOf(g), generation: g.generation || 0, name: '', tags: [],
@@ -3144,7 +3151,8 @@ function buildSave(g, sim) {
     grownAt: sim.q === TILE || sim.fromTile ? 'tile' : 'full',
     count: g.count, species: cloneSpecies(g.species), field: { ...g.field }, life: { ...lifeOf(g) },
     ...(g.walls?.length ? { walls: g.walls.map(w => ({ r: w.r, ...(w.erase ? { erase: true } : {}), pts: w.pts.join(' ') })) } : {}),
-    ...(g.spawns?.length ? { spawns: g.spawns.map(e => [e.s, e.k, e.x, e.y, e.r, e.n].join(' ')) } : {}),
+    // The painting itself is inside the body file, so a short fingerprint is kept to tell paintings apart.
+    ...(spawns ? { spawns, paint: hashText(spawns.join('|')) } : {}),
     view: { ...st.view, palettes: [...st.view.palettes] }, metrics: metricsFor(sim),
   };
 }
@@ -3236,8 +3244,30 @@ function readSpawns(list) {
   spawns.sort((a, b) => a.s - b.s);
   return spawns.length ? spawns : null;
 }
-// A recipe can regrow from scratch. An organism carrying an inherited body also needs its living state saved.
-async function save({ moment = false } = {}) {
+async function writeJson(handle, data) {
+  const w = await handle.createWritable();
+  await w.write(JSON.stringify(data, null, 2));
+  await w.close();
+}
+async function readSaves(dir) {
+  const out = [];
+  for await (const [name, handle] of dir.entries()) {
+    if (handle.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
+    try { out.push({ name, handle, data: JSON.parse(await (await handle.getFile()).text()) }); } catch { /* not a save */ }
+  }
+  return out;
+}
+// Two saves are the same organism when everything that shapes it matches: seed, start, rules, biology, barriers and painting.
+// Colors are left out, because they never change what grows.
+function organismKey(d) {
+  const g = parseSave(d);
+  if (!g) return null;
+  const paint = typeof d.paint === 'string' ? d.paint : Array.isArray(d.spawns) && d.spawns.length ? hashText(d.spawns.join('|')) : '';
+  return JSON.stringify([g.seed, g.init, g.count, g.species.slice(0, g.count), g.field, g.life, d.walls || null, paint]);
+}
+// Every save keeps the body and the rules, so it reopens exactly as it looked.
+// Saving the same organism again updates its entry, keeping its name, tags and place in the family tree.
+async function save() {
   const targets = mode === 'batch'
     ? batch.picks.map(i => ({ genome: batch.tiles[i].genome, sim: batch.tiles[i].sim }))
     : [{ genome: st, sim: R }];
@@ -3246,20 +3276,39 @@ async function save({ moment = false } = {}) {
     const canPick = !!window.showDirectoryPicker;
     const dir = canPick ? await savesFolder() : null;
     if (canPick && !dir) { flash('SAVE CANCELLED'); return; }
+    const existing = dir ? await readSaves(dir) : [];
+    let updated = 0;
     for (const { genome, sim } of targets) {
-      const data = buildSave(genome, sim), file = data.id + '.json';
-      if (dir && (moment || liveBody(genome))) {
+      const data = buildSave(genome, sim), key = organismKey(data);
+      const same = existing.filter(x => organismKey(x.data) === key).sort((a, b) => saveTime(b.data) - saveTime(a.data))[0];
+      if (same) {
+        const old = same.data;
+        Object.assign(data, {
+          id: typeof old.id === 'string' ? old.id : data.id, parents: Array.isArray(old.parents) ? old.parents : data.parents,
+          generation: Number.isFinite(old.generation) ? old.generation : data.generation, name: old.name || '', tags: old.tags || [],
+          createdAt: old.createdAt || data.createdAt, updatedAt: new Date().toISOString(), ...(old.autoName ? { autoName: true } : {}),
+        });
+        updated++;
+      }
+      const file = same ? same.name : data.id + '.json';
+      if (dir) {
         data.body = await writeBody(dir, data.id, sim, genome);
         delete data.spawns; // Anything painted is already inside the saved body.
-      }
-      const json = JSON.stringify(data, null, 2);
-      if (dir) {
-        const w = await (await dir.getFileHandle(file, { create: true })).createWritable();
-        await w.write(json); await w.close();
-        try { await writeThumb(dir, data.id, sim, genome); } catch (e) { console.error(e); } // The library can regrow a missing picture.
+        let thumb = null;
+        try { thumb = await renderThumb(sim, genome); } catch (e) { console.error(e); } // The library can regrow a missing picture.
+        if (!data.name) {
+          const taken = new Set(existing.filter(x => x !== same).map(x => x.data.name).filter(Boolean));
+          data.name = uniqueName(autoName(data, thumb?.colors), taken);
+          data.autoName = true;
+        }
+        const handle = await dir.getFileHandle(file, { create: true });
+        await writeJson(handle, data);
+        if (thumb) await storeThumb(dir, data.id, thumb.blob).catch(e => console.error(e));
+        if (same) same.data = data; else existing.push({ name: file, handle, data });
       } else {
+        // Without folder access only the rules can be downloaded.
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
         a.download = file; a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       }
@@ -3267,7 +3316,8 @@ async function save({ moment = false } = {}) {
       family.get(familyId(genome)).saveId = data.id;
       markTasteSaved(genome, data.id);
     }
-    flash(targets.length > 1 ? 'SAVED ' + targets.length + ' VARIANTS' : moment ? 'MOMENT SAVED' : 'SAVED ' + hex8(targets[0].genome.seed));
+    const kept = dir ? 'BODY + RULES' : 'RULES ONLY';
+    flash(targets.length > 1 ? 'SAVED ' + targets.length + ' ' + kept : (updated ? 'UPDATED ' : 'SAVED ') + kept);
     syncTasteFile();
   } catch (e) {
     if (e.name === 'AbortError') flash('SAVE CANCELLED');
@@ -3335,7 +3385,7 @@ async function applySave(d, regrow = true) {
   if (!fromTile && QUALITY[d.quality] && d.quality !== st.quality) { st.quality = d.quality; buildResources(); }
   restart(); commit(); syncUi();
   // A moment save needs no regrowing, because the grown world itself was stored.
-  if (body) { flash('MOMENT LOADED'); return; }
+  if (body) { flash('OPENED BODY + RULES'); return; }
   if (!regrow) return;
   // Fast-forward to the saved moment, so what opens matches what was saved.
   const target = Math.min(Number.isFinite(d.step) ? d.step : 0, REGROW_LIMIT), job = growing = { label: 'REGROWING 0%' };
@@ -3348,31 +3398,97 @@ async function applySave(d, regrow = true) {
   } else await growSim(R, st, target, job);
   if (growing !== job) return;
   growing = null;
-  flash(d.body ? 'BODY MISSING, REGREW' : 'LOADED ' + hex8(st.seed));
+  flash(d.body ? 'BODY MISSING, REGREW' : 'OPENED RULES ONLY');
 }
 
 /* ---------- Library ---------- */
 const THUMB = { w: 480, h: 270 };
 const lib = { open: false, dir: null, thumbs: null, items: [], removed: [], sort: 'new', view: 'grid', tree: null, selected: null, query: '', run: 0, sim: null, growth: Promise.resolve() };
 
-async function writeThumb(dir, id, sim, genome, view) {
+async function renderThumb(sim, genome, view) {
   const pixels = await renderPixels([{ sim, genome, view, rect: null }], THUMB.w, THUMB.h);
   const canvas = new OffscreenCanvas(THUMB.w, THUMB.h);
   canvas.getContext('2d').putImageData(new ImageData(pixels, THUMB.w, THUMB.h), 0, 0);
-  const blob = await canvas.convertToBlob({ type: 'image/webp', quality: .86 });
+  return { blob: await canvas.convertToBlob({ type: 'image/webp', quality: .86 }), colors: colorWords(pixels, 3) };
+}
+async function storeThumb(dir, id, blob) {
   const thumbs = await dir.getDirectoryHandle('thumbs', { create: true });
   const w = await (await thumbs.getFileHandle(id + '.webp', { create: true })).createWritable();
   await w.write(blob);
   await w.close();
-  return blob;
 }
-const saveTime = d => new Date(d.createdAt || 0).getTime() || 0;
+
+/* Automatic names: the colors come from the picture and the shape from the measured structure. */
+const HUE_WORDS = [[0, 'Red'], [14, 'Coral'], [28, 'Orange'], [42, 'Amber'], [54, 'Gold'], [72, 'Lime'], [110, 'Green'], [150, 'Jade'], [172, 'Teal'],
+  [188, 'Cyan'], [205, 'Azure'], [225, 'Blue'], [248, 'Indigo'], [270, 'Violet'], [292, 'Orchid'], [315, 'Magenta'], [335, 'Rose'], [360, 'Red']];
+const hueWord = h => HUE_WORDS.reduce((a, b) => Math.abs(b[0] - h) < Math.abs(a[0] - h) ? b : a)[1];
+// The strongest one or two hues among the lit pixels, each weighted by how vivid and bright it is.
+function colorWords(rgba, stride = 1) {
+  const bins = new Float32Array(36);
+  let gray = 0;
+  for (let i = 0; i < rgba.length; i += 4 * stride) {
+    const r = rgba[i] / 255, g = rgba[i + 1] / 255, b = rgba[i + 2] / 255, max = Math.max(r, g, b), c = max - Math.min(r, g, b);
+    if (max < .15) continue;
+    if (c < .12 || c / max < .25) { gray += max * .3; continue; }
+    const h = ((max === r ? ((g - b) / c + 6) % 6 : max === g ? (b - r) / c + 2 : (r - g) / c + 4) * 60) % 360;
+    bins[Math.floor(h / 10)] += c * max;
+  }
+  const order = [...bins.keys()].sort((a, b) => bins[b] - bins[a]), top = order[0];
+  if (!bins[top] || bins[top] < gray) return [gray ? 'Silver' : 'Dark'];
+  const first = hueWord(top * 10 + 5), apart = i => { const d = Math.abs(i - top) * 10; return Math.min(d, 360 - d) >= 50; };
+  const next = order.find(i => apart(i) && bins[i] >= bins[top] * .35);
+  const second = next === undefined ? null : hueWord(next * 10 + 5);
+  return second && second !== first ? [first, second] : [first];
+}
+async function blobColors(blob) {
+  const bmp = await createImageBitmap(blob, { resizeWidth: 96, resizeHeight: 54 });
+  const ctx = new OffscreenCanvas(96, 54).getContext('2d');
+  ctx.drawImage(bmp, 0, 0);
+  bmp.close();
+  return colorWords(ctx.getImageData(0, 0, 96, 54).data);
+}
+// Thresholds follow the LIFE measurements: loops are enclosed holes, and largest is the share held by the biggest piece.
+function shapeWord(m, g) {
+  if (lifeOf(g).mode === 'cells') return 'Colony';
+  if (!m) return g.field.on ? 'Bloom' : 'Growth';
+  if (m.coverage < .05) return 'Threads';
+  if (m.components > 120 && m.largest < .5) return 'Spores';
+  if (m.loops >= 200) return 'Lace';
+  if (m.loops >= 100) return 'Honeycomb';
+  if (m.loops >= 40) return 'Web';
+  if (m.largest < .6) return 'Islands';
+  if (m.fractal >= 1.55) return 'Branches';
+  return m.thickness >= 1.6 ? 'Rivers' : 'Ribbons';
+}
+function textureWord(m, g) {
+  if (m?.coverage >= .28) return 'Dense';
+  if (m?.coverage < .11) return 'Sparse';
+  if (m?.alignment >= .84) return 'Flowing';
+  if (m?.thickness >= 1.7) return 'Bold';
+  if (m?.fractal >= 1.62) return 'Feathered';
+  return g.walls ? 'Walled' : '';
+}
+function autoName(d, colors) {
+  const g = parseSave(d), m = d.metrics || null, palette = savedView(d).palettes[0] || '';
+  const hue = colors?.length ? colors.join('-') : palette.charAt(0) + palette.slice(1).toLowerCase();
+  return [textureWord(m, g), hue, shapeWord(m, g)].filter(Boolean).join(' ');
+}
+const NUMERALS = ['', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X'];
+function uniqueName(base, taken) {
+  for (let i = 0; ; i++) {
+    const name = base + (NUMERALS[i] ?? ' ' + (i + 1));
+    if (!taken.has(name)) return name;
+  }
+}
+
+const saveTime = d => new Date(d.updatedAt || d.createdAt || 0).getTime() || 0;
 const saveScore = d => Number.isFinite(d.metrics?.score) ? d.metrics.score : -1;
 function saveDescription({ data: d, genome: g }) {
-  const when = saveTime(d) ? new Date(d.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Undated';
-  return [when, g.count === 1 ? '1 species' : g.count + ' species', ...(g.field.on ? ['hybrid'] : []), ...(g.walls ? ['barriers'] : []), ...(g.life?.mode !== 'off' ? [g.life.mode] : []), ...(d.body ? ['moment'] : []), ...(g.generation ? ['gen ' + g.generation] : [])].join(' · ');
+  const when = saveTime(d) ? new Date(saveTime(d)).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Undated';
+  return [when, g.count === 1 ? '1 species' : g.count + ' species', ...(g.field.on ? ['hybrid'] : []), ...(g.walls ? ['barriers'] : []), ...(g.life?.mode !== 'off' ? [g.life.mode] : []), ...(g.generation ? ['gen ' + g.generation] : [])].join(' · ');
 }
 function setThumb(item, blob) {
+  item.blob = blob;
   if (item.url) URL.revokeObjectURL(item.url);
   item.url = URL.createObjectURL(blob);
   if (item.treeImg) { item.treeImg.src = item.url; item.treeImg.hidden = false; }
@@ -3386,11 +3502,61 @@ async function saveMeta(item) {
   const name = item.nameInput.value.trim().slice(0, 60);
   const tags = item.tagsInput.value.split(',').map(t => t.trim()).filter(Boolean).slice(0, 12);
   if (name === (item.data.name || '') && tags.join() === (item.data.tags || []).join()) return;
+  if (name !== (item.data.name || '')) delete item.data.autoName; // Your own name always wins over an automatic one.
   item.data.name = name;
   item.data.tags = tags;
-  const w = await item.handle.createWritable();
-  await w.write(JSON.stringify(item.data, null, 2));
-  await w.close();
+  await writeJson(item.handle, item.data);
+}
+// Unnamed saves get a name from their picture, so every card in the library can be told apart.
+async function nameIfUnnamed(item, blob) {
+  if (item.data.name || itemName(item)) return;
+  const taken = new Set([...lib.items, ...lib.removed].map(itemName).filter(Boolean));
+  let colors = null;
+  try { if (blob) colors = await blobColors(blob); } catch (e) { console.error(e); }
+  if (item.data.name || itemName(item)) return;
+  item.data.name = uniqueName(autoName(item.data, colors), taken);
+  item.data.autoName = true;
+  if (item.nameInput) item.nameInput.value = item.data.name;
+  await writeJson(item.handle, item.data);
+}
+// Older versions added a new entry each time the same organism was saved. Each set of copies folds into its newest
+// member, which keeps any name and tags, and family links are redirected to it. The copies move to the removed folder.
+async function mergeDuplicates(items) {
+  const idOf = x => x.genome.saveId || x.key, groups = new Map();
+  for (const item of items) {
+    const key = organismKey(item.data);
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  const into = new Map(), changed = new Set();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => saveTime(b.data) - saveTime(a.data));
+    const keep = group[0], d = keep.data, ids = new Set(group.map(idOf));
+    const named = group.find(x => x.data.name && !x.data.autoName) || group.find(x => x.data.name);
+    if (named && (!d.name || (d.autoName && !named.data.autoName))) {
+      d.name = named.data.name;
+      if (named.data.autoName) d.autoName = true; else delete d.autoName;
+    }
+    d.tags = [...new Set(group.flatMap(x => x.data.tags || []))].slice(0, 12);
+    d.parents = [...new Set(group.flatMap(x => x.data.parents || []))].filter(p => !ids.has(p));
+    changed.add(keep);
+    for (const x of group.slice(1)) into.set(idOf(x), idOf(keep));
+  }
+  if (!into.size) return [];
+  for (const item of items) {
+    if (into.has(idOf(item)) || !(item.data.parents || []).some(p => into.has(p))) continue;
+    item.data.parents = [...new Set(item.data.parents.map(p => into.get(p) || p))].filter(p => p !== idOf(item));
+    changed.add(item);
+  }
+  for (const item of changed) {
+    await writeJson(item.handle, item.data);
+    item.genome = parseSave(item.data);
+  }
+  const copies = items.filter(x => into.has(idOf(x)));
+  for (const item of copies) await moveToRemoved(item);
+  return copies;
 }
 async function useSave(item, breedIt) {
   await saveMeta(item).catch(e => console.error(e));
@@ -3402,6 +3568,13 @@ async function useSave(item, breedIt) {
 }
 // Removed saves move to a subfolder instead of being deleted, so they can always be brought back.
 async function removeSave(item) {
+  await moveToRemoved(item);
+  lib.items = lib.items.filter(x => x !== item);
+  lib.removed.push(item);
+  lib.tree = null;
+  renderLibrary();
+}
+async function moveToRemoved(item) {
   const bin = await lib.dir.getDirectoryHandle('removed', { create: true });
   if (item.data.body) {
     const name = item.data.id + '.dlbody';
@@ -3414,14 +3587,11 @@ async function removeSave(item) {
       await store.removeEntry(name);
     } catch (e) { if (e.name !== 'NotFoundError') throw e; }
   }
-  const w = await (await bin.getFileHandle(item.name, { create: true })).createWritable();
+  const kept = await bin.getFileHandle(item.name, { create: true }), w = await kept.createWritable();
   await w.write(await item.handle.getFile());
   await w.close();
   await lib.dir.removeEntry(item.name);
-  lib.items = lib.items.filter(x => x !== item);
-  lib.removed.push(item);
-  lib.tree = null;
-  renderLibrary();
+  item.handle = kept;
 }
 function buildCard(item) {
   const card = el('article', 'lib-card'), thumb = el('button', 'lib-thumb'), img = el('img'), wait = el('span', 'lib-wait', 'GROWING PREVIEW');
@@ -3434,6 +3604,10 @@ function buildCard(item) {
   thumb.append(img, wait);
   // Always a number here: you saved this one because you liked it, whatever the filter would have called it.
   if (Number.isFinite(item.data.metrics?.score)) thumb.append(el('span', 'chip', 'LIFE ' + item.data.metrics.score));
+  // What this save holds, which is also what it can pass on to children.
+  const keep = el('span', 'chip keep' + (item.data.body ? ' body' : ''), item.data.body ? 'BODY + RULES' : 'RULES ONLY');
+  keep.dataset.help = item.data.body ? 'lib.keep.body' : 'lib.keep.rules';
+  thumb.append(keep);
   thumb.addEventListener('click', () => useSave(item, false));
 
   const info = el('div', 'lib-info');
@@ -3446,7 +3620,7 @@ function buildCard(item) {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
     return input;
   };
-  item.nameInput = field('lib-name', item.data.name || '', 'Name this organism', 'Name', 'lib.name', 60);
+  item.nameInput = field('lib-name', item.data.name || '', 'Naming...', 'Name', 'lib.name', 60);
   item.tagsInput = field('lib-tags', (item.data.tags || []).join(', '), 'Tags, separated by commas', 'Tags', 'lib.tags', 160);
 
   const actions = el('div', 'lib-actions');
@@ -3613,7 +3787,10 @@ function renderTree() {
         text.setAttribute('x', x2 - 8);
         text.setAttribute('y', y2 - 6);
         text.setAttribute('text-anchor', 'end');
-        text.textContent = '+' + skipped;
+        text.textContent = '+' + skipped + ' GEN';
+        const tip = document.createElementNS(svg, 'title');
+        tip.textContent = skipped + (skipped === 1 ? ' generation was' : ' generations were') + ' bred in between without being saved';
+        text.append(tip);
         lines.push(text);
       }
     }
@@ -3684,7 +3861,7 @@ function renderLibrary() {
   }[lib.sort];
   const shown = lib.items.filter(matches).sort(order);
   $('libGrid').replaceChildren(...shown.map(x => x.card));
-  $('libCount').textContent = shown.length === lib.items.length ? `${lib.items.length} saved` : `${shown.length} of ${lib.items.length}`;
+  $('libCount').textContent = (shown.length === lib.items.length ? `${lib.items.length} saved` : `${shown.length} of ${lib.items.length}`) + (lib.note || '');
   $('libEmpty').hidden = lib.view === 'tree' ? lib.items.length > 0 : shown.length > 0;
   $('libEmpty').textContent = lib.items.length ? 'Nothing matches that search.' : 'No saves yet. Press SAVE on an organism you love and it will appear here.';
   markSeg($('libSort'), lib.sort);
@@ -3693,6 +3870,15 @@ function renderLibrary() {
     if (!lib.tree) renderTree();
     applyTreeSearch();
   }
+}
+async function nameSaves(run) {
+  let named = false;
+  for (const item of lib.items) {
+    if (run !== lib.run) return;
+    if (!item.blob || item.data.name) continue;
+    try { await nameIfUnnamed(item, item.blob); named = true; } catch (e) { console.error(e); }
+  }
+  if (named && run === lib.run) renderLibrary();
 }
 // Older saves have no picture yet, so each one is regrown out of sight once and its preview is kept.
 async function growMissingThumbs(run) {
@@ -3713,9 +3899,12 @@ async function growMissingThumbs(run) {
         await device.queue.onSubmittedWorkDone();
       }
       if (run !== lib.run) return;
-      const blob = await writeThumb(lib.dir, item.key, sim, g, view);
+      const { blob } = await renderThumb(sim, g, view);
+      await storeThumb(lib.dir, item.key, blob);
       if (body) dropBody(body);
-      if (run === lib.run) setThumb(item, blob);
+      if (run !== lib.run) return;
+      setThumb(item, blob);
+      await nameIfUnnamed(item, blob);
     }
   } catch (e) {
     console.error(e);
@@ -3749,12 +3938,17 @@ async function openLibrary() {
         } catch { /* a damaged file just won't appear */ }
       }
     }
-    Object.assign(lib, { dir, thumbs, items, removed, tree: null, selected: null, query: '', open: true });
+    lib.dir = dir;
+    const copies = await mergeDuplicates(items);
+    const kept = items.filter(x => !copies.includes(x));
+    removed.push(...copies);
+    lib.note = copies.length ? ` · ${copies.length} duplicate${copies.length === 1 ? '' : 's'} moved to removed` : '';
+    Object.assign(lib, { dir, thumbs, items: kept, removed, tree: null, selected: null, query: '', open: true });
     const run = ++lib.run;
     $('libSearch').value = '';
     $('treeBar').hidden = true;
-    items.forEach(buildCard);
-    for (const item of [...items, ...removed]) {
+    kept.forEach(buildCard);
+    for (const item of [...kept, ...removed]) {
       try { setThumb(item, await (await thumbs.getFileHandle(item.key + '.webp')).getFile()); }
       catch (e) { if (e.name !== 'NotFoundError') console.error(e); }
     }
@@ -3762,7 +3956,7 @@ async function openLibrary() {
     $('library').append($('helpCard'));
     $('library').showModal();
     renderLibrary();
-    lib.growth = lib.growth.then(() => growMissingThumbs(run));
+    lib.growth = lib.growth.then(() => nameSaves(run)).then(() => growMissingThumbs(run));
   } catch (e) {
     lib.open = false;
     if (e.name === 'NotFoundError') { await forgetFolder(); flash('FOLDER MISSING'); }
@@ -4461,7 +4655,7 @@ const actions = {
     st.generation = (st.generation || 0) + 1;
     st.body = body;
     mutateGenome(st, STRENGTHS[st.strength][1]);
-    restart(); commit(); syncUi(); flash(body ? 'MUTATED BODY' : 'MUTATED');
+    restart(); commit(); syncUi(); flash(body ? 'MUTATED, BODY KEPT' : 'MUTATED, REGROWING');
   },
   random() {
     if (capture || imageBusy) return;
@@ -4579,6 +4773,14 @@ function syncTiles() {
     const tag = t.genome?.tag || '';
     t.tag.textContent = tag; t.tag.hidden = !tag;
     t.tag.dataset.help = tag === 'KEPT' ? 'kept' : 'wild';
+    // Every bred child says what it received from its parent.
+    const bred = (t.genome?.generation || 0) > 0 && t.sim;
+    t.got.hidden = !bred;
+    if (bred) {
+      t.got.textContent = t.sim.fromBody ? 'BODY + RULES' : 'RULES ONLY';
+      t.got.classList.toggle('body', t.sim.fromBody);
+      t.got.dataset.help = t.sim.fromBody ? 'got.body' : 'got.rules';
+    }
     const judged = t.sim?.judged;
     t.life.hidden = !judged;
     if (judged) {
@@ -4614,11 +4816,10 @@ function syncUi() {
   const life = lifeOf(g);
   markSeg($('segInherit'), st.inherit);
   markSeg($('segLife'), life.mode);
-  $('lifeNote').textContent = inBatch ? 'Open a tile to change its biology. INHERIT applies to every breed.'
+  $('lifeNote').textContent = inBatch ? 'Open a tile to change its biology.'
     : life.mode === 'cells' ? 'Cells feed, divide, die and pass on their own mutated rules.'
     : life.mode === 'veins' ? 'Busy paths thicken and last. Unused paths wither.'
-    : st.inherit === 'body' ? "Children start inside their parent's grown structure."
-    : 'Children regrow from settings alone.';
+    : 'Classic slime mold. VEINS and CELLS add early-life behavior.';
   syncBrush();
   $('mutateLabel').textContent = inBatch ? 'BREED' : 'MUTATE';
   $('mutateKey').textContent = inBatch ? 'ENTER' : 'M';
@@ -4688,7 +4889,7 @@ function buildTiles() {
   for (let i = 0; i < BATCH_SIZE; i++) {
     const el = document.createElement('div');
     el.className = 'tile';
-    el.innerHTML = `<button type="button" class="tile-pick" aria-pressed="false" aria-label="Pick variant ${i + 1}"><span class="chip num">${i + 1}</span><span class="chip tag" hidden></span><span class="chip life" data-help="life" hidden></span></button><button type="button" class="tile-open" aria-label="Open variant ${i + 1}" title="Open (Shift+${i + 1})">OPEN</button>`;
+    el.innerHTML = `<button type="button" class="tile-pick" aria-pressed="false" aria-label="Pick variant ${i + 1}"><span class="chip num">${i + 1}</span><span class="chip tag" hidden></span><span class="chip life" data-help="life" hidden></span><span class="chip got" hidden></span></button><button type="button" class="tile-open" aria-label="Open variant ${i + 1}" title="Open (Shift+${i + 1})">OPEN</button>`;
     const pick = el.querySelector('.tile-pick'), open = el.querySelector('.tile-open');
     pick.dataset.help = 'tile';
     open.dataset.help = 'open';
@@ -4701,7 +4902,7 @@ function buildTiles() {
     pick.addEventListener('focus', () => hover(i));
     pick.addEventListener('blur', () => hover(-1));
     host.append(el);
-    batch.tiles.push({ el, pick, tag: el.querySelector('.tag'), life: el.querySelector('.life'), sim: null, genome: null });
+    batch.tiles.push({ el, pick, tag: el.querySelector('.tag'), life: el.querySelector('.life'), got: el.querySelector('.got'), sim: null, genome: null });
   }
 }
 
@@ -4714,9 +4915,8 @@ function initUi() {
     { ...followField, label: name + ' FOLLOWS', only: g => g.field.on && i < g.count }, () => shownGenome().species[i], null, commit));
   VIEW_PARAMS.forEach(p => makeSlider($('viewSliders'), p, () => st.view));
   LIFE_PARAMS.forEach(p => makeSlider($('lifeSliders'), p, () => lifeOf(shownGenome()), null, commit));
-  segmented($('segInherit'), Object.entries(INHERIT_MODES), v => { st.inherit = v; syncUi(); flash('INHERIT ' + INHERIT_MODES[v]); });
+  segmented($('segInherit'), Object.entries(INHERIT_MODES), v => { st.inherit = v; syncUi(); drawLcd(); flash('PASS ON ' + INHERIT_MODES[v]); });
   segmented($('segLife'), Object.entries(LIFE_MODES), setLifeMode);
-  $('saveMoment').addEventListener('click', e => { save({ moment: true }); if (e.detail) e.currentTarget.blur(); });
   segmented($('segTab'), Object.entries(TABS).map(([k, [label]]) => [k, label]), v => { activeTab = v; syncUi(); });
   segmented($('segHybrid'), Object.entries(HYBRIDS).map(([k, h]) => [k, h.label]), applyHybrid);
   initBrush();
@@ -4822,7 +5022,6 @@ function initUi() {
       }
       if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); breed(); return; }
     }
-    if (e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); save({ moment: true }); return; }
     const act = { m: 'mutate', n: 'random', d: 'draw', r: 'reroll', p: 'replay', s: 'save', u: 'undo', l: 'load', f: 'full', b: 'view', h: 'help', i: 'image', c: 'clip', v: 'record' }[e.key.toLowerCase()];
     if (act) { e.preventDefault(); actions[act](); }
   });
@@ -4846,7 +5045,7 @@ window.DL = {
   exportImage, captureVideo, encodePng, renderPixels, exportItems, VIDEO, applySave, LIGHT_CURVES, lib, openLibrary, closeLibrary, save,
   layoutFamily, familyLine, lineageOf, setLibView, selectTreeNode, TREE,
   RANDOM, randomFounder, rollFounders, restartSim, actions, brush, wallMask, buildSave, parseSave, commitDraft,
-  wallsOpened, setSandbox, captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, setInit, lifeOf, bodies, liveBody, wallArt,
+  wallsOpened, setSandbox, captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, organismKey, mergeDuplicates, autoName, colorWords, readSaves, setInit, lifeOf, bodies, liveBody, wallArt,
   get R() { return R; },
   // Reads every agent's inherited genes back, eight numbers each, starting with energy.
   async genes(sim = R) {
