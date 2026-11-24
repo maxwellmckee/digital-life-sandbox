@@ -53,10 +53,11 @@ There is nothing to install and no build step. The project was built for a deskt
 
 ## How to use it
 
-### The two views
+### The three views
 
 - **SOLO** shows one organism large. Adjust its sliders live and draw on it.
 - **BATCH** shows nine variants. Click the ones you like, press **BREED**, and repeat. Double-click a tile to open it in Solo from where it currently is.
+- **ARENA** is a shared world. Living specimens cut from your organisms eat, divide, mutate and compete there. See [The Arena](#the-arena).
 
 Each Batch generation holds your kept picks, guided children, one plain child and one **WILD** child. With **FILTER** on, dead variants are replaced before you see them.
 
@@ -64,16 +65,16 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 
 | Control | Key | What it does |
 |---|---|---|
-| MUTATE / BREED | `M` / `Enter` | Changes the rules. **PASS ON** decides whether the grown body carries over |
-| RANDOM | `N` | Rolls unrelated new organisms. Batch keeps picked tiles |
-| REROLL | `R` | Same settings, fresh start, leaving any inherited body behind |
-| REPLAY | `P` | Same settings and same start. An inherited body returns to its moment of birth |
-| SAVE | `S` | Saves the body and rules of the organism, or of every picked tile |
+| MUTATE / BREED / ADD | `M` / `Enter` | Changes the rules. **PASS ON** decides whether the grown body carries over. In Arena, adds a specimen |
+| RANDOM | `N` | Rolls unrelated new organisms. Batch keeps picked tiles. Arena grows and places a wild specimen |
+| REROLL / EMPTY | `R` | Same settings, fresh start, leaving any inherited body behind. In Arena, press twice to empty it |
+| REPLAY | `P` | Same settings and same start. An inherited body returns to its moment of birth. Arena replays its founders |
+| SAVE | `S` | Saves the body and rules of the organism, or of every picked tile. Not used in Arena |
 | PAUSE | `Space` | Freezes or resumes |
-| UNDO | `U`, `Ctrl+Z` | Reverses the last change, brush stroke or generation |
+| UNDO | `U`, `Ctrl+Z` | Reverses the last change, brush stroke or generation. In Arena, removes the last founder |
 | LIBRARY | `L` | Browse saves as a grid or family tree |
 | FULL | `F` | Fullscreen |
-| View | `B` | Switches Solo and Batch |
+| View | `B`, `A` | `B` switches Solo and Batch. `A` opens or leaves the Arena |
 | Help | `H` | Hover over anything for an explanation |
 | Draw page | `D` | Opens the brushes |
 | Export | `I`, `C`, `V` | PNG image, seamless 6-second loop, 1080p recording |
@@ -123,6 +124,48 @@ Every organism has two parts. The **rules** are its settings. The **body** is th
 
 Breeding never changes a save file. Children are new organisms until you save them.
 
+### The Arena
+
+<p align="center"><img src="docs/screenshots/arena-cells.webp" alt="Arena with a large magenta membrane enclosing bright particles, a yellow ring with a magenta core, a ringed tail, and a blue vein network spreading across the top" width="80%"></p>
+
+The two pages are two levels of selection. In Solo and Batch you choose bodies for their structure. In the Arena, specimens of those bodies compete for food, and only the ones that can sustain themselves last.
+
+1. Press **A**, or click **ARENA** under VIEW.
+2. Press **ADD** (`M`) to cut a living disc from your Solo organism. Or open the **LIBRARY** and press **ADD** on a save. A save without a body is regrown out of sight first.
+3. A ring the size of the cut follows the pointer. Click to place it. Press ADD again to drop it in the most open spot, or Esc to cancel.
+4. **RANDOM** grows a wild organism and places a specimen of it automatically.
+
+**What carries over.** A specimen keeps its particles where they were, the trail and veins beneath them, and each particle's own rules. Living cells keep their inherited multipliers. It is cut at its own scale, so a body is never shrunk. **SPECIMEN** sets the disc size.
+
+**What each particle carries:**
+
+- **Movement rules** from its species, as in Solo.
+- **A target density**, imprinted from the density it actually lived at when cut. Vein particles want vein density, and rim particles want rim density. It drifts slowly toward its new surroundings, so a transplanted body can adjust instead of starving.
+- **A chemical identity:** how much of each of three shared chemicals it gives off, and how strongly it is drawn to or repelled by each. A founder's responses are solved so its own species still follow and flee each other exactly as in their home world. How it reacts to other founders follows from how alike their chemicals are, and that identity can evolve.
+- **Energy.** Particles digest food best near their target density and with kin around, so a loner can barely eat. They divide when full, pass slightly mutated genes to their daughters, and die when starved.
+
+**The world:**
+
+- **Food** regrows like sunlight, and dead particles return to it.
+- **Food flows through veins** about five times faster than across open ground, the way *Physarum* streams nutrients through its tubes. A body's vein network drains its territory and feeds its middle.
+- **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. Higher homeostasis makes bodies hold their imprinted density more strictly.
+- The chart stacks each founder's share of the world over time, in its chemical color. Similar colors can smell each other.
+- The arena always runs at MED: 1920x1080 and 500,000 particle places. A step costs about 1 ms on the RTX 4070. Up to 16 founders, each thinned to at most 60,000 particles.
+- **REPLAY** places the same founders again and reproduces the same history exactly.
+
+The design reasoning, the research behind it and what was measured are in [docs/RESEARCH.md](docs/RESEARCH.md#the-arena).
+
+### The LIFE score
+
+The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode shows its parts when you point at a tile or the display.
+
+- **Version 2** rewards **bodies**, meaning bounded structures that stand apart from their surroundings, and **variety** across the frame. Flow, webs, contrast, shape, balance and motion still count, but less.
+- An even texture filling the whole frame now scores about 55.
+- Trail hugging the border and straight horizontal and vertical lines are marked down. A frame locked into a grid gets the new **GRID** verdict and is filtered like other dead variants.
+- **NOISE** now also requires that no closed structure formed, so jagged crystal lattices are no longer called noise.
+- It was checked against saves tagged as scoring too high or too low. All five moved the right way: 99→55, 95→52, 92→19 (GRID), 75→87 and 19→81.
+- Older saves keep the score they were saved with.
+
 ## How it works
 
 **Simulation.** Each agent senses trail ahead, left and right, steers, moves and deposits. The trail map then blurs and fades. All of this runs in WebGPU compute shaders.
@@ -143,7 +186,8 @@ Breeding never changes a save file. Children are new organisms until you save th
 - **Veins:** stored in the trail texture's alpha channel as 1 minus vein strength, so a plain map means no veins.
 - **Living cells:** a four-stage compute step of claim, birth, live and clear, with a separate 32-byte gene record per agent. Atomic claims keep runs repeatable.
 - **Rendering:** per-species gradient lookup, bloom, ACES tone mapping and fine grain.
-- **Metrics:** a GPU probe produces the LIFE score and verdicts ALIVE, NOISE, BLOB, FLAT or EMPTY. New variants get four checkpoints because good organisms can start slowly.
+- **Metrics:** a GPU probe produces the LIFE score and verdicts ALIVE, NOISE, GRID, BLOB, FLAT or EMPTY. New variants get four checkpoints because good organisms can start slowly. Version 2 adds coarse-scale bodies, block variety, border share and edge direction.
+- **Arena:** its own claim, birth, live and clear stages over a 64-byte gene per particle. Steering adds a crowding penalty to slime sensing, which is Particle Lenia's energy. Food is a mass-balanced field that flows faster along veins, and three shared chemical channels carry each lineage's identity. Specimens are held in memory, so REPLAY is exact.
 - **Taste learning:** momentum from recent pick direction plus memory of favorites. One plain child and the WILD child are never steered.
 - **Family records:** an in-memory graph connects unsaved generations, so a save links to its nearest saved ancestors.
 - **Export:** a custom PNG writer, plus WebCodecs H.264 with a custom MP4 muxer.
@@ -185,22 +229,31 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 - A body file is compressed with very slightly rounded trail values. Agents, genes and chemical are exact.
 - Automatic names are simple word choices from color and measurements, so similar organisms can get similar names.
 - Undo and old generations may fall back to their recipe once the 1.5 GB body memory fills.
-- A child inherits one parent's body. Merging two bodies is not built yet.
-- Cells have no true self-made membrane yet, and evidence of in-world selection is still small.
+- A child inherits one parent's body. In the Arena, separate bodies share a world, but they never fuse into one organism.
+- Arena membranes are rings of particles held by density preferences. Their wall is not built from a material the cell makes itself.
+- In the Arena, whole bodies have not yet been seen dividing into two. Runs of 3,000 to 4,000 steps showed coexistence, spreading networks, persistent rings and lineages invading each other.
+- Arena founders and their history are lost when the page closes. Images and clips are the way to keep them.
+- A body shaped by a reaction-diffusion field loses that field in the Arena, so it reorganizes after placing.
 - There is no WebGL2 fallback.
 - A hidden browser tab or preview pane throttles animation, so frame-rate measurements there are not meaningful.
 
 ## Status and roadmap
 
-**Built:** WebGPU simulation, Solo and Batch, breeding, 3 species, ecologies, reaction-diffusion hybrids, 12 color gradients, metrics and dead-variant filter, Help mode, taste learning, PNG and MP4 export, visual Library, family tree, RANDOM, barrier brush, organism brush, BLANK start, inherited bodies, full-body saves with automatic names and no duplicates, veins, and living cells with energy, division, death and per-cell inherited rules.
+**Built:** WebGPU simulation, Solo and Batch, breeding, 3 species, ecologies, reaction-diffusion hybrids, 12 color gradients, metrics and dead-variant filter, Help mode, taste learning, PNG and MP4 export, visual Library, family tree, RANDOM, barrier brush, organism brush, BLANK start, inherited bodies, full-body saves with automatic names and no duplicates, veins, living cells with energy, division, death and per-cell inherited rules, the Arena, and LIFE score version 2.
 
 **Build Update 2 progress:**
 
 1. Done: children inherit the grown structure.
 2. Done: full-state saves. Every save now keeps the body.
-3. Done: per-agent inherited parameters, through CELLS.
-4. **Next:** merge two saved structures into one world.
-5. Partly done: energy and a food web from the FOLLOW matrix. Separate food sources are not built.
-6. Not started: endosymbiosis-inspired dependence.
+3. Done: per-agent inherited parameters, through CELLS and the Arena.
+4. Done in the Arena: several saved structures share one world. Fusing two into one organism is not built.
+5. Done in the Arena: a finite food source with recycled matter. Solo CELLS still feed on trail.
+6. Not started: endosymbiosis-inspired dependence. The Arena's shared chemistry is where it could grow.
+
+**Arena next steps:**
+
+1. Bring a survivor back to Solo as a saveable organism.
+2. Membrane material made by the particles themselves.
+3. Track bodies over time, so division and death of whole bodies can be counted and scored.
 
 **Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, mutating only part of a body, and small evolvable brains.

@@ -31,6 +31,15 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 #brushRing.erase{border-style:dashed}
 #brushRing.life{border-color:var(--active)}
 #brushRing[hidden]{display:none}
+#placeRing{position:absolute;border:1.5px dashed var(--active);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 1px #03060799,0 0 18px #2ff0c433}
+#placeRing[hidden]{display:none}
+#arenaChart{display:block;width:100%;height:72px;margin:6px 0 4px;border-radius:6px;background:#071113;box-shadow:inset 0 1px 2px #0006}
+#arenaFounders{display:flex;flex-direction:column;gap:3px}
+.founder{display:flex;align-items:center;gap:7px;font-size:10px}
+.founder i{flex:none;width:10px;height:10px;border-radius:3px}
+.founder b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}
+.founder span{color:var(--ink-soft)}
+.founder.gone{opacity:.45}
 #drawGrow.ready{background:var(--teal);color:#eafff8}
 .fault{position:absolute;inset:0;display:grid;place-items:center;padding:32px;text-align:center;
   color:var(--seafoam);font-size:13px;line-height:1.6;background:#030607}
@@ -199,6 +208,7 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .row[hidden]{display:none}
 .group[hidden]{display:none}
 .tabs{flex:none}
+.tabs[hidden]{display:none}
 .tabs button{height:24px;font-size:9.5px;letter-spacing:.01em}
 .saves-row{display:flex;align-items:center;gap:6px;min-width:0}
 #savesName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft)}
@@ -252,6 +262,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <canvas id="sim"></canvas>
       <canvas id="brushLayer" data-help="draw.canvas" hidden></canvas>
       <div id="brushRing" hidden></div>
+      <div id="placeRing" hidden></div>
       <div class="tiles" id="tiles" hidden></div>
       <div class="screen-note" id="screenNote" role="status" hidden></div>
     </div>
@@ -265,9 +276,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
     <div class="pads">
       <button class="pad teal" data-act="mutate"><span id="mutateLabel">MUTATE</span><kbd id="mutateKey">M</kbd></button>
       <button class="pad teal" data-act="random"><span>RANDOM</span><kbd>N</kbd></button>
-      <button class="pad" data-act="reroll"><span>REROLL</span><kbd>R</kbd></button>
+      <button class="pad" data-act="reroll"><span id="rerollLabel">REROLL</span><kbd>R</kbd></button>
       <button class="pad" data-act="replay"><span>REPLAY</span><kbd>P</kbd></button>
-      <button class="pad deep" data-act="save"><span>SAVE</span><kbd>S</kbd></button>
+      <button class="pad deep" data-act="save" id="savePad"><span>SAVE</span><kbd>S</kbd></button>
       <button class="pad" data-act="toggle" id="playPad" aria-pressed="true"><span id="playLabel">PAUSE</span><kbd>SPACE</kbd></button>
       <button class="pad" data-act="undo" id="undoPad" disabled><span>UNDO</span><kbd>U</kbd></button>
       <button class="pad" data-act="load"><span>LIBRARY</span><kbd>L</kbd></button>
@@ -275,13 +286,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
     </div>
 
     <section class="group">
-      <div class="row wide"><span>VIEW [B]</span><div class="seg" id="segMode"></div></div>
-      <div class="row wide"><span>MUTATION</span><div class="seg" id="segStrength"></div></div>
-      <div class="row wide"><span>PASS ON</span><div class="seg" id="segInherit"></div></div>
-      <div class="row wide"><span>FILTER</span><div class="seg" id="segFilter"></div></div>
-      <div class="row wide"><span>QUALITY</span><div class="seg" id="segQuality"></div></div>
+      <div class="row wide"><span>VIEW [B/A]</span><div class="seg" id="segMode"></div></div>
+      <div class="row wide" data-noarena><span>MUTATION</span><div class="seg" id="segStrength"></div></div>
+      <div class="row wide" data-noarena><span>PASS ON</span><div class="seg" id="segInherit"></div></div>
+      <div class="row wide" data-noarena><span>FILTER</span><div class="seg" id="segFilter"></div></div>
+      <div class="row wide" data-noarena><span>QUALITY</span><div class="seg" id="segQuality"></div></div>
       <div class="row wide"><span>SPEED [ ]</span><div class="seg" id="segSpeed"></div></div>
-      <div class="row wide"><span>START</span><div class="seg" id="segInit"></div></div>
+      <div class="row wide" data-noarena><span>START</span><div class="seg" id="segInit"></div></div>
       <div class="row wide"><span>FOLDER</span><div class="saves-row"><span id="savesName">NOT SET</span><button type="button" id="savesChange">SET FOLDER</button></div></div>
       <div class="row wide" id="exportRow"><span>EXPORT</span><div class="seg" id="segExport">
         <button type="button" data-act="image"><span>IMAGE</span> <kbd>I</kbd></button>
@@ -292,6 +303,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
 
     <div class="seg tabs" id="segTab" role="group" aria-label="Control page"></div>
 
+    <section class="group" id="tabArena" hidden><h2>ARENA</h2>
+      <div class="row wide"><span>SPECIMEN</span><div class="seg" id="segSpecimen"></div></div>
+      <div id="arenaSliders"></div>
+      <canvas id="arenaChart" data-help="arena.chart"></canvas>
+      <div id="arenaFounders" data-help="arena.founders"></div>
+      <p class="taste-note" id="arenaNote"></p>
+    </section>
     <section class="group" id="tabOrganism"><h2 id="organismTitle">ORGANISM</h2>
       <div class="row wide"><span>SPECIES</span><div class="seg" id="segCount"></div></div>
       <div class="row wide" id="editRow"><span>EDITING</span><div class="seg species" id="segEdit"></div></div>
@@ -395,7 +413,7 @@ const WALL_W = 1920, WALL_H = 1080, WALL_MAX_COVER = .92;
 // The organism brush moves a small share of a species to the cursor on each tick. The agent count never changes.
 const SPAWN = { rate: .004, everyMs: 33, max: 4000 };
 // Metrics read a small summary of each run from the GPU: a coarse map of the trails and a grid of agent counts.
-const METRIC_VERSION = 1;
+const METRIC_VERSION = 2;
 const PROBE_W = 240, PROBE_H = 135, PROBE_BYTES = PROBE_W * PROBE_H * 8;
 const AGENT_GRID_W = 64, AGENT_GRID_H = 36, GRID_BYTES = AGENT_GRID_W * AGENT_GRID_H * 12;
 // Slow growers exist, so a candidate gets four checkpoints to show structure before it is replaced.
@@ -406,7 +424,7 @@ const SPEEDS = [1, 2, 4, 8];
 const INITS = { scatter:'SCATTER', in:'RING IN', out:'RING OUT', empty:'BLANK' };
 // BLANK waits for the organism brush, so random rolls and mutations only choose starts that grow by themselves.
 const GROWN_INITS = ['scatter', 'in', 'out'];
-const MODES = { solo:'SOLO', batch:'BATCH' };
+const MODES = { solo:'SOLO', batch:'BATCH', arena:'ARENA' };
 const STRENGTHS = { subtle:['SUBTLE', .035], medium:['MEDIUM', .07], wild:['WILD', .15] };
 
 const fmtFollow = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
@@ -769,6 +787,357 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
 @compute @workgroup_size(256)
 fn clear(@builtin(global_invocation_id) id: vec3u) {
   if (id.x < sim.agents) { atomicStore(&claims[id.x], 0u); }
+}`;
+
+/* Arena: specimens cut from different bodies share one world as particles.
+   A slime agent is already close to a Particle Lenia particle: its three sensors sample a field on a ring, like Particle
+   Lenia's ring kernel, and its trail is that field. Here each particle also carries its own rules, as in Flow-Lenia, a
+   density set point imprinted from the body it was cut from, and a chemical identity: how much of each of three shared
+   chemicals it gives off, and how it responds to each. Food is finite, so matter cycles and bodies compete for it. */
+const WGSL_ARENA_BASE = /* wgsl */`
+struct Agent { pos: vec2f, angle: f32, rng: u32 }
+// emit.xyz: share of deposit given to each chemical. emit.w: pull toward food. resp.xyz: response to each chemical.
+struct Gene {
+  energy: f32, lineage: u32, angle: f32, dist: f32,
+  turn: f32, speed: f32, deposit: f32, setpoint: f32,
+  emit: vec4f,
+  resp: vec4f,
+}
+struct Arena {
+  size: vec2u, agents: u32, step: u32,
+  trailNorm: vec4f,
+  hunger: f32, drift: f32, crowd: f32, sigma: f32,
+  eat: f32, regrow: f32, wear: f32, veins: f32,
+  scale: f32, pad0: f32, pad1: f32, pad2: f32,
+}
+const FIELD_SIZE = vec2u(${FIELD_W}u, ${FIELD_H}u);
+const TAU = 6.283185307;
+
+fn rand(s: ptr<function, u32>) -> f32 {
+  let st = (*s) * 747796405u + 2891336453u;
+  *s = st;
+  let w = ((st >> ((st >> 28u) + 4u)) ^ st) * 277803737u;
+  return f32(((w >> 22u) ^ w) >> 8u) / 16777216.0;
+}
+fn fieldCell(p: vec2f) -> vec2u {
+  return min(vec2u(max(p, vec2f(0.0)) / vec2f(arena.size) * vec2f(FIELD_SIZE)), FIELD_SIZE - vec2u(1u));
+}
+// The chemicals a particle is drawn to, on the same log scale the living cells use. Its set point is measured in this.
+fn usable(texel: vec4f, g: Gene) -> f32 {
+  return log(1.0 + dot(texel.rgb * arena.trailNorm.xyz, max(g.resp.xyz, vec3f(0.0))));
+}`;
+
+const WGSL_ARENA = WGSL_ARENA_BASE + /* wgsl */`
+@group(0) @binding(0) var<uniform> arena: Arena;
+@group(0) @binding(1) var<storage, read_write> agents: array<Agent>;
+@group(0) @binding(2) var<storage, read_write> genes: array<Gene>;
+@group(0) @binding(3) var<storage, read_write> claims: array<atomic<u32>>;
+@group(0) @binding(4) var<storage, read_write> deposits: array<atomic<u32>>;
+@group(0) @binding(5) var<storage, read_write> crowd: array<atomic<u32>>;
+@group(0) @binding(6) var<storage, read_write> returned: array<atomic<u32>>;
+@group(0) @binding(7) var trail: texture_2d<f32>;
+@group(0) @binding(8) var food: texture_2d<f32>;
+// Energy and matter: a particle is BODY units of matter plus its stored energy. Dividing splits both, and dying
+// returns both to the food field. Living costs energy that is not returned, so sunlight-like regrowth keeps it going.
+const DIVIDE = 1.0;
+const BODY = 0.3;
+const MAX_ENERGY = 1.6;
+const BASAL = 0.0004;
+const MOVE_COST = 0.00025;
+const DEPOSIT_COST = 0.00015;
+const VEIN_PULL = 2.0;
+const COOP = 1.0;
+const ACCLIMATE = 0.0007;
+
+fn targetOf(rng: u32) -> u32 {
+  let h = (rng ^ (rng >> 15u)) * 2654435769u;
+  return (h >> 7u) % arena.agents;
+}
+fn scaled(v: f32, amount: f32, low: f32, high: f32, rng: ptr<function, u32>) -> f32 {
+  let a = rand(rng);
+  let b = rand(rng);
+  return clamp(v * (1.0 + (a + b - 1.0) * arena.drift * amount), low, high);
+}
+fn shifted(v: f32, amount: f32, low: f32, high: f32, rng: ptr<function, u32>) -> f32 {
+  let a = rand(rng);
+  let b = rand(rng);
+  return clamp(v + (a + b - 1.0) * arena.drift * amount, low, high);
+}
+fn wobble(rng: ptr<function, u32>) -> vec3f {
+  let x = rand(rng);
+  let y = rand(rng);
+  let z = rand(rng);
+  return vec3f(x, y, z) - vec3f(0.5);
+}
+
+// How good a spot looks: Particle Lenia's energy with the trail as its field. Chemicals pull or push by the
+// particle's responses, food pulls by its forage gene, and crowding past its set point pushes back.
+fn score(p: vec2f, a: f32, reach: f32, g: Gene) -> f32 {
+  let at = p + vec2f(cos(a), sin(a)) * reach;
+  let q = vec2i(floor(at));
+  let s = vec2i(arena.size);
+  if (q.x < 0 || q.y < 0 || q.x >= s.x || q.y >= s.y) { return -1e9; }
+  let texel = textureLoad(trail, q, 0);
+  var v = dot(texel.rgb * arena.trailNorm.xyz, g.resp.xyz);
+  if (arena.veins > 0.0 && v > 0.0) { v *= 1.0 + VEIN_PULL * arena.veins * (1.0 - texel.a); }
+  let u = usable(texel, g);
+  // Food pulls only where kin are too, so a body crawls toward food together instead of shedding scouts.
+  v += g.emit.w * textureLoad(food, vec2i(fieldCell(at)), 0).g * together(u);
+  let over = max(u - g.setpoint, 0.0);
+  return v - arena.crowd * over * over;
+}
+// Cooperative digestion: shared enzymes only pay off where enough kin are around (a Hill curve, as in cooperative binding).
+fn together(u: f32) -> f32 { return u * u / (u * u + COOP * COOP); }
+
+@compute @workgroup_size(256)
+fn claim(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= arena.agents) { return; }
+  let a = agents[i];
+  if (a.pos.x < 0.0 || genes[i].energy < DIVIDE) { return; }
+  let t = targetOf(a.rng);
+  if (agents[t].pos.x < 0.0) { atomicMax(&claims[t], i + 1u); }
+}
+
+@compute @workgroup_size(256)
+fn birth(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= arena.agents || agents[i].pos.x >= 0.0) { return; }
+  let c = atomicLoad(&claims[i]);
+  if (c == 0u) { return; }
+  let parent = agents[c - 1u];
+  var g = genes[c - 1u];
+  var rng = (agents[i].rng ^ parent.rng) * 747796405u + i;
+  let th = rand(&rng) * TAU;
+  let r = rand(&rng) * 2.5 * arena.scale;
+  let p = clamp(parent.pos + vec2f(cos(th), sin(th)) * r, vec2f(0.0), vec2f(arena.size) - vec2f(0.001));
+  g.energy = (g.energy - BODY) * 0.5;
+  g.angle = scaled(g.angle, 0.18, 0.03, 2.1, &rng);
+  g.dist = scaled(g.dist, 0.18, arena.scale, 90.0 * arena.scale, &rng);
+  g.turn = scaled(g.turn, 0.18, 0.02, 2.1, &rng);
+  g.speed = scaled(g.speed, 0.18, 0.1 * arena.scale, 4.0 * arena.scale, &rng);
+  g.deposit = scaled(g.deposit, 0.18, 0.05, 6.0, &rng);
+  g.setpoint = shifted(g.setpoint, 0.25, 0.0, 6.0, &rng);
+  // Chemical identity drifts slowly, so lineages can come to smell like, or unlike, their neighbors.
+  var e = max(g.emit.xyz + wobble(&rng) * arena.drift * 0.08, vec3f(0.0));
+  e = e / max(e.x + e.y + e.z, 1e-4);
+  let forage = shifted(g.emit.w, 0.12, -1.0, 2.0, &rng);
+  g.emit = vec4f(e, forage);
+  g.resp = vec4f(clamp(g.resp.xyz + wobble(&rng) * arena.drift * 0.08, vec3f(-2.0), vec3f(2.0)), g.resp.w);
+  let heading = rand(&rng) * TAU;
+  agents[i] = Agent(p, heading, rng);
+  genes[i] = g;
+}
+
+@compute @workgroup_size(256)
+fn live(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= arena.agents) { return; }
+  var a = agents[i];
+  if (a.pos.x < 0.0) { return; }
+  var g = genes[i];
+  // A parent pays for a daughter only if its claim won.
+  if (g.energy >= DIVIDE && atomicLoad(&claims[targetOf(a.rng)]) == i + 1u) { g.energy = (g.energy - BODY) * 0.5; }
+  var rng = a.rng;
+  let f = score(a.pos, a.angle, g.dist, g);
+  let l = score(a.pos, a.angle + g.angle, g.dist, g);
+  let r = score(a.pos, a.angle - g.angle, g.dist, g);
+  let t = rand(&rng);
+  if (!(f > l && f > r)) {
+    if (f < l && f < r) { a.angle += (t - 0.5) * 2.0 * g.turn; }
+    else if (l > r)     { a.angle += t * g.turn; }
+    else if (r > l)     { a.angle -= t * g.turn; }
+  }
+  a.angle += (rand(&rng) - 0.5) * 0.06;
+
+  // Food is digested with the help of the chemicals a particle is drawn to, like enzymes shared among kin. A loner can
+  // barely eat whatever its set point, and past its set point it chokes. Together these give a body one shared fate.
+  let cell = fieldCell(a.pos);
+  let u = usable(textureLoad(trail, vec2i(a.pos), 0), g);
+  let x = u - g.setpoint;
+  let digest = together(u) * exp(-x * x / (2.0 * arena.sigma * arena.sigma));
+  // Acclimation: the inherited set point drifts slowly toward the density a particle actually lives at, so a body
+  // moved into a world unlike its own can adjust instead of starving. The inherited value is where it starts.
+  g.setpoint += ACCLIMATE * x;
+  // Each particle eats in proportion to what it can digest, so undigested food stays for others.
+  let ration = textureLoad(food, vec2i(cell), 0).r;
+  let cost = arena.hunger * (BASAL + MOVE_COST * g.speed / arena.scale + DEPOSIT_COST * g.deposit);
+  g.energy = min(g.energy + ration * digest - cost, MAX_ENERGY);
+  let k = cell.y * FIELD_SIZE.x + cell.x;
+  atomicAdd(&crowd[k], u32(digest * 1024.0 + 0.5));
+  if (g.energy <= 0.0 || rand(&rng) < arena.wear) {
+    atomicAdd(&returned[k], u32((BODY + max(g.energy, 0.0)) * 1024.0));
+    a.pos = vec2f(-1.0);
+    a.rng = rng;
+    agents[i] = a;
+    genes[i] = g;
+    return;
+  }
+
+  var np = a.pos + vec2f(cos(a.angle), sin(a.angle)) * g.speed;
+  let m = vec2f(arena.size) - vec2f(0.001);
+  if (np.x < 0.0 || np.y < 0.0 || np.x >= m.x || np.y >= m.y) {
+    np = clamp(np, vec2f(0.0), m);
+    let inward = vec2f(arena.size) * 0.5 - np;
+    a.angle = atan2(inward.y, inward.x) + (rand(&rng) - 0.5) * 2.4;
+  }
+  a.angle = fract(a.angle / TAU) * TAU;
+  a.pos = np;
+  a.rng = rng;
+  agents[i] = a;
+  genes[i] = g;
+  let c = vec2u(np);
+  let o = (c.y * arena.size.x + c.x) * 3u;
+  let amount = g.deposit * 1024.0;
+  for (var ch = 0u; ch < 3u; ch++) {
+    let d = u32(amount * g.emit[ch] + 0.5);
+    if (d > 0u) { atomicAdd(&deposits[o + ch], d); }
+  }
+}
+
+@compute @workgroup_size(256)
+fn clear(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x < arena.agents) { atomicStore(&claims[id.x], 0u); }
+}`;
+
+// Food regrows toward one unit per cell, spreads slightly, and is shared among the particles eating in each cell by how
+// much each can digest. Red holds the ration per unit of digestion for the next step, and green the food itself, which
+// the renderer shows as a faint glow.
+const WGSL_ARENA_FOOD = WGSL_ARENA_BASE + /* wgsl */`
+@group(0) @binding(0) var<uniform> arena: Arena;
+@group(0) @binding(1) var src: texture_2d<f32>;
+@group(0) @binding(2) var dst: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var<storage, read_write> crowd: array<atomic<u32>>;
+@group(0) @binding(4) var<storage, read_write> returned: array<atomic<u32>>;
+@group(0) @binding(5) var trail: texture_2d<f32>;
+const SPREAD = 0.04;
+const VEIN_FLOW = 0.19;
+// How well food flows through a cell: veins conduct best, plain trail a little, open ground barely.
+// Like cytoplasmic streaming in Physarum's tubes, this carries food from a body's feeding edges to its middle.
+fn conduct(c: vec2i) -> f32 {
+  let scale = vec2f(arena.size) / vec2f(FIELD_SIZE);
+  var best = 0.0;
+  for (var y = 0; y < 4; y++) {
+    for (var x = 0; x < 4; x++) {
+      let p = vec2i((vec2f(c) + (vec2f(f32(x), f32(y)) + vec2f(0.5)) / 4.0) * scale);
+      let t = textureLoad(trail, p, 0);
+      best = max(best, max(1.0 - t.a, 0.35 * min(dot(t.rgb, arena.trailNorm.xyz), 1.0)));
+    }
+  }
+  return clamp(best, 0.0, 1.0);
+}
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= FIELD_SIZE.x || id.y >= FIELD_SIZE.y) { return; }
+  let c = vec2i(id.xy);
+  let hi = vec2i(FIELD_SIZE) - vec2i(1);
+  let n = textureLoad(src, c, 0).g;
+  let mine = conduct(c);
+  // Flow between neighbors uses their average conductance, so food is only moved, never made or lost.
+  var lap = 0.0;
+  for (var k = 0; k < 4; k++) {
+    let o = select(select(vec2i(0, -1), vec2i(0, 1), k == 2), select(vec2i(-1, 0), vec2i(1, 0), k == 0), k < 2);
+    let q = clamp(c + o, vec2i(0), hi);
+    lap += (SPREAD + VEIN_FLOW * 0.5 * (mine + conduct(q))) * (textureLoad(src, q, 0).g - n);
+  }
+  let k = id.y * FIELD_SIZE.x + id.x;
+  let eaters = f32(atomicExchange(&crowd[k], 0u)) / 1024.0;
+  let back = f32(atomicExchange(&returned[k], 0u)) / 1024.0;
+  let eaten = n * (1.0 - pow(1.0 - arena.eat, eaters));
+  let ration = select(0.0, eaten / eaters, eaters > 0.001);
+  let next = n + lap - eaten + arena.regrow * (1.0 - n) + back;
+  textureStore(dst, c, vec4f(ration, clamp(next, 0.0, 4.0), 0.0, 1.0));
+}`;
+
+// Places a specimen's trail into the arena. Its own chemicals are mixed into the arena's three by its identity.
+const WGSL_ARENA_STAMP = /* wgsl */`
+struct Stamp { center: vec2f, radius: f32, fade: f32, cropCenter: vec2f, scale: f32, pad: f32, mix0: vec4f, mix1: vec4f, mix2: vec4f }
+@group(0) @binding(0) var<uniform> job: Stamp;
+@group(0) @binding(1) var crop: texture_2d<f32>;
+@group(0) @binding(2) var src: texture_2d<f32>;
+@group(0) @binding(3) var dst: texture_storage_2d<rgba32float, write>;
+fn at(p: vec2f) -> vec4f {
+  let size = vec2i(textureDimensions(crop, 0));
+  let base = floor(p);
+  let s = p - base;
+  let hi = size - vec2i(1);
+  let a = clamp(vec2i(base), vec2i(0), hi);
+  let b = clamp(vec2i(base) + vec2i(1), vec2i(0), hi);
+  let upper = mix(textureLoad(crop, a, 0), textureLoad(crop, vec2i(b.x, a.y), 0), s.x);
+  let lower = mix(textureLoad(crop, vec2i(a.x, b.y), 0), textureLoad(crop, b, 0), s.x);
+  return mix(upper, lower, s.y);
+}
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  let size = textureDimensions(src, 0);
+  if (id.x >= size.x || id.y >= size.y) { return; }
+  let c = vec2i(id.xy);
+  var v = textureLoad(src, c, 0);
+  let d = vec2f(c) + vec2f(0.5) - job.center;
+  let dist = length(d);
+  if (dist < job.radius) {
+    let w = 1.0 - smoothstep(job.radius * (1.0 - job.fade), job.radius, dist);
+    let s = at(d / job.scale + job.cropCenter - vec2f(0.5));
+    let added = vec3f(dot(job.mix0.xyz, s.rgb), dot(job.mix1.xyz, s.rgb), dot(job.mix2.xyz, s.rgb));
+    v = vec4f(v.rgb + added * w, min(v.a, mix(1.0, s.a, w)));
+  }
+  textureStore(dst, c, v);
+}`;
+
+// Writes a specimen's particles into free places. Each one's set point is imprinted from the density it lived at:
+// the most it senses where it stands and where its sensors reach, so it stays content in its own part of the body.
+const WGSL_ARENA_PLACE = WGSL_ARENA_BASE + /* wgsl */`
+struct Job { count: u32, pad0: u32, pad1: u32, pad2: u32 }
+@group(0) @binding(0) var<uniform> arena: Arena;
+@group(0) @binding(1) var<uniform> job: Job;
+@group(0) @binding(2) var<storage, read> slots: array<u32>;
+@group(0) @binding(3) var<storage, read> newAgents: array<Agent>;
+@group(0) @binding(4) var<storage, read> newGenes: array<Gene>;
+@group(0) @binding(5) var<storage, read_write> agents: array<Agent>;
+@group(0) @binding(6) var<storage, read_write> genes: array<Gene>;
+@group(0) @binding(7) var trail: texture_2d<f32>;
+fn usableAt(p: vec2f, g: Gene) -> f32 {
+  let q = clamp(vec2i(floor(p)), vec2i(0), vec2i(arena.size) - vec2i(1));
+  return usable(textureLoad(trail, q, 0), g);
+}
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= job.count) { return; }
+  let a = newAgents[id.x];
+  var g = newGenes[id.x];
+  let here = usableAt(a.pos, g);
+  let f = usableAt(a.pos + vec2f(cos(a.angle), sin(a.angle)) * g.dist, g);
+  let l = usableAt(a.pos + vec2f(cos(a.angle + g.angle), sin(a.angle + g.angle)) * g.dist, g);
+  let r = usableAt(a.pos + vec2f(cos(a.angle - g.angle), sin(a.angle - g.angle)) * g.dist, g);
+  g.setpoint = max(here, (f + l + r) / 3.0) + 0.1;
+  let s = slots[id.x];
+  agents[s] = a;
+  genes[s] = g;
+}`;
+
+// Counts each lineage's particles, energy and set points, and the food left in the world.
+const ARENA_SLOTS = 64;
+const WGSL_ARENA_CENSUS = WGSL_ARENA_BASE + /* wgsl */`
+@group(0) @binding(0) var<uniform> arena: Arena;
+@group(0) @binding(1) var<storage, read> agents: array<Agent>;
+@group(0) @binding(2) var<storage, read> genes: array<Gene>;
+@group(0) @binding(3) var<storage, read_write> census: array<atomic<u32>>;
+@group(0) @binding(4) var food: texture_2d<f32>;
+const SLOTS = ${ARENA_SLOTS}u;
+@compute @workgroup_size(256)
+fn people(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= arena.agents) { return; }
+  if (agents[id.x].pos.x < 0.0) { return; }
+  let g = genes[id.x];
+  let l = min(g.lineage, SLOTS - 1u);
+  atomicAdd(&census[l], 1u);
+  atomicAdd(&census[SLOTS + l], u32(clamp(g.energy, 0.0, 2.0) * 256.0));
+  atomicAdd(&census[2u * SLOTS + l], u32(clamp(g.setpoint, 0.0, 8.0) * 256.0));
+}
+@compute @workgroup_size(8, 8)
+fn pantry(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= FIELD_SIZE.x || id.y >= FIELD_SIZE.y) { return; }
+  atomicAdd(&census[3u * SLOTS], u32(textureLoad(food, vec2i(id.xy), 0).g * 64.0));
 }`;
 
 // Moves a body between simulations of any size. Each new agent copies one from the same species' share of the source.
@@ -1183,6 +1552,11 @@ async function initGpu() {
     color: bgl([uni(F), raw(F), tex, smp, raw(F)]),
     blur: bgl([tex, smp]),
     composite: bgl([uni(F), tex, tex, smp]),
+    arena: bgl([uni(C), sto, sto, sto, sto, sto, sto, raw(C), raw(C)]),
+    arenaFood: bgl([uni(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, sto, sto, raw(C)]),
+    arenaStamp: bgl([uni(C), raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }]),
+    arenaPlace: bgl([uni(C), uni(C), ro, ro, ro, sto, sto, raw(C)]),
+    arenaCensus: bgl([uni(C), ro, ro, sto, raw(C)]),
   };
   const comp = (layout, code, entryPoint = 'main') => device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
@@ -1205,6 +1579,15 @@ async function initGpu() {
     cellBirth: comp(L.cells, WGSL_CELLS, 'birth'),
     cellLive: comp(L.cells, WGSL_CELLS, 'live'),
     cellClear: comp(L.cells, WGSL_CELLS, 'clear'),
+    arenaClaim: comp(L.arena, WGSL_ARENA, 'claim'),
+    arenaBirth: comp(L.arena, WGSL_ARENA, 'birth'),
+    arenaLive: comp(L.arena, WGSL_ARENA, 'live'),
+    arenaClear: comp(L.arena, WGSL_ARENA, 'clear'),
+    arenaFood: comp(L.arenaFood, WGSL_ARENA_FOOD),
+    arenaStamp: comp(L.arenaStamp, WGSL_ARENA_STAMP),
+    arenaPlace: comp(L.arenaPlace, WGSL_ARENA_PLACE),
+    arenaPeople: comp(L.arenaCensus, WGSL_ARENA_CENSUS, 'people'),
+    arenaPantry: comp(L.arenaCensus, WGSL_ARENA_CENSUS, 'pantry'),
     resample: comp(L.resample, WGSL_RESAMPLE),
     resampleGenes: comp(L.resampleGenes, WGSL_RESAMPLE_GENES),
     resampleJob: device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }),
@@ -1420,6 +1803,7 @@ function applySpawn(s, g, e) {
 }
 // Applies anything due now and says how many steps can run before the next recorded moment.
 function readySpawns(s, g, n) {
+  if (s.arena) return n;
   const list = g.spawns;
   if (!list?.length) return n;
   while (s.spawnNext < list.length && list[s.spawnNext].s <= s.step) { applySpawn(s, g, list[s.spawnNext]); s.spawnNext++; }
@@ -1628,6 +2012,7 @@ function speciesBounds(agents, g) {
   ];
 }
 function writeUniforms(s, g, now, view = st.view) {
+  if (s.arena) { writeArenaUniforms(s, now, view); return; }
   const { w, h, agents } = s.q, scale = h / 1080, rad = Math.PI / 180, n = g.count, sp = g.species;
   const [boundA, boundB] = speciesBounds(agents, g);
   const sizes = [boundA, boundB - boundA, agents - boundB];
@@ -1670,6 +2055,7 @@ function writeUniforms(s, g, now, view = st.view) {
 }
 
 function simulate(pass, s, n) {
+  if (s.arena) { simulateArena(pass, s, n); return; }
   const { w, h, agents } = s.q;
   for (let i = 0; i < n; i++) {
     if (s.cells) {
@@ -1758,7 +2144,8 @@ function frame(now) {
       else if (gpuMs < 10 && stepLimit < MAX_STEPS_PER_FRAME) stepLimit++;
     }
   }
-  const items = mode === 'batch' ? batchItems() : [{ sim: R, genome: st, rect: null }];
+  const items = mode === 'batch' ? batchItems() : [{ sim: mode === 'arena' ? arena.sim : R, genome: mode === 'arena' ? arenaGenome : st, rect: null }];
+  if (mode === 'arena' && now >= arena.nextCensusAt) { arena.nextCensusAt = now + 500; arenaCensus(); }
   for (const it of items) writeUniforms(it.sim, it.genome, now);
   const counts = items.map(it => readySpawns(it.sim, it.genome, n));
   const enc = device.createCommandEncoder();
@@ -1801,6 +2188,17 @@ function lcdLines() {
       BATCH_SIZE + 'X' + Math.round(TILE.agents / 1000) + 'K ' + TILE.w + 'X' + TILE.h + ' ' + gpuName.slice(0, 6),
       capture?.live ? captureLabel() : batch.screening ? 'SCREENING ' + batch.screening.done + ' OF ' + batch.screening.total
         : flashing ? flashText : 'PICKED ' + batch.picks.length + '/' + BATCH_SIZE + ' PASS ' + (st.inherit === 'body' ? 'BODY' : 'RULES'),
+    ];
+  }
+  if (mode === 'arena' && arena.sim) {
+    const c = arena.census, k = n => n >= 1e4 ? Math.round(n / 1000) + 'K' : String(n);
+    const alive = c ? c.counts.filter(Boolean).length : 0;
+    return [
+      state + ' ARENA ST ' + String(arena.sim.step).padStart(8),
+      rate,
+      c ? 'POP ' + k(c.total).padEnd(5) + ' FOOD ' + Math.round(c.food * 100) + '%' : 'POP --    FOOD 100%',
+      capture?.live ? captureLabel() : arena.task ? arena.task + '...' : flashing ? flashText : arena.placing ? 'CLICK TO PLACE'
+        : !arena.founders.length ? 'PRESS M TO ADD' : 'LINEAGES ' + alive + '/' + arena.founders.length + ' ' + lifeLabel(arena.sim.judged),
     ];
   }
   const q = R ? R.q : QUALITY[st.quality];
@@ -1874,15 +2272,17 @@ function probe(sim) {
 }
 
 // Finds connected regions of `target` cells, noting their sizes and whether they touch the canvas edge.
-function findRegions(mask, w, h, target, diagonal) {
+// With `weight`, each region also adds up the weight of its cells.
+function findRegions(mask, w, h, target, diagonal, weight = null) {
   const seen = new Uint8Array(w * h), stack = new Int32Array(w * h), regions = [];
   for (let start = 0; start < w * h; start++) {
     if (seen[start] || mask[start] !== target) continue;
-    let top = 0, size = 0, edge = false;
+    let top = 0, size = 0, edge = false, mass = 0;
     stack[top++] = start; seen[start] = 1;
     while (top) {
       const p = stack[--top], x = p % w, y = (p - x) / w;
       size++;
+      if (weight) mass += weight[p];
       if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         if ((!dx && !dy) || (!diagonal && dx && dy)) continue;
@@ -1892,9 +2292,55 @@ function findRegions(mask, w, h, target, diagonal) {
         if (!seen[q] && mask[q] === target) { seen[q] = 1; stack[top++] = q; }
       }
     }
-    regions.push({ size, edge });
+    regions.push({ size, edge, mass });
   }
   return regions;
+}
+
+// Version 2 measures what the LIFE score was missing: bounded bodies, variety across the frame,
+// and two artifacts that used to score well, a frame of trail along the border and a grid of straight lines.
+const COARSE = 4, BORDER_BAND = 6;
+function bodyMeasures(level, w, h) {
+  const cw = Math.floor(w / COARSE), ch = Math.floor(h / COARSE), coarse = new Float32Array(cw * ch);
+  for (let y = 0; y < ch * COARSE; y++) for (let x = 0; x < cw * COARSE; x++) coarse[Math.floor(y / COARSE) * cw + Math.floor(x / COARSE)] += level[y * w + x];
+  let total = 0;
+  for (let i = 0; i < coarse.length; i++) { coarse[i] /= COARSE * COARSE; total += coarse[i]; }
+  const sorted = Float32Array.from(coarse).sort(), median = sorted[sorted.length >> 1], mean = total / coarse.length;
+  // A body stands well above its surroundings at a coarse scale. A texture that fills the frame never does.
+  const cut = Math.max(median * 1.5, mean, .04), mask = new Uint8Array(coarse.length);
+  for (let i = 0; i < coarse.length; i++) if (coarse[i] > cut) mask[i] = 1;
+  const bodies = findRegions(mask, cw, ch, 1, true, coarse).filter(r => !r.edge && r.size >= 4 && r.size <= coarse.length * .3);
+  const bodyShare = total > 1e-6 ? bodies.reduce((s, r) => s + r.mass, 0) / total : 0;
+
+  // Variety: how much the amount of structure differs between parts of the frame.
+  const bx = 8, by = 5, blocks = new Float32Array(bx * by);
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) blocks[Math.min(by - 1, Math.floor(y / ch * by)) * bx + Math.min(bx - 1, Math.floor(x / cw * bx))] += coarse[y * cw + x];
+  const bMean = blocks.reduce((a, b) => a + b, 0) / blocks.length;
+  const bStd = Math.sqrt(blocks.reduce((s, v) => s + (v - bMean) ** 2, 0) / blocks.length);
+  const variety = bMean > 1e-9 ? bStd / bMean : 0;
+
+  // Border: the share of trail in a thin band around the frame, compared with the band's share of the area.
+  let band = 0, all = 0, bandArea = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = level[y * w + x], inBand = x < BORDER_BAND || y < BORDER_BAND || x >= w - BORDER_BAND || y >= h - BORDER_BAND;
+    all += v;
+    if (inBand) { band += v; bandArea++; }
+  }
+  const border = all > 1e-9 ? (band / all) / (bandArea / (w * h)) : 0;
+
+  // Grid: the share of edge strength lying within 7.5 degrees of horizontal or vertical. Random directions give about 0.17.
+  let axis = 0, edges = 0;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const L = (dx, dy) => level[(y + dy) * w + x + dx];
+    const gx = L(1, -1) + 2 * L(1, 0) + L(1, 1) - L(-1, -1) - 2 * L(-1, 0) - L(-1, 1);
+    const gy = L(-1, 1) + 2 * L(0, 1) + L(1, 1) - L(-1, -1) - 2 * L(0, -1) - L(1, -1);
+    const m = Math.hypot(gx, gy);
+    if (m < 1e-4) continue;
+    const a = Math.abs(Math.atan2(gy, gx)) % (Math.PI / 2), off = Math.min(a, Math.PI / 2 - a);
+    edges += m;
+    if (off < Math.PI / 24) axis += m;
+  }
+  return { bodies: bodies.length, bodyShare: bodyShare, variety, border, grid: edges > 0 ? axis / edges : 0 };
 }
 
 // Box counting: how the number of occupied boxes grows as the boxes shrink.
@@ -1981,10 +2427,11 @@ function analyze(sample, previous) {
     for (let i = 0; i < n; i++) change += Math.abs(level[i] - previous.level[i]);
     change = change / n / (step - previous.step) * 60;
   }
-  const round = v => +v.toFixed(4);
+  const round = v => +v.toFixed(4), extra = bodyMeasures(level, w, h);
   return {
     step, level,
     values: {
+      bodies: extra.bodies, bodyShare: round(extra.bodyShare), variety: round(extra.variety), border: round(extra.border), grid: round(extra.grid),
       entropy: round(entropy / 6), separation: round(separation), coverage: round(area / n),
       fractal: round(fractalDimension(mask, w, h)), components: solid.length, loops: holes.length,
       largest: round(area ? largest / area : 0), thickness: round(perimeter ? area / perimeter : 0),
@@ -2001,8 +2448,12 @@ const unit = v => Math.min(1, Math.max(0, v));
 // Rises from 0 at `a` to 1 at `b`, stays at 1 until `c`, and falls back to 0 at `d`.
 const band = (v, a, b, c, d) => v <= a || v >= d ? 0 : v < b ? (v - a) / (b - a) : v <= c ? 1 : (d - v) / (d - c);
 
-// Thresholds were calibrated by eye against contact sheets of random variants.
+// Version 1 thresholds were calibrated by eye against contact sheets of random variants. Version 2 was checked against
+// saves tagged as scoring too high (an even texture filling the frame, a grid of straight lines) or too low (a ring of
+// cells around an inner body, bright orbs in a crystal network): structure that fills the frame evenly now scores
+// about 55, and bounded bodies that stand apart from their surroundings score 75 to 90.
 function judge(v, fieldOn) {
+  const variety = unit(((v.variety ?? .25) - .25) / .6);
   const parts = {
     order: unit((v.alignment - .25) / .45),
     web: 1 - Math.exp(-(v.loops + v.components * .5) / 60),
@@ -2010,13 +2461,21 @@ function judge(v, fieldOn) {
     shape: band(v.fractal, 1.1, 1.5, 1.82, 1.97),
     balance: band(v.coverage, .04, .14, .5, .85),
     motion: band(v.change, 0, .006, .13, .3),
+    // Bodies only count where the frame isn't an even texture, which can break into look-alike patches.
+    bodies: unit((v.bodyShare ?? 0) / .5) * unit(((v.variety ?? 0) - .25) / .5),
+    variety,
   };
-  let score = 100 * (.35 * parts.order + .2 * parts.web + .15 * parts.contrast + .15 * parts.shape + .1 * parts.balance + .05 * parts.motion);
+  let score = 100 * (.15 * parts.order + .1 * parts.web + .1 * parts.contrast + .1 * parts.shape + .05 * parts.balance
+    + .05 * parts.motion + .25 * parts.bodies + .2 * parts.variety);
+  // Trail hugging the frame and straight horizontal and vertical lines are artifacts of the canvas, not of the organism.
+  score *= (1 - .75 * unit(((v.grid ?? 0) - .45) / .3)) * (1 - .5 * unit(((v.border ?? 0) - 1.2) / 1));
   let verdict = 'ALIVE';
   if (v.coverage < .005) verdict = 'EMPTY';
   else if (fieldOn && v.fieldMean > .05 && v.fieldStd < .04) verdict = 'FLAT';
-  else if (v.alignment < .28) verdict = 'NOISE';
-  else if (v.thickness > 4 || (v.clustering > .55 && v.alignment < .4)) verdict = 'BLOB';
+  // Scattered headings only mean noise when no closed structure formed either. Jagged crystal lattices have many loops.
+  else if (v.alignment < .28 && v.loops < 30) verdict = 'NOISE';
+  else if ((v.grid ?? 0) > .75) verdict = 'GRID';
+  else if (v.thickness > 4 || (v.clustering > .55 && v.alignment < .4 && v.loops < 30)) verdict = 'BLOB';
   if (verdict !== 'ALIVE') score = Math.min(score, 19);
   return { score: Math.round(Math.min(99, score)), verdict, parts };
 }
@@ -2027,7 +2486,8 @@ const lifeLabel = j => !j ? 'LIFE --' : j.verdict === 'ALIVE' ? 'LIFE ' + j.scor
 let probing = false, nextProbeAt = 0, probeIndex = 0;
 function sampleLive(now) {
   if (probing || now < nextProbeAt || batch.screening) return;
-  const targets = mode === 'batch' ? batch.tiles : [{ sim: R, genome: st }];
+  const targets = mode === 'batch' ? batch.tiles : mode === 'arena' ? [{ sim: arena.sim, genome: arenaGenome }] : [{ sim: R, genome: st }];
+  if (mode === 'arena' && arena.busy) return;
   const t = targets[probeIndex++ % targets.length];
   nextProbeAt = now + (mode === 'batch' ? 120 : 400);
   if (t.sim.step < SCREEN_STOPS[1] || (t.sim.analysis && t.sim.step - t.sim.analysis.step < 30)) return;
@@ -2451,12 +2911,15 @@ function setMode(m) {
       commit();
     }
     enterBatch();
-  } else batch.sourceSnap = snapshot();
+  } else if (mode === 'batch') batch.sourceSnap = snapshot();
+  if (m === 'arena') ensureArena();
+  if (mode === 'arena') cancelPlacing();
   mode = m;
   acc = 0;
   batch.hover = -1;
   syncUi();
   showScreening();
+  renderArenaPanel();
 }
 async function breed() {
   if (batch.screening) return;
@@ -2771,13 +3234,13 @@ const HELP = {
     ['LINE 4', 'Seed and species count. In BATCH, your picks and what children will receive (PASS BODY or PASS RULES). Confirmations flash here too.'],
   ] },
 
-  'pad.mutate': { t: 'MUTATE / BREED', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'Nothing picked? BREED offers fresh variations of the last parents.' },
-  'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'Colors stay as they are. UNDO brings back what you had.' },
-  'pad.reroll': { t: 'REROLL', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'If a look survives a reroll, it comes from the settings and not a lucky start.' },
-  'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.' },
+  'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'In ARENA this is ADD: it cuts a living specimen from your SOLO organism for you to place. Press it again for an open spot.' },
+  'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'In ARENA it grows a wild organism out of sight and places a specimen of it in an open spot.' },
+  'pad.reroll': { t: 'REROLL / EMPTY', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'In ARENA this is EMPTY: press it twice to clear every founder and start a new world.' },
+  'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.', tip: 'In ARENA it places the same founders again, which replays the same history.' },
   'pad.save': { t: 'SAVE', d: 'Always stores the body and the rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked.', tip: 'Saving the same organism again updates its library entry instead of adding a copy. It is named automatically, and you can rename it in the library.' },
   'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation.' },
-  'pad.undo': { t: 'UNDO', d: 'In SOLO, reverses the last settings change. In BATCH, returns to the previous generation.' },
+  'pad.undo': { t: 'UNDO', d: 'In SOLO, reverses the last settings change. In BATCH, returns to the previous generation. In ARENA, removes the last founder and replays the rest.' },
   'pad.load': { t: 'LIBRARY', d: 'Browse all your saved organisms as pictures. Open one, name it, or breed from it.' },
   'lib.search': { t: 'SEARCH', d: 'Filters by name, tags, color, species count, or the word hybrid.' },
   'lib.sort': { t: 'SORT', d: 'Newest first, highest LIFE score first, or alphabetical by name.' },
@@ -2794,7 +3257,16 @@ const HELP = {
   'lib.remove': { t: 'REMOVE', d: 'Moves this save into a "removed" subfolder, so you can always bring it back.', tip: 'Click twice to confirm.' },
   'pad.full': { t: 'FULLSCREEN', d: 'Hides the controls so only the simulation shows. Press F or Esc to come back.' },
 
-  view: { t: 'VIEW', d: 'SOLO shows one organism large. BATCH shows nine variants to choose from. Press B to switch.' },
+  view: { t: 'VIEW', d: 'SOLO shows one organism large. BATCH shows nine variants to choose from. ARENA is a shared world where specimens of your organisms compete. B switches SOLO and BATCH, and A opens or leaves ARENA.' },
+  'view.arena': { t: 'ARENA', d: 'A shared world where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to place your SOLO organism, or ADD on a save in the LIBRARY.' },
+  'lib.add': { t: 'ADD TO ARENA', d: 'Cuts a living disc from this save, at the SPECIMEN size, and lets you place it in the arena.', tip: 'A save with only its rules is regrown out of sight first.' },
+  'arena.specimen': { t: 'SPECIMEN', d: 'How large a disc is cut from a body when you add it. Bodies keep their own scale, so a small cut holds a small piece of the structure.' },
+  'arena.food': { t: 'FOOD', d: 'How fast food grows back. Particles eat it to gain energy, and dead particles return to it.', lo: 'Scarce food: hard competition and crashes', hi: 'Plenty: fast growth and crowding' },
+  'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
+  'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly each particle holds the density it lived at in its original body. It was imprinted when the specimen was cut.', lo: 'Classic slime: bodies spread and merge', hi: 'Bodies hold their shape and starve if pulled apart' },
+  'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful lineages', hi: 'Fast evolution and more failed offspring' },
+  'arena.chart': { t: 'POPULATION', d: "Each founder lineage's share of the world over time, stacked, in its chemical color." },
+  'arena.founders': { t: 'FOUNDERS', d: 'Every specimen placed in this arena, with its lineage’s share of the particle pool now.', tip: 'A founder’s color shows its chemical identity. Similar colors can smell each other.' },
   strength: { t: 'MUTATION', d: 'How different children are from their parents.' },
   'strength.subtle': { t: 'SUBTLE MUTATION', d: 'Small refinements of what you already like.' },
   'strength.medium': { t: 'MEDIUM MUTATION', d: 'A balance of familiar and surprising.' },
@@ -2891,11 +3363,12 @@ const HELP = {
   open: { t: 'OPEN', d: 'Shows this variant full size in SOLO, where you can edit it. Press B to bring it back to the grid.' },
   kept: { t: 'KEPT', d: 'One of your picks, carried into this generation unchanged.' },
   wild: { t: 'WILD', d: 'A wildcard with a much bigger mutation, there to keep the search surprising.' },
-  life: { t: 'LIFE SCORE', d: 'A rough 0 to 99 measure of structure. It rewards webs and flow, but it cannot tell what you find beautiful.' },
+  life: { t: 'LIFE SCORE', d: 'A rough 0 to 99 measure of life-like structure. It rewards bounded bodies that stand apart from their surroundings and variety across the frame, plus webs and flow.', tip: 'An even texture filling the whole frame scores about 55. Straight-line grids and trail hugging the border are marked down. It cannot tell what you find beautiful.' },
 };
-const LIFE_PARTS = [['order', 'FLOW'], ['web', 'WEB'], ['contrast', 'CONTRAST'], ['shape', 'SHAPE'], ['balance', 'BALANCE'], ['motion', 'MOTION']];
+const LIFE_PARTS = [['bodies', 'BODIES'], ['variety', 'VARIETY'], ['order', 'FLOW'], ['web', 'WEB'], ['contrast', 'CONTRAST'], ['shape', 'SHAPE'], ['balance', 'BALANCE'], ['motion', 'MOTION']];
 const VERDICTS = {
   NOISE: 'Agents are moving at random, so no structure has formed.',
+  GRID: 'The trails have locked into straight horizontal and vertical lines, an artifact of the square pixel grid.',
   BLOB: 'Agents have collapsed into thick clumps.',
   FLAT: 'The chemical has flooded into one even color.',
   EMPTY: 'Almost no trail is left.',
@@ -2966,7 +3439,7 @@ function placeHelp(target) {
 function initHelp() {
   const rows = {
     segMode: 'view', segStrength: 'strength', segFilter: 'filter', segQuality: 'quality', segSpeed: 'speed', segInit: 'init',
-    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology', segSandbox: 'sandbox',
+    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology', segSandbox: 'sandbox', segSpecimen: 'arena.specimen',
     // Help keys match the internal values, so 'recipe' explains RULES ONLY.
     segPal0: 'palette', segPal1: 'palette', segPal2: 'palette', segPalField: 'fieldPalette',
   };
@@ -3560,7 +4033,10 @@ async function mergeDuplicates(items) {
 async function useSave(item, breedIt) {
   await saveMeta(item).catch(e => console.error(e));
   const data = item.data;
+  const name = itemName(item);
   closeLibrary();
+  // From the ARENA, the second button cuts a specimen from this save instead of breeding it.
+  if (breedIt && mode === 'arena') { arenaFromSave(data, name); return; }
   // With body inheritance, a recipe save first regrows so its children have a grown structure to inherit.
   await applySave(data, !breedIt || st.inherit === 'body');
   if (breedIt) { batch.sourceSnap = null; setMode('batch'); }
@@ -3632,7 +4108,8 @@ function buildCard(item) {
     return b;
   };
   button('OPEN', '', 'lib.open', () => useSave(item, false));
-  button('BREED', 'breed', 'lib.breed', () => useSave(item, true));
+  if (mode === 'arena') button('ADD', 'breed', 'lib.add', () => useSave(item, true));
+  else button('BREED', 'breed', 'lib.breed', () => useSave(item, true));
   let armed = 0;
   const remove = button('REMOVE', 'remove', 'lib.remove', () => {
     if (armed) {
@@ -3959,6 +4436,8 @@ async function openLibrary() {
       catch (e) { if (e.name !== 'NotFoundError') console.error(e); }
     }
     hideHelp();
+    $('treeBreed').textContent = mode === 'arena' ? 'ADD' : 'BREED';
+    $('treeBreed').dataset.help = mode === 'arena' ? 'lib.add' : 'lib.breed';
     $('library').append($('helpCard'));
     $('library').showModal();
     renderLibrary();
@@ -3990,6 +4469,536 @@ function libraryClosed() {
   });
 }
 
+/* ---------- Arena ---------- */
+// Specimens are cut at their own scale, so a body keeps the size its rules give it. Radii are fractions of the picture height.
+const ARENA = {
+  sizes: { s: .12, m: .18, l: .25 }, palettes: ['ROSE', 'KELP', 'GLACIER'], foodPalette: 'BIOLUME',
+  maxFounders: 16, energy: .6, forage: .25, grow: 900, tries: 3, maxParticles: 60000,
+  // One fixed scale for the chemicals keeps every imprinted set point meaningful as the founders change.
+  norm: 1 / 12,
+};
+const ARENA_PARAMS = [
+  { k:'food',   label:'FOOD',        min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
+  { k:'hunger', label:'METABOLISM',  min:.2, max:2, step:.01, def:1,   fmt:v=>v.toFixed(2) },
+  { k:'homeo',  label:'HOMEOSTASIS', min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
+  { k:'drift',  label:'GENE DRIFT',  min:0,  max:1, step:.01, def:.35, fmt:v=>v.toFixed(2) },
+];
+const arena = {
+  sim: null, seed: newSeed(), founders: [], params: defaults(ARENA_PARAMS), size: 'm', fcur: 0, busy: false,
+  placing: null, history: [], census: null, censusPending: false, nextCensusAt: 0, chem: null, task: '', emptyArmed: 0,
+};
+// The shared probe and judge only need to know there is no reaction field.
+const arenaGenome = { field: { on: false } };
+const GOLDEN = 137.508 * Math.PI / 180;
+
+function ensureArena() {
+  if (arena.sim) return;
+  const s = createSim(QUALITY.med), B = GPUBufferUsage, n = s.q.agents, cells = FIELD_W * FIELD_H;
+  const buf = (size, usage) => device.createBuffer({ size, usage });
+  s.arena = arena;
+  Object.assign(arena, {
+    sim: s,
+    uniform: buf(80, B.UNIFORM | B.COPY_DST),
+    genes: buf(n * 64, B.STORAGE | B.COPY_DST | B.COPY_SRC),
+    claims: buf(n * 4, B.STORAGE | B.COPY_DST),
+    crowd: buf(cells * 4, B.STORAGE | B.COPY_DST),
+    returned: buf(cells * 4, B.STORAGE | B.COPY_DST),
+    censusBuf: buf(1024, B.STORAGE | B.COPY_SRC | B.COPY_DST),
+    censusRead: buf(1024, B.MAP_READ | B.COPY_DST),
+    placeJob: buf(16, B.UNIFORM | B.COPY_DST),
+    stampJob: buf(96, B.UNIFORM | B.COPY_DST),
+  });
+  const group = (layout, res) => device.createBindGroup({ layout, entries: res.map((r, binding) => ({ binding, resource: r.usage !== undefined ? { buffer: r } : r })) });
+  arena.liveBG = [0, 1].map(t => [0, 1].map(f => group(P.L.arena,
+    [arena.uniform, s.agentBuf, arena.genes, arena.claims, s.depositBuf, arena.crowd, arena.returned, s.trailViews[t], s.fieldViews[f]])));
+  arena.foodBG = [0, 1].map(f => [0, 1].map(t => group(P.L.arenaFood, [arena.uniform, s.fieldViews[f], s.fieldViews[1 - f], arena.crowd, arena.returned, s.trailViews[t]])));
+  arena.colorBG = [0, 1].map(f => [0, 1].map(t => group(P.L.color, [s.viewBuf, s.trailViews[t], P.lutView, P.sampler, s.fieldViews[f]])));
+  arena.censusBG = [0, 1].map(f => group(P.L.arenaCensus, [arena.uniform, s.agentBuf, arena.genes, arena.censusBuf, s.fieldViews[f]]));
+  resetArena();
+}
+// An empty world full of food. Every particle place starts parked, with its own random stream from the arena's seed.
+function resetArena() {
+  const s = arena.sim, n = s.q.agents, cells = FIELD_W * FIELD_H;
+  const data = new ArrayBuffer(n * 16), f = new Float32Array(data), u = new Uint32Array(data), r = mulberry(arena.seed);
+  for (let i = 0; i < n; i++) { f[i * 4] = f[i * 4 + 1] = -1; u[i * 4 + 3] = r(); }
+  device.queue.writeBuffer(s.agentBuf, 0, data);
+  const food = new Float32Array(cells * 4);
+  for (let i = 0; i < cells; i++) { food[i * 4 + 1] = 1; food[i * 4 + 3] = 1; }
+  for (const t of s.field) device.queue.writeTexture({ texture: t }, food, { bytesPerRow: FIELD_W * 16 }, [FIELD_W, FIELD_H]);
+  const enc = device.createCommandEncoder();
+  for (const b of [arena.genes, arena.claims, arena.crowd, arena.returned, s.depositBuf]) enc.clearBuffer(b);
+  for (const view of s.trailViews) enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] }).end();
+  device.queue.submit([enc.finish()]);
+  Object.assign(s, { cur: 0, step: 0, analysis: null, judged: null, run: (s.run || 0) + 1 });
+  arena.fcur = 0;
+  arena.history = [];
+  arena.census = null;
+  s.colorBG = arena.colorBG[0];
+}
+
+// Each channel's fade and spread are the average of the founders giving off that chemical, so a lone specimen keeps its own.
+function arenaChemistry() {
+  const decay = [0, 0, 0], diffuse = [0, 0, 0], weight = [0, 0, 0];
+  for (const f of arena.founders) {
+    const sp = f.specimen;
+    sp.g.species.slice(0, sp.g.count).forEach((s, k) => {
+      for (let c = 0; c < 3; c++) {
+        const w = sp.counts[k] * f.emit[k][c];
+        decay[c] += w * s.decay; diffuse[c] += w * s.diffuse; weight[c] += w;
+      }
+    });
+  }
+  arena.chem = { decay: decay.map((v, c) => weight[c] ? v / weight[c] : .95), diffuse: diffuse.map((v, c) => weight[c] ? v / weight[c] : .4) };
+}
+function writeArenaUniforms(s, now, view = st.view) {
+  const { w, h, agents } = s.q, p = arena.params, chem = arena.chem || { decay: [.95, .95, .95], diffuse: [.4, .4, .4] };
+  simU[0] = w; simU[1] = h; simU[2] = agents; simU[3] = 3; simU[4] = agents; simU[5] = agents; simU[6] = 0; simU[7] = 0;
+  for (let c = 0; c < 3; c++) {
+    simF[8 + c] = Math.min(1, chem.diffuse[c]);
+    simF[12 + c] = chem.decay[c];
+    simF[44 + c] = ARENA.norm;
+  }
+  simF[51] = .6; simF[52] = 0; simF[53] = 0;
+  device.queue.writeBuffer(s.simBuf, 0, simData);
+  const data = new ArrayBuffer(80), au = new Uint32Array(data), af = new Float32Array(data);
+  au[0] = w; au[1] = h; au[2] = agents; au[3] = s.step;
+  af[4] = af[5] = af[6] = ARENA.norm;
+  af[8] = p.hunger; af[9] = p.drift;
+  // Homeostasis sets how hard crowding pushes back and how narrow the density a particle can digest at is.
+  af[10] = p.homeo * 3; af[11] = 1.5 - p.homeo;
+  // At the middle food setting a field cell regrows enough for a body at about its imprinted density, so growth
+  // beyond that has to be won by spreading into fresh food.
+  af[12] = .03 * p.hunger; af[13] = .012 * p.food * p.hunger; af[14] = .00004 * p.hunger; af[15] = .6;
+  af[16] = h / 1080;
+  device.queue.writeBuffer(arena.uniform, 0, data);
+  for (let c = 0; c < 3; c++) {
+    // A longer-lasting chemical piles up brighter, so the picture is balanced by each channel's fade.
+    viewF[c] = view.exposure / ((.12 / (1 - chem.decay[c])) * 3);
+    viewF[4 + c] = (PALETTE_NAMES.indexOf(ARENA.palettes[c]) + .5) / PALETTE_NAMES.length;
+  }
+  viewF[3] = view.glow;
+  viewF[7] = running ? (now * .001) % 97 : 1;
+  viewU[8] = 3;
+  viewF[9] = .025;
+  viewF[10] = (PALETTE_NAMES.indexOf(ARENA.foodPalette) + .5) / PALETTE_NAMES.length;
+  device.queue.writeBuffer(s.viewBuf, 0, viewData);
+  s.fieldOn = false;
+  s.cells = false;
+}
+function simulateArena(pass, s, n) {
+  if (arena.busy || n <= 0) return;
+  const { w, h, agents } = s.q, groups = Math.ceil(agents / 256);
+  for (let i = 0; i < n; i++) {
+    pass.setBindGroup(0, arena.liveBG[s.cur][arena.fcur]);
+    for (const stage of [P.arenaClaim, P.arenaBirth, P.arenaLive, P.arenaClear]) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
+    pass.setPipeline(P.diffuse); pass.setBindGroup(0, s.diffuseBG[s.cur]);
+    pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
+    s.cur = 1 - s.cur;
+    pass.setPipeline(P.arenaFood); pass.setBindGroup(0, arena.foodBG[arena.fcur][s.cur]);
+    pass.dispatchWorkgroups(Math.ceil(FIELD_W / 8), Math.ceil(FIELD_H / 8));
+    arena.fcur = 1 - arena.fcur;
+  }
+  s.colorBG = arena.colorBG[arena.fcur];
+  s.step += n;
+}
+
+async function readBack(buffer, size) {
+  const read = device.createBuffer({ size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const enc = device.createCommandEncoder();
+  enc.copyBufferToBuffer(buffer, 0, read, 0, size);
+  device.queue.submit([enc.finish()]);
+  await read.mapAsync(GPUMapMode.READ);
+  const out = read.getMappedRange().slice(0);
+  read.unmap(); read.destroy();
+  return out;
+}
+async function readRegion(texture, x, y, w, h) {
+  const bytesPerRow = Math.ceil(w * 16 / 256) * 256;
+  const buf = device.createBuffer({ size: bytesPerRow * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const enc = device.createCommandEncoder();
+  enc.copyTextureToBuffer({ texture, origin: [x, y] }, { buffer: buf, bytesPerRow }, [w, h]);
+  device.queue.submit([enc.finish()]);
+  await buf.mapAsync(GPUMapMode.READ);
+  const mapped = new Uint8Array(buf.getMappedRange()), data = new Float32Array(w * h * 4), out = new Uint8Array(data.buffer);
+  for (let r = 0; r < h; r++) out.set(mapped.subarray(r * bytesPerRow, r * bytesPerRow + w * 16), r * w * 16);
+  buf.unmap(); buf.destroy();
+  return data;
+}
+
+// A specimen is a living disc cut from a body at its own scale: every particle in it with its rules, and the trail and
+// veins beneath them. It lives in memory on its own, so the arena can replay its founders exactly.
+async function cutSpecimen(body, g, name) {
+  const { w, h, agents } = body.q, radius = ARENA.sizes[arena.size], R = radius * h;
+  const pos = new Float32Array(await readBack(body.agents, agents * 16)), rngs = new Uint32Array(pos.buffer);
+  const genes = body.genes ? new Float32Array(await readBack(body.genes, agents * 32)) : null;
+  // The disc goes where the body holds the most particles, nudged toward the middle.
+  const gw = 48, gh = 27, grid = new Float32Array(gw * gh);
+  for (let i = 0; i < agents; i++) {
+    const x = pos[i * 4];
+    if (x < 0) continue;
+    grid[Math.min(gh - 1, Math.floor(pos[i * 4 + 1] / h * gh)) * gw + Math.min(gw - 1, Math.floor(x / w * gw))]++;
+  }
+  const rx = R / w * gw, ry = R / h * gh;
+  let best = 0, cx = w / 2, cy = h / 2;
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+    const px = (x + .5) / gw * w, py = (y + .5) / gh * h;
+    if (px < R || px > w - R || py < R || py > h - R) continue;
+    let sum = 0;
+    for (let yy = Math.max(0, Math.floor(y - ry)); yy <= Math.min(gh - 1, Math.ceil(y + ry)); yy++) {
+      for (let xx = Math.max(0, Math.floor(x - rx)); xx <= Math.min(gw - 1, Math.ceil(x + rx)); xx++) {
+        if (((xx - x) / rx) ** 2 + ((yy - y) / ry) ** 2 <= 1) sum += grid[yy * gw + xx];
+      }
+    }
+    sum *= 1 - .5 * Math.hypot((px - w / 2) / w, (py - h / 2) / h);
+    if (sum > best) { best = sum; cx = px; cy = py; }
+  }
+  if (!best) return null;
+  const size = Math.min(Math.ceil(2 * R) + 4, w, h), x0 = clamp(Math.round(cx - size / 2), 0, w - size), y0 = clamp(Math.round(cy - size / 2), 0, h - size);
+  const crop = { w: size, h: size, cx: cx - x0, cy: cy - y0, data: await readRegion(body.trail, x0, y0, size, size) };
+  const [bA, bB] = body.bounds || speciesBounds(agents, g), inside = [];
+  for (let i = 0; i < agents; i++) {
+    const x = pos[i * 4], y = pos[i * 4 + 1];
+    if (x >= 0 && (x - cx) ** 2 + (y - cy) ** 2 <= R * R) inside.push(i);
+  }
+  const n = inside.length, counts = [0, 0, 0];
+  const out = { dx: new Float32Array(n), dy: new Float32Array(n), angle: new Float32Array(n), rng: new Uint32Array(n), kind: new Uint8Array(n), mult: genes ? new Float32Array(n * 4) : null };
+  inside.forEach((i, j) => {
+    out.dx[j] = pos[i * 4] - cx; out.dy[j] = pos[i * 4 + 1] - cy; out.angle[j] = pos[i * 4 + 2]; out.rng[j] = rngs[i * 4 + 3];
+    const k = i < bA ? 0 : i < bB ? 1 : 2;
+    out.kind[j] = k;
+    counts[k]++;
+    // Living cells carry their own inherited multipliers on the species' rules.
+    if (genes) out.mult.set(genes.subarray(i * 8 + 1, i * 8 + 5), j * 4);
+  });
+  return { name, g: { count: g.count, species: cloneSpecies(g.species.slice(0, g.count)), life: { ...lifeOf(g) } }, srcH: h, radius, crop, agents: out, counts };
+}
+
+/* Chemical identity. Each founder's species give off a mix of the three chemicals set by a hue, with founders spread
+   around the wheel by the golden angle. Responses are solved so each founder's own FOLLOW settings hold exactly
+   among its species. How it reacts to other founders then follows from how alike their chemicals are, the way
+   organisms that never met still respond to each other's signals. */
+function hueMix(theta) {
+  const e = [0, 1, 2].map(c => Math.max(0, Math.cos(theta - c * TAU / 3))), s = e[0] + e[1] + e[2];
+  return e.map(v => v / s);
+}
+function invert(m) {
+  const n = m.length, a = m.map((row, i) => [...row.map((v, j) => v + (i === j ? 1e-6 : 0)), ...row.map((_, j) => +(i === j))]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(a[r][c]) > Math.abs(a[p][c])) p = r;
+    [a[c], a[p]] = [a[p], a[c]];
+    const d = a[c][c];
+    for (let j = 0; j < 2 * n; j++) a[c][j] /= d;
+    for (let r = 0; r < n; r++) if (r !== c) { const f = a[r][c]; for (let j = 0; j < 2 * n; j++) a[r][j] -= f * a[c][j]; }
+  }
+  return a.map(row => row.slice(n));
+}
+function founderChemistry(f) {
+  const sp = f.specimen, n = sp.g.count, base = f.lineage * GOLDEN + (arena.seed % 1000) / 1000 * TAU;
+  // A founder's own species sit a third of the wheel apart, so they stay chemically distinct from each other.
+  f.emit = Array.from({ length: n }, (_, k) => hueMix(base + (k - (n - 1) / 2) * TAU / 3));
+  const F = sp.g.species.map(s => Array.from({ length: n }, (_, j) => n === 1 ? 1 : s[RELATION_KEYS[j]]));
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], Ginv = invert(f.emit.map(a => f.emit.map(b => dot(a, b))));
+  f.resp = F.map(row => {
+    const alpha = row.map((_, j) => row.reduce((s, v, i) => s + v * Ginv[i][j], 0));
+    return [0, 1, 2].map(c => clamp(alpha.reduce((s, a, j) => s + a * f.emit[j][c], 0), -2, 2));
+  });
+  // The swatch blends each chemical's color by how much the founder gives off.
+  const total = sp.counts.reduce((a, b) => a + b, 0) || 1, rgb = [0, 0, 0];
+  f.emit.forEach((e, k) => e.forEach((v, c) => {
+    const hex = PALETTES[ARENA.palettes[c]][4];
+    for (let i = 0; i < 3; i++) rgb[i] += sp.counts[k] / total * v * parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  }));
+  const top = Math.max(...rgb, 1);
+  f.color = `rgb(${rgb.map(v => Math.round(v / top * 255)).join(',')})`;
+}
+
+// Writes one founder into the arena: its trail first, then its particles into free places, imprinting each one.
+async function stampFounder(f) {
+  const s = arena.sim, { w, h } = s.q, sp = f.specimen, scale = h / sp.srcH, R = sp.radius * h, cx = f.x * w, cy = f.y * h;
+  // A very dense specimen is thinned so no founder takes most of the world, with its trail thinned to match.
+  const keep = Math.min(1, ARENA.maxParticles / Math.max(1, sp.agents.dx.length * scale * scale));
+  writeArenaUniforms(s, 0);
+  const crop = device.createTexture({ size: [sp.crop.w, sp.crop.h], format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+  device.queue.writeTexture({ texture: crop }, sp.crop.data, { bytesPerRow: sp.crop.w * 16 }, [sp.crop.w, sp.crop.h]);
+  const job = new Float32Array(24);
+  job.set([cx, cy, R, .15, sp.crop.cx, sp.crop.cy, scale, 0]);
+  for (let c = 0; c < 3; c++) for (let k = 0; k < sp.g.count; k++) job[8 + c * 4 + k] = f.emit[k][c] * keep;
+  device.queue.writeBuffer(arena.stampJob, 0, job);
+  let enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+  pass.setPipeline(P.arenaStamp);
+  pass.setBindGroup(0, device.createBindGroup({ layout: P.L.arenaStamp, entries: [
+    { binding: 0, resource: { buffer: arena.stampJob } }, { binding: 1, resource: crop.createView() },
+    { binding: 2, resource: s.trailViews[s.cur] }, { binding: 3, resource: s.trailViews[1 - s.cur] }] }));
+  pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
+  pass.end();
+  device.queue.submit([enc.finish()]);
+  s.cur = 1 - s.cur;
+
+  // Free places are found in order, so the same founders always land in the same places.
+  const pos = new Float32Array(await readBack(s.agentBuf, s.q.agents * 16)), free = [];
+  for (let i = 0; i < s.q.agents; i++) if (pos[i * 4] < 0) free.push(i);
+  // A specimen from a smaller picture is enlarged, so each of its particles becomes several close neighbors.
+  const r = mulberry((arena.seed ^ Math.imul(f.lineage + 1, 0x9E3779B1)) >>> 0), rf = () => r() / 4294967296, a = sp.agents;
+  const reps = scale * scale * keep, deg = Math.PI / 180, unit = h / 1080, slots = [], agentsOut = [], genesOut = [];
+  for (let j = 0; j < a.dx.length && slots.length < free.length; j++) {
+    const copies = Math.floor(reps) + (rf() < reps % 1 ? 1 : 0), k = a.kind[j], s0 = sp.g.species[k];
+    const m = a.mult ? a.mult.subarray(j * 4, j * 4 + 4) : [1, 1, 1, 1];
+    for (let c = 0; c < copies && slots.length < free.length; c++) {
+      const jitter = scale > 1 || copies > 1 ? scale : 0;
+      const x = clamp(cx + a.dx[j] * scale + (rf() - .5) * jitter, 0, w - .001), y = clamp(cy + a.dy[j] * scale + (rf() - .5) * jitter, 0, h - .001);
+      slots.push(free[slots.length]);
+      agentsOut.push(x, y, a.angle[j] + (c ? (rf() - .5) * .5 : 0), (a.rng[j] ^ r()) >>> 0);
+      genesOut.push(ARENA.energy, f.lineage, s0.sensorAngle * deg * m[0], s0.sensorDist * unit * m[1], s0.turnSpeed * deg * m[2],
+        s0.moveSpeed * unit * m[3], s0.deposit, 0, ...f.emit[k], ARENA.forage, ...f.resp[k], 0);
+    }
+  }
+  const n = slots.length;
+  if (n) {
+    const agentData = new ArrayBuffer(n * 16), af = new Float32Array(agentData), au = new Uint32Array(agentData);
+    for (let i = 0; i < n; i++) { af.set(agentsOut.slice(i * 4, i * 4 + 3), i * 4); au[i * 4 + 3] = agentsOut[i * 4 + 3]; }
+    const geneData = new ArrayBuffer(n * 64), gf = new Float32Array(geneData), gu = new Uint32Array(geneData);
+    for (let i = 0; i < n; i++) { gf.set(genesOut.slice(i * 16, i * 16 + 16), i * 16); gu[i * 16 + 1] = genesOut[i * 16 + 1]; }
+    const B = GPUBufferUsage, upload = data => {
+      const b = device.createBuffer({ size: data.byteLength, usage: B.STORAGE | B.COPY_DST });
+      device.queue.writeBuffer(b, 0, data);
+      return b;
+    };
+    const temps = [upload(new Uint32Array(slots)), upload(agentData), upload(geneData)];
+    device.queue.writeBuffer(arena.placeJob, 0, new Uint32Array([n, 0, 0, 0]));
+    enc = device.createCommandEncoder();
+    pass = enc.beginComputePass();
+    pass.setPipeline(P.arenaPlace);
+    pass.setBindGroup(0, device.createBindGroup({ layout: P.L.arenaPlace, entries: [arena.uniform, arena.placeJob, ...temps, s.agentBuf, arena.genes, s.trailViews[s.cur]]
+      .map((res, binding) => ({ binding, resource: res.usage !== undefined ? { buffer: res } : res })) }));
+    pass.dispatchWorkgroups(Math.ceil(n / 256));
+    pass.end();
+    device.queue.submit([enc.finish()]);
+    await device.queue.onSubmittedWorkDone();
+    temps.forEach(b => b.destroy());
+  } else await device.queue.onSubmittedWorkDone();
+  crop.destroy();
+  f.placed = n;
+  return n;
+}
+
+// The open spot farthest from every other founder, kept clear of the edges.
+function openSpot(radius) {
+  const { w, h } = arena.sim.q, mx = radius * h / w, my = radius;
+  let best = null, bestScore = -1;
+  for (let j = 0; j < 9; j++) for (let i = 0; i < 16; i++) {
+    const x = mx + (1 - 2 * mx) * i / 15, y = my + (1 - 2 * my) * j / 8;
+    let near = Infinity;
+    for (const f of arena.founders) near = Math.min(near, Math.hypot((x - f.x) * w / h, y - f.y) - f.specimen.radius);
+    const score = (near === Infinity ? 1 : near) - Math.hypot((x - .5) * w / h, y - .5) * .01;
+    if (score > bestScore) { bestScore = score; best = { x, y }; }
+  }
+  return best;
+}
+async function arenaWork(label, job) {
+  if (arena.busy) return null;
+  arena.busy = true;
+  arena.task = label;
+  drawLcd();
+  try { return await job(); }
+  catch (e) { console.error(e); flash('ARENA FAILED'); return null; }
+  finally { arena.busy = false; arena.task = ''; syncUi(); renderArenaPanel(); }
+}
+async function foundAt(specimen, x, y) {
+  if (arena.founders.length >= ARENA.maxFounders) { flash('ARENA IS FULL'); return; }
+  const { w, h } = arena.sim.q, mx = specimen.radius * h / w;
+  const f = { specimen, x: clamp(x, mx, 1 - mx), y: clamp(y, specimen.radius, 1 - specimen.radius), lineage: arena.founders.length };
+  founderChemistry(f);
+  arena.founders.push(f);
+  arenaChemistry();
+  const n = await arenaWork('PLACING', () => stampFounder(f));
+  if (n) flash('ADDED ' + Math.round(n / 1000) + 'K PARTICLES');
+  else if (n === 0) flash('NO ROOM LEFT');
+}
+// Replays the arena from its founders, which gives exactly the same run again.
+async function replayArena() {
+  await arenaWork('REPLAYING', async () => {
+    resetArena();
+    for (const f of arena.founders) await stampFounder(f);
+  });
+  flash('ARENA REPLAY');
+}
+function beginPlacing(specimen) {
+  if (!specimen) { flash('NOTHING TO CUT'); return; }
+  arena.placing = specimen;
+  syncUi();
+  renderArenaPanel();
+  flash('CLICK TO PLACE');
+}
+function cancelPlacing() {
+  arena.placing = null;
+  $('placeRing').hidden = true;
+  syncUi();
+  renderArenaPanel();
+}
+function placeNow(x, y) {
+  const specimen = arena.placing;
+  if (!specimen) return;
+  arena.placing = null;
+  $('placeRing').hidden = true;
+  const spot = x === undefined ? openSpot(specimen.radius) : { x, y };
+  foundAt(specimen, spot.x, spot.y);
+}
+// Grows an organism out of sight and keeps its body, for saves without one and for random founders.
+async function growBody(g, q, steps) {
+  const sim = createSim(q);
+  try {
+    restartSim(sim, g);
+    while (sim.step < steps) {
+      writeUniforms(sim, g, 0);
+      const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+      simulate(pass, sim, readySpawns(sim, g, Math.min(32, steps - sim.step)));
+      pass.end();
+      device.queue.submit([enc.finish()]);
+      await device.queue.onSubmittedWorkDone();
+    }
+    const judged = await sampleSim(sim, g).then(() => sim.judged);
+    const metrics = metricsFor(sim), body = captureBody(sim, g);
+    await device.queue.onSubmittedWorkDone();
+    return { body, judged, metrics };
+  } finally { destroySim(sim); }
+}
+async function arenaFromSolo() {
+  if (!R || R.step < BODY_MIN_STEPS) { flash('LET IT GROW FIRST'); return; }
+  const name = autoName(buildSave(st, R), null);
+  const specimen = await arenaWork('CUTTING', async () => {
+    const body = captureBody(R, st);
+    try { return await cutSpecimen(body, st, name); } finally { dropBody(body); }
+  });
+  beginPlacing(specimen);
+}
+async function arenaFromSave(d, name) {
+  const g = parseSave(d);
+  if (!g) return;
+  setMode('arena');
+  const specimen = await arenaWork('CUTTING', async () => {
+    let body = d.body ? await loadBody(d, g) : null;
+    if (!body) {
+      arena.task = 'REGROWING';
+      drawLcd();
+      const q = d.grownAt === 'tile' ? TILE : QUALITY[d.quality] || QUALITY.med;
+      body = (await growBody(g, q, clamp(Number.isFinite(d.step) ? d.step : ARENA.grow, BODY_MIN_STEPS, REGROW_LIMIT))).body;
+    }
+    try { return await cutSpecimen(body, g, name || 'Untitled'); } finally { dropBody(body); }
+  });
+  beginPlacing(specimen);
+}
+// A wild founder: rolled like RANDOM, grown out of sight, kept only if it comes to life, and placed in an open spot.
+async function arenaRandom() {
+  const specimen = await arenaWork('GROWING WILD', async () => {
+    for (let t = 0; t < ARENA.tries; t++) {
+      const g = randomFounder();
+      g.walls = null;
+      const { body, judged, metrics } = await growBody(g, TILE, ARENA.grow);
+      try {
+        if (judged?.verdict !== 'ALIVE' && t < ARENA.tries - 1) continue;
+        const named = { format: 'digital-life-save', seed: g.seed, init: g.init, count: g.count, species: g.species, field: g.field, life: g.life, metrics };
+        return await cutSpecimen(body, g, 'Wild ' + autoName(named, null));
+      } finally { dropBody(body); }
+    }
+    return null;
+  });
+  if (!specimen) { flash('NOTHING TO CUT'); return; }
+  const spot = openSpot(specimen.radius);
+  foundAt(specimen, spot.x, spot.y);
+}
+async function arenaUndo() {
+  if (!arena.founders.length || arena.busy) return;
+  arena.founders.pop();
+  arenaChemistry();
+  await replayArena();
+  flash('REMOVED LAST FOUNDER');
+}
+function arenaEmpty() {
+  if (!arena.emptyArmed) {
+    flash('PRESS AGAIN TO EMPTY');
+    arena.emptyArmed = setTimeout(() => { arena.emptyArmed = 0; }, 2500);
+    return;
+  }
+  clearTimeout(arena.emptyArmed);
+  arena.emptyArmed = 0;
+  arena.founders = [];
+  arena.seed = newSeed();
+  arenaChemistry();
+  resetArena();
+  syncUi();
+  renderArenaPanel();
+  flash('ARENA EMPTIED');
+}
+
+// Counts each lineage a couple of times a second, for the chart and the founder list.
+function arenaCensus() {
+  if (arena.censusPending || !arena.sim || arena.busy) return;
+  arena.censusPending = true;
+  const s = arena.sim, step = s.step, enc = device.createCommandEncoder();
+  enc.clearBuffer(arena.censusBuf);
+  const pass = enc.beginComputePass();
+  pass.setBindGroup(0, arena.censusBG[arena.fcur]);
+  pass.setPipeline(P.arenaPeople); pass.dispatchWorkgroups(Math.ceil(s.q.agents / 256));
+  pass.setPipeline(P.arenaPantry); pass.dispatchWorkgroups(Math.ceil(FIELD_W / 8), Math.ceil(FIELD_H / 8));
+  pass.end();
+  enc.copyBufferToBuffer(arena.censusBuf, 0, arena.censusRead, 0, 1024);
+  device.queue.submit([enc.finish()]);
+  arena.censusRead.mapAsync(GPUMapMode.READ).then(() => {
+    const u = new Uint32Array(arena.censusRead.getMappedRange().slice(0)), S = ARENA_SLOTS;
+    arena.censusRead.unmap();
+    const counts = arena.founders.map((_, i) => u[i]);
+    arena.census = {
+      step, counts, total: counts.reduce((a, b) => a + b, 0), food: u[3 * S] / 64 / (FIELD_W * FIELD_H),
+      energy: counts.map((c, i) => c ? u[S + i] / 256 / c : 0), setpoint: counts.map((c, i) => c ? u[2 * S + i] / 256 / c : 0),
+    };
+    const last = arena.history.at(-1);
+    if (!last || step > last.step) {
+      arena.history.push({ step, counts });
+      if (arena.history.length > 480) arena.history.shift();
+    }
+    renderArenaPanel();
+  }).catch(() => {}).finally(() => { arena.censusPending = false; });
+}
+function renderArenaPanel() {
+  if (mode !== 'arena') return;
+  const c = arena.census, pool = arena.sim?.q.agents || 1;
+  $('arenaFounders').replaceChildren(...arena.founders.map((f, i) => {
+    const row = el('div', 'founder'), swatch = el('i'), n = c?.counts[i] ?? 0;
+    swatch.style.background = f.color;
+    row.append(swatch, el('b', '', f.specimen.name), el('span', '', c ? (n ? (n / pool * 100).toFixed(1) + '%' : 'EXTINCT') : ''));
+    row.classList.toggle('gone', !!c && !n);
+    return row;
+  }));
+  $('arenaNote').textContent = arena.placing ? `Click the picture to place ${arena.placing.name}. Press ADD again for an open spot, or Esc to cancel.`
+    : !arena.founders.length ? 'Press ADD to cut a living specimen from your SOLO organism, or open the LIBRARY and press ADD on a save. RANDOM grows a wild one.'
+    : 'Each lineage eats, divides and mutates. The chart shows its share of the world over time.';
+  drawArenaChart();
+}
+function drawArenaChart() {
+  const canvas = $('arenaChart'), dpr = devicePixelRatio || 1, w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
+  if (!w || !h) return;
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const c = canvas.getContext('2d'), hist = arena.history, pool = arena.sim?.q.agents || 1;
+  c.clearRect(0, 0, w, h);
+  if (hist.length < 2) return;
+  const top = Math.max(.05, ...hist.map(e => e.counts.reduce((a, b) => a + b, 0) / pool)) * 1.1;
+  const X = i => i / (hist.length - 1) * w, Y = v => h - v / top * h;
+  let below = hist.map(() => 0);
+  arena.founders.forEach((f, k) => {
+    const above = hist.map((e, i) => below[i] + (e.counts[k] || 0) / pool);
+    c.beginPath();
+    hist.forEach((_, i) => c.lineTo(X(i), Y(above[i])));
+    for (let i = hist.length - 1; i >= 0; i--) c.lineTo(X(i), Y(below[i]));
+    c.closePath();
+    c.fillStyle = f.color;
+    c.globalAlpha = .75;
+    c.fill();
+    below = above;
+  });
+  c.globalAlpha = 1;
+}
+
 /* ---------- Image and video export ---------- */
 // Video is always 1080p60 H.264, which this hardware encodes directly and which plays almost everywhere.
 const VIDEO = { w: 1920, h: 1080, fps: 60, clipFrames: 360, fadeFrames: 45, maxFrames: 36000, keyEvery: 120, bitrate: 18e6 };
@@ -3999,6 +5008,7 @@ let capture = null, imageBusy = false;
 
 // What's on screen, laid out for an output of the given size. The grid matches the tile layout in the interface.
 function exportItems(w, h) {
+  if (mode === 'arena') return [{ sim: arena.sim, genome: arenaGenome, rect: null }];
   if (mode !== 'batch') return [{ sim: R, genome: st, rect: null }];
   const ix = w * .008, iy = h * .008, iw = w - 2 * ix, ih = h - 2 * iy, gx = iw * .008, gy = ih * .008;
   const tw = (iw - 2 * gx) / 3, th = (ih - 2 * gy) / 3;
@@ -4076,6 +5086,7 @@ async function exportImage() {
     const jobs = picked.length
       ? picked.map(t => ({ items: [{ sim: t.sim, genome: t.genome, rect: null }], w: TILE.w, h: TILE.h, name: `dl-${stamp}-${hex8(t.genome.seed).toLowerCase()}.png` }))
       : mode === 'batch' ? [{ items: exportItems(GRID_IMAGE.w, GRID_IMAGE.h), w: GRID_IMAGE.w, h: GRID_IMAGE.h, name: `dl-${stamp}-grid.png` }]
+      : mode === 'arena' ? [{ items: exportItems(arena.sim.q.w, arena.sim.q.h), w: arena.sim.q.w, h: arena.sim.q.h, name: `dl-${stamp}-arena.png` }]
       : [{ items: exportItems(R.q.w, R.q.h), w: R.q.w, h: R.q.h, name: `dl-${stamp}-${hex8(st.seed).toLowerCase()}.png` }];
     for (const job of jobs) {
       const blob = await encodePng(await renderPixels(job.items, job.w, job.h), job.w, job.h);
@@ -4653,6 +5664,7 @@ function initBrush() {
 /* ---------- Actions and interface ---------- */
 const actions = {
   mutate() {
+    if (mode === 'arena') { if (arena.placing) placeNow(); else arenaFromSolo(); return; }
     if (mode === 'batch') { breed(); return; }
     if (!commitDraft()) return;
     // The grown structure carries over, so it has to survive its own changed rules.
@@ -4665,9 +5677,11 @@ const actions = {
   },
   random() {
     if (capture || imageBusy) return;
-    if (mode === 'batch') randomBatch(); else randomSolo();
+    if (mode === 'arena') arenaRandom();
+    else if (mode === 'batch') randomBatch(); else randomSolo();
   },
   reroll() {
+    if (mode === 'arena') { arenaEmpty(); return; }
     if (mode === 'batch') {
       cancelScreening();
       pushBatchHistory();
@@ -4685,6 +5699,7 @@ const actions = {
     restart(); commit(); syncUi(); flash(drew ? 'GROWING' : 'NEW SEED');
   },
   replay() {
+    if (mode === 'arena') { if (arena.founders.length) replayArena(); return; }
     if (mode === 'batch') { cancelScreening(); batch.tiles.forEach(t => restartSim(t.sim, t.genome)); acc = 0; }
     else {
       const drew = brush.dirty;
@@ -4694,10 +5709,11 @@ const actions = {
     }
     flash('REPLAY');
   },
-  draw() { activeTab = activeTab === 'draw' ? 'organism' : 'draw'; syncUi(); },
-  save,
+  draw() { if (mode === 'arena') return; activeTab = activeTab === 'draw' ? 'organism' : 'draw'; syncUi(); },
+  save() { if (mode === 'arena') flash('USE IMAGE OR CLIP HERE'); else save(); },
   toggle() { running = !running; syncUi(); drawLcd(); },
-  undo,
+  undo() { if (mode === 'arena') arenaUndo(); else undo(); },
+  arena() { setMode(mode === 'arena' ? 'solo' : 'arena'); },
   load: openLibrary,
   full() { if (document.fullscreenElement) document.exitFullscreen(); else $('stage').requestFullscreen(); },
   view() { setMode(mode === 'batch' ? 'solo' : 'batch'); },
@@ -4796,15 +5812,22 @@ function syncTiles() {
   });
 }
 function syncUi() {
-  const inBatch = mode === 'batch';
+  const inBatch = mode === 'batch', inArena = mode === 'arena';
   sliders.forEach(s => s());
+  // The ARENA has its own page. The organism pages and settings that only shape a single organism step aside.
+  $('segTab').hidden = inArena;
+  $('tabArena').hidden = !inArena;
+  document.querySelectorAll('[data-noarena]').forEach(row => { row.hidden = inArena; });
+  markSeg($('segSpecimen'), arena.size);
+  $('rerollLabel').textContent = inArena ? 'EMPTY' : 'REROLL';
+  $('savePad').disabled = inArena;
   markSeg($('segMode'), mode); markSeg($('segStrength'), st.strength); markSeg($('segFilter'), st.filter ? 'on' : 'off');
   markSeg($('segLearn'), taste.on ? 'on' : 'off');
   if (activeTab === 'taste' && tasteRendered !== taste.rev) renderTaste();
   markSeg($('segQuality'), st.quality); markSeg($('segSpeed'), st.speed);
   const g = shownGenome(), shown = shownSpecies(g);
   markSeg($('segInit'), g.init); markSeg($('segTab'), activeTab); markSeg($('segHybrid'), hybridOf(g));
-  for (const [key, [, id]] of Object.entries(TABS)) $(id).hidden = key !== activeTab;
+  for (const [key, [, id]] of Object.entries(TABS)) $(id).hidden = inArena || key !== activeTab;
   for (let i = 0; i < 3; i++) { markSeg($('segPal' + i), st.view.palettes[i]); $('palRow' + i).hidden = i >= g.count; }
   markSeg($('segPalField'), st.view.fieldPalette);
   $('palRowField').hidden = !g.field.on;
@@ -4818,7 +5841,7 @@ function syncUi() {
   $('playPad').setAttribute('aria-pressed', String(running));
   $('playLabel').textContent = running ? 'PAUSE' : 'PLAY';
   $('led').classList.toggle('on', running);
-  $('undoPad').disabled = inBatch ? !batch.history.length : !history.length && !brush.added;
+  $('undoPad').disabled = inArena ? !arena.founders.length || arena.busy : inBatch ? !batch.history.length : !history.length && !brush.added;
   const life = lifeOf(g);
   markSeg($('segInherit'), st.inherit);
   markSeg($('segLife'), life.mode);
@@ -4827,7 +5850,7 @@ function syncUi() {
     : life.mode === 'veins' ? 'Busy paths thicken and last. Unused paths wither.'
     : 'Classic slime mold. VEINS and CELLS add early-life behavior.';
   syncBrush();
-  $('mutateLabel').textContent = inBatch ? 'BREED' : 'MUTATE';
+  $('mutateLabel').textContent = inArena ? 'ADD' : inBatch ? 'BREED' : 'MUTATE';
   $('mutateKey').textContent = inBatch ? 'ENTER' : 'M';
   $('tiles').hidden = !inBatch;
   $('organismTitle').textContent = inBatch ? 'ORGANISM · TILE ' + (displayedTile() + 1) + ' · OPEN TO EDIT' : 'ORGANISM';
@@ -4922,6 +5945,28 @@ function initUi() {
   VIEW_PARAMS.forEach(p => makeSlider($('viewSliders'), p, () => st.view));
   LIFE_PARAMS.forEach(p => makeSlider($('lifeSliders'), p, () => lifeOf(shownGenome()), null, commit));
   segmented($('segInherit'), Object.entries(INHERIT_MODES), v => { st.inherit = v; syncUi(); drawLcd(); flash('PASS ON ' + INHERIT_MODES[v]); });
+  segmented($('segSpecimen'), [['s', 'SMALL'], ['m', 'MEDIUM'], ['l', 'LARGE']], v => { arena.size = v; syncUi(); });
+  ARENA_PARAMS.forEach(p => {
+    makeSlider($('arenaSliders'), p, () => arena.params);
+    $('arenaSliders').lastElementChild.dataset.help = 'arena.' + p.k;
+  });
+  // Placing a specimen: a ring the size of the cut follows the pointer, and a click drops it there.
+  const simCanvas = $('sim'), placeRing = $('placeRing');
+  simCanvas.addEventListener('pointermove', e => {
+    if (mode !== 'arena' || !arena.placing) { placeRing.hidden = true; return; }
+    const r = simCanvas.getBoundingClientRect(), size = r.height * arena.placing.radius * 2;
+    placeRing.style.left = (e.clientX - r.left) + 'px';
+    placeRing.style.top = (e.clientY - r.top) + 'px';
+    placeRing.style.width = placeRing.style.height = size + 'px';
+    placeRing.hidden = false;
+  });
+  simCanvas.addEventListener('pointerleave', () => { placeRing.hidden = true; });
+  simCanvas.addEventListener('click', e => {
+    if (mode !== 'arena' || !arena.placing || arena.busy) return;
+    const r = simCanvas.getBoundingClientRect();
+    placeNow((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  });
+  new ResizeObserver(drawArenaChart).observe($('arenaChart'));
   segmented($('segLife'), Object.entries(LIFE_MODES), setLifeMode);
   segmented($('segTab'), Object.entries(TABS).map(([k, [label]]) => [k, label]), v => { activeTab = v; syncUi(); });
   segmented($('segHybrid'), Object.entries(HYBRIDS).map(([k, h]) => [k, h.label]), applyHybrid);
@@ -5007,8 +6052,10 @@ function initUi() {
       if (e.key.toLowerCase() === 'h' && !e.repeat && !e.ctrlKey && !e.metaKey && e.target.tagName !== 'INPUT') actions.help();
       return;
     }
+    if (e.key === 'Escape' && mode === 'arena' && arena.placing) { cancelPlacing(); return; }
     if (e.key === 'Escape' && helpTarget) { hideHelp(); return; }
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+    if (e.key === 'Enter' && mode === 'arena' && arena.placing && e.target.tagName !== 'BUTTON') { e.preventDefault(); placeNow(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'z') { e.preventDefault(); actions.undo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
     if (e.key === ' ') {
       if (e.target.tagName === 'BUTTON') return;
@@ -5028,7 +6075,7 @@ function initUi() {
       }
       if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); breed(); return; }
     }
-    const act = { m: 'mutate', n: 'random', d: 'draw', r: 'reroll', p: 'replay', s: 'save', u: 'undo', l: 'load', f: 'full', b: 'view', h: 'help', i: 'image', c: 'clip', v: 'record' }[e.key.toLowerCase()];
+    const act = { m: 'mutate', n: 'random', d: 'draw', r: 'reroll', p: 'replay', s: 'save', u: 'undo', l: 'load', f: 'full', b: 'view', a: 'arena', h: 'help', i: 'image', c: 'clip', v: 'record' }[e.key.toLowerCase()];
     if (act) { e.preventDefault(); actions[act](); }
   });
 
@@ -5075,6 +6122,20 @@ window.DL = {
     const out = new Float32Array(read.getMappedRange().slice(0));
     read.unmap(); read.destroy();
     return out;
+  },
+  bodyMeasures, analyze, arena, ARENA, ensureArena, resetArena, cutSpecimen, foundAt, stampFounder, replayArena, arenaFromSolo, arenaFromSave, arenaRandom, arenaCensus, growBody, placeNow, openSpot,
+  // Steps the arena directly, for testing without the animation loop.
+  async arenaAdvance(n) {
+    for (let left = n; left > 0;) {
+      const k = Math.min(left, 32);
+      writeArenaUniforms(arena.sim, 0);
+      const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+      simulateArena(pass, arena.sim, k);
+      pass.end();
+      device.queue.submit([enc.finish()]);
+      await device.queue.onSubmittedWorkDone();
+      left -= k;
+    }
   },
   get capture() { return capture; },
   get folders() { return { work: workFolder?.name ?? null, saves: folder?.name ?? null }; },

@@ -49,6 +49,77 @@ Living cells were then run for 3,000 steps on 8 random organisms:
 - Offspring developed real inherited variation.
 - The average speed gene fell slightly below its starting value in all 8 runs, and preferred density rose in all 8. This is consistent with weak selection, but the effect is small and the sample is limited.
 
+## The Arena
+
+### The question
+
+How can bodies grown in the sandbox, with their structure and the way they behave, become building blocks for a particle-life world where they interact and evolve?
+
+### How the design was reached
+
+Each time a design seemed settled, the next step was to ask whether it was truly a new and likely-to-work approach, and to look one level deeper.
+
+1. **Map settings to a particle-life force table.** Rejected: the grown structure is lost.
+2. **Cut a living piece of the body.** Keep its particles, trail, veins and each particle's rules. This keeps the structure, but alone it gives nothing that keeps a piece together.
+3. **A slime agent is nearly a Particle Lenia particle.** Its three sensors sample a field on a ring at sensor distance, which is Particle Lenia's ring kernel. The trail plays the part of Particle Lenia's field U. The difference is the growth curve: slime always wants more trail, while Particle Lenia prefers one density. Adding a crowding penalty above a preferred density turns slime sensing into Particle Lenia's energy, *E = R − G*. With the penalty off, it is classic slime again.
+4. **Slime has memory that particle life lacks.** The trail records where particles *were*, the way Physarum's extracellular slime and a biofilm's matrix do. Specimens carry this memory into the arena.
+5. **Imprint the structure into the rules.** Each particle's preferred density is set from the density it actually lived at when cut. The body's grown form becomes heritable rules, much like Waddington's genetic assimilation, where a form first produced by circumstance becomes encoded.
+6. **Chemical identity instead of a hand-made force table.** Each founder gives off a mix of three shared chemicals. Its responses are solved so its own species' FOLLOW settings hold exactly. How it treats other founders then follows from how alike their chemicals are. With only three channels the interactions are low-rank, as in real signalling, and identity can drift, so mimicry and recognition can evolve.
+7. **Shared fate.** A particle digests food only with chemicals it is drawn to, and best near its preferred density. Matter is conserved, and only regrowing food adds energy.
+
+### Rules as implemented
+
+- **Steering:** score = Σ response × chemical + forage × food × kin(*u*) − crowding × max(*u* − set point, 0)². Here *u* = log(1 + usable chemical), and veins add pull as in Solo.
+- **Digestion:** kin(*u*) × exp(−(*u* − set point)² / 2σ²), with kin(*u*) = *u*² / (*u*² + 1). That is a Hill curve, the form used for cooperative binding. HOMEOSTASIS sets σ and the crowding strength.
+- **Eating:** each particle takes food in proportion to what it can digest. Undigested food stays.
+- **Food flow:** food spreads between neighboring cells at a rate set by their conductance. Veins conduct best, plain trail a little and open ground barely, like cytoplasmic streaming in Physarum's tubes. Flow is symmetric, so food is moved, never made.
+- **Matter:** a particle is 0.3 units of matter plus its energy. Division splits both. Death returns both to the food field. Living costs energy that is not returned, and regrowth adds it, like sunlight.
+- **Acclimation:** the set point moves 0.07% of the way toward the density actually experienced each step. The inherited value is a starting point, like phenotypic plasticity.
+- **Heredity:** daughters inherit every gene with small changes, including the chemical identity. Claims use atomic maximums, so runs replay exactly.
+
+### What happened as it was built
+
+Every run below used the same four cached specimens, the same seed and LOW-to-MED founders on the RTX 4070.
+
+| Version | Result |
+|---|---|
+| Classic sensing, simple eating | One colony grew from 33K to 200K particles and **spread over the whole world**. The average preferred density fell from 1.39 to 0.43 |
+| Gated digestion | Everything starved. Particles removed food they could not digest |
+| Eat only what you can digest | Populations held, but colonies still spread into territories that fill the world |
+| Stronger homeostasis | Preferred density still **evolved downward**, from 2.0 to 0.8 |
+| Cooperative Hill curve, foraging only near kin | **Bounded bodies formed**: rings and cell clusters. They starved slowly, with up to about 200 particles per food cell |
+| Food flows through veins, faster eating | Populations stable or growing. A network lineage spread while ring bodies persisted |
+| Acclimation, thinning large specimens | A body grown in a reaction-diffusion world survived transplant as a **membrane ring with particles of its second species inside**. All five lineages coexisted after 3,200 steps with food steady near 77%. Arena LIFE score 88, bodies part at maximum |
+
+The downward drift of preferred density matches a known effect called **spatial sorting**. In an expanding population, the best dispersers end up at the front and breed with each other, as with cane toads evolving longer legs at their invasion front. Here, pioneers at the edge found fresh food. Individuality only held once cooperation made loners pay a real price.
+
+Checks:
+
+- Two replays of the same founders gave identical trail hashes.
+- All five Solo regression hashes are unchanged.
+- An arena step costs about 0.97 ms at MED, against 0.44 ms for Solo.
+
+### What is new here, honestly
+
+- **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
+- **Known ideas, combined:** Particle Lenia's energy, Flow-Lenia's rules carried with matter and conserved mass, cooperative digestion, nutrient transport through veins, and non-reciprocal chemical interactions between particle types.
+- **Not achieved yet:** whole bodies dividing into two, a membrane made of material the cell produces, as in Cabaret's vesicles, and long-run open-ended evolution.
+
+### LIFE score version 2
+
+The tagged saves showed what version 1 missed:
+
+- **False positives:** an even reaction-diffusion texture, a dense foam filling the frame, and a frame locked into straight lines.
+- **False negatives:** a ring of particles enclosing a second species, and bright orbs in a crystal lattice that was called NOISE.
+
+Four measures were added from the probe map: coarse-scale bodies that stand apart from their surroundings and don't touch the frame, variety between blocks of the frame, the share of trail in a border band, and the share of edge strength within 7.5° of horizontal or vertical.
+
+They were calibrated on each save's thumbnail, because thumbnails show exactly what was tagged:
+
+- **Grid** separated the stuck-lines save (0.92) from every other save (at most 0.47).
+- **Variety** separated the even textures (0.17) from the cell-like saves (about 1.0).
+- A truly noisy organism had 0 loops, while the crystal lattice had 221. NOISE now requires few loops.
+
 ## Reading status
 
 | Source | What was read |
@@ -57,6 +128,10 @@ Living cells were then run for 3,000 steps on 8 random organisms:
 | Physarum review (Sun) | Most of the paper, including the conductivity equation |
 | Tero 2007, Tero 2010, Nakagaki 2007 | Citations and summaries only. Their equations were confirmed through the review |
 | Vasas 2012, Beisson & Sonneborn 1965, chemoton, Jones 2010 | Search summaries only. **Read the full papers before relying on details** |
+| Particle Lenia | The full article: kernel, growth, repulsion, energy and update rule |
+| Cabaret 2024, autopoietic vesicles | A summary of the HTML paper. Force formulas and parameters are only in its code |
+| Agudo-Canalejo & Golestanian 2019, particle life, Ventrella's Clusters | Search summaries only |
+| Spatial sorting, cooperative digestion in yeast, Physarum's slime memory, genetic assimilation | Background knowledge, not re-read for this work |
 
 ## Sources
 
@@ -69,3 +144,11 @@ Living cells were then run for 3,000 steps on 8 random organisms:
 - Beisson, J., & Sonneborn, T. M. (1965). [Cytoplasmic inheritance of the organization of the cell cortex in Paramecium aurelia](https://doi.org/10.1073/pnas.53.2.275). *PNAS*, 53(2), 275-282.
 - Gánti, T. [The Principles of Life](https://academic.oup.com/book/4974/chapter/147439774). Oxford University Press. Introduces the chemoton model.
 - Jones, J. (2010). [Characteristics of pattern formation and evolution in approximations of Physarum transport networks](https://doi.org/10.1162/artl.2010.16.2.16202). *Artificial Life*, 16(2).
+- Mordvintsev, A., Niklasson, E., & Randazzo, E. (2022). [Particle Lenia and the energy-based formulation](https://google-research.github.io/self-organising-systems/particle-lenia/). Google Research.
+- Cabaret, T. (2024). [Emergence of autopoietic vesicles able to grow, repair and reproduce in a minimalist particle system](https://arxiv.org/abs/2311.10761). arXiv:2311.10761.
+- Plantec, E., et al. (2025). [Flow-Lenia: Emergent evolutionary dynamics in mass conservative continuous cellular automata](https://arxiv.org/abs/2506.08569). *Artificial Life*, 31(2), 228-248.
+- Agudo-Canalejo, J., & Golestanian, R. (2019). Active phase separation in mixtures of chemically interacting particles. *Physical Review Letters*, 123, 018101. [Press summary](https://www.ds.mpg.de/3426225/190619_pm_prl_agudo_canalejo).
+- Shine, R., Brown, G. P., & Phillips, B. L. (2011). An evolutionary process that assembles phenotypes through space rather than through time. *PNAS*, 108(14), 5708-5711.
+- Gore, J., Youk, H., & van Oudenaarden, A. (2009). Snowdrift game dynamics and facultative cheating in yeast. *Nature*, 459, 253-256.
+- Reid, C. R., et al. (2012). Slime mold uses an externalized spatial "memory" to navigate in complex environments. *PNAS*, 109(43), 17490-17494.
+- Waddington, C. H. (1953). Genetic assimilation of an acquired character. *Evolution*, 7(2), 118-126.
