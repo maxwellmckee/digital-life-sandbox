@@ -3663,15 +3663,25 @@ async function pickFolder() {
     $('savesWarn').hidden = false;
   }
 }
-// One permission on the working folder covers everything inside it.
-async function grantFolder() {
+// One permission on the working folder covers everything inside it. In a new session Chrome asks again, with a small
+// prompt below the address bar. While it waits, the display says so. If no answer comes, or the browser won't ask,
+// the folder dialog opens instead, because choosing the folder again grants access in one step.
+const PERMISSION_WAIT_MS = 20000;
+async function grantFolder(onAsk = () => flash('ALLOW FOLDER ACCESS')) {
   const target = workFolder || folder, opts = { mode: 'readwrite' };
   if (!target) return false;
-  return await target.queryPermission(opts) === 'granted' || await target.requestPermission(opts) === 'granted';
+  try {
+    if (await withTimeout(target.queryPermission(opts), 5000) === 'granted') return true;
+    onAsk('ALLOW ACCESS IN BROWSER');
+    return await withTimeout(target.requestPermission(opts), PERMISSION_WAIT_MS) === 'granted';
+  } catch (e) {
+    console.warn('Folder access was not granted, so the folder will be chosen again.', e);
+    return false;
+  }
 }
-async function savesFolder() {
-  if (!await grantFolder()) return askForFolder();
-  if (workFolder && !await workFolder.isSameEntry(folder)) folder = await workFolder.getDirectoryHandle('saves', { create: true });
+async function savesFolder(onAsk) {
+  if (!await grantFolder(onAsk)) { onAsk?.('CHOOSE THE FOLDER'); return askForFolder(); }
+  if (workFolder && !await withTimeout(workFolder.isSameEntry(folder), 5000)) folder = await withTimeout(workFolder.getDirectoryHandle('saves', { create: true }));
   return folder;
 }
 // Returns a subfolder for exports, null to use browser downloads, or false if the person cancelled.
@@ -4541,9 +4551,11 @@ async function openLibrary() {
     }
   };
   try {
-    const dir = await savesFolder();
+    const dir = await savesFolder(text => { lib.status = text; drawLcd(); });
     if (!dir) { flash('LIBRARY CANCELLED'); return; }
-    const items = [], thumbs = await dir.getDirectoryHandle('thumbs', { create: true });
+    lib.status = 'OPENING LIBRARY';
+    drawLcd();
+    const items = [], thumbs = await withTimeout(dir.getDirectoryHandle('thumbs', { create: true }));
     await readAll(dir, items);
     // Removed saves are never shown, but they are still read so the family tree can connect their children to their parents.
     const removed = [];
