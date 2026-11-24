@@ -93,10 +93,11 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 ### Drawing
 
 - **BARRIER** paints smooth, thick walls organisms cannot enter. **ERASE** removes them. The current run continues while you draw, then **GROW** starts a new run inside the drawing.
-- MUTATE, RANDOM, REROLL and REPLAY also pick up a new drawing. MUTATE keeps the grown body, so a structure can adapt to a new wall.
-- **START: BLANK** opens an empty sandbox and selects the organism brush, so you place every species yourself.
+- MUTATE, RANDOM, REROLL, REPLAY and switching to Batch also pick up a new drawing. MUTATE keeps the grown body when barriers are added, so a structure can adapt to a new wall.
+- Barriers are one shared world across Solo and Batch. **CLEAR** or **ERASE** reaches every tile and future child. Anything that grew around a removed barrier restarts, because its shape would otherwise remain as a ghost.
+- **ORGANISMS: EMPTY** on the DRAW page removes all organisms, keeps the barriers and selects the organism brush. In an empty sandbox, barriers apply immediately. **FILLED** goes back to a normal start. **START: BLANK** is the same empty state.
 - Children you breed inherit their parent's barriers. RANDOM keeps the current barriers too. Use **CLEAR**, then **GROW**, to remove them.
-- **ORGANISM** gathers the chosen species wherever you hold the mouse. It moves existing agents to the brush, so the total population stays constant and performance is unaffected.
+- **ORGANISM** places the chosen species wherever you hold or swipe the mouse. It moves existing or parked agents to the brush, so the total pool stays constant and performance is unaffected.
 - Painted organisms are recorded by simulation step, so REPLAY and saves re-enact them. REROLL, MUTATE, RANDOM and breeding start without them.
 
 ### Inheritance and early life

@@ -317,6 +317,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <div id="viewSliders"></div>
     </section>
     <section class="group" id="tabDraw" hidden><h2>DRAW</h2>
+      <div class="row wide"><span>ORGANISMS</span><div class="seg" id="segSandbox"></div></div>
       <div class="row wide" data-help="draw.tool"><span>BRUSH</span><div class="seg" id="segTool"></div></div>
       <div class="row wide" id="brushSpeciesRow" data-help="draw.species"><span>SPECIES</span><div class="seg species" id="segBrushSpecies"></div></div>
       <label class="row" data-help="draw.size"><span>SIZE</span><input type="range" id="brushSize" min="1.5" max="15" step=".5"><output id="brushSizeOut"></output></label>
@@ -1278,7 +1279,7 @@ function createSim(q) {
   });
   const blurGroup = v => group(P.L.blur, [v, P.sampler]);
   return {
-    q, levels, cur: 0, step: 0, wall, wallView, wallsFor: null, spawnNext: 0, spawnCursor: [0, 0, 0],
+    q, levels, cur: 0, step: 0, wall, wallView, wallsFor: null, grownWalls: null, spawnNext: 0, spawnCursor: [0, 0, 0],
     simBuf, viewBuf, agentBuf, depositBuf, trail, trailViews, scene, sceneView, bloom, bloomViews, field, fieldViews, fieldOn: false,
     geneBuf: null, claimBuf: null, cellBG: null, genesReady: false, cells: false,
     agentBG: [0, 1].map(i => group(P.L.agent, [simBuf, agentBuf, depositBuf, trailViews[i], fieldViews[0], wallView])),
@@ -1363,9 +1364,18 @@ function wallMask(walls) {
   return mask;
 }
 const maskBlocked = (mask, u, v) => mask[Math.min(WALL_H - 1, Math.floor(v * WALL_H)) * WALL_W + Math.min(WALL_W - 1, Math.floor(u * WALL_W))] > 127;
+// True when a place that was blocked is now open. A structure grown around a barrier keeps its shape after the barrier
+// is gone, because agents only follow existing trails, so such a structure can't be carried into the opened world.
+function wallsOpened(before, after) {
+  if (!before?.length || before === after) return false;
+  const was = wallMask(before), now = wallMask(after);
+  for (let i = 0; i < was.length; i++) if (was[i] > 127 && !(now && now[i] > 127)) return true;
+  return false;
+}
 function syncWalls(sim, g) {
   const walls = g.walls?.length ? g.walls : null;
   if (sim.wallsFor === walls) return;
+  if (!wallsOpened(sim.grownWalls, walls)) sim.grownWalls = walls;
   sim.wallsFor = walls;
   if (walls) device.queue.writeTexture({ texture: sim.wall }, wallMask(walls), { bytesPerRow: WALL_W }, [WALL_W, WALL_H]);
 }
@@ -1507,12 +1517,20 @@ function captureBody(sim, g) {
   enc.copyTextureToTexture({ texture: sim.trail[sim.cur] }, { texture: body.trail }, [w, h]);
   if (hasField) enc.copyTextureToTexture({ texture: sim.field[0] }, { texture: body.field }, [FIELD_W, FIELD_H]);
   device.queue.submit([enc.finish()]);
+  body.grownWalls = sim.grownWalls || null;
   return holdBody(body);
+}
+// A body is only usable in a world that hasn't removed any barrier it grew around.
+function usableBody(g) {
+  const body = liveBody(g);
+  if (body && wallsOpened(body.grownWalls, g.walls)) { g.body = null; return null; }
+  return body;
 }
 // What a child should start from. An untouched blank canvas has no body yet, so its children grow from the recipe.
 function inheritedBody(sim, g) {
   if (st.inherit !== 'body' || (g.init === 'empty' && !g.spawns?.length && !liveBody(g))) return null;
-  return sim.step >= BODY_MIN_STEPS ? captureBody(sim, g) : liveBody(g);
+  if (sim.step < BODY_MIN_STEPS) return usableBody(g);
+  return wallsOpened(sim.grownWalls, g.walls) ? null : captureBody(sim, g);
 }
 function withBody(sim, g) {
   const out = cloneGenome(g);
@@ -1566,7 +1584,8 @@ function placeState(from, dst, g, { reseed = false, fill = false, seed = g.seed 
 function restartSim(sim, g) {
   syncWalls(sim, g);
   sim.spawnNext = 0; sim.spawnCursor = [0, 0, 0];
-  const body = liveBody(g);
+  const body = usableBody(g);
+  sim.grownWalls = g.walls?.length ? g.walls : null;
   if (body) placeState(body, sim, g, { reseed: body.seed !== g.seed });
   else {
     sim.genesReady = false;
@@ -1592,6 +1611,7 @@ async function continueFrom(src, g) {
   placeState(stateOf(src), dst, g, { seed: (g.seed ^ step ^ 0x5BD1E995) >>> 0 });
   dst.cur = 0; dst.step = step; dst.analysis = null; dst.judged = judged; dst.fromTile = fromTile; dst.run = (dst.run || 0) + 1;
   dst.spawnNext = src.spawnNext; dst.spawnCursor = [...src.spawnCursor];
+  dst.grownWalls = src.grownWalls;
   syncWalls(dst, g);
   acc = 0;
 }
@@ -2099,7 +2119,7 @@ function undo() {
   const o = JSON.parse(prev), node = family.get(o.uid), walls = node?.walls ?? null, body = node?.body?.gone ? null : node?.body ?? null;
   const life = { ...DEFAULT_LIFE, ...o.life };
   const reset = o.seed !== st.seed || o.init !== st.init || o.count !== st.count || o.field.on !== st.field.on || walls !== (st.walls || null)
-    || body !== (st.body || null) || (life.mode === 'cells') !== (lifeOf(st).mode === 'cells');
+    || body !== (st.body || null) || (life.mode === 'cells') !== (lifeOf(st).mode === 'cells') || (o.painted || 0) !== (st.spawns?.length || 0);
   st.seed = o.seed; st.init = o.init; st.count = o.count; st.species = o.species; st.field = o.field;
   st.walls = walls; st.body = body; st.life = life;
   if (reset) st.spawns = node?.spawns ?? null;
@@ -2181,7 +2201,7 @@ function makeChild(parents, sigma, tag = '') {
   }
   const init = Math.random() < .12 ? pickOne(GROWN_INITS) : (b && Math.random() < .5 ? b.init : a.init);
   // The child wakes up inside a parent's grown body. A second parent contributes rules, not structure.
-  const donor = st.inherit === 'body' ? [a, ...parents].find(p => liveBody(p)) : null, lead = donor || parents[0];
+  const donor = st.inherit === 'body' ? [a, ...parents].find(p => usableBody(p)) : null, lead = donor || parents[0];
   const child = {
     seed: newSeed(), init: init === 'empty' ? 'scatter' : init, count: a.count, species, saveId: null,
     field: { ...(b && Math.random() < .5 ? b.field : a.field) },
@@ -2384,6 +2404,17 @@ async function startBatchFrom(g) {
   syncUi();
   drawLcd();
 }
+// Barriers describe one shared world, so a change made in SOLO reaches every tile and every future child.
+function syncBatchWalls() {
+  const walls = st.walls || null;
+  for (const t of batch.tiles) {
+    if (!t.genome || (t.genome.walls || null) === walls) continue;
+    const opened = wallsOpened(t.sim.grownWalls, walls);
+    t.genome.walls = walls;
+    if (opened) restartSim(t.sim, t.genome);
+  }
+  for (const g of batch.parents) g.walls = walls;
+}
 function enterBatch() {
   if (!batch.ready) {
     batch.tiles.forEach(t => { t.sim = createSim(TILE); });
@@ -2395,6 +2426,7 @@ function enterBatch() {
     startBatchFrom(st);
     return;
   }
+  syncBatchWalls();
   const i = batch.openIndex;
   if (i >= 0) {
     // Edits made to an opened tile travel back into its place in the grid.
@@ -2410,8 +2442,16 @@ function setMode(m) {
   if (m === mode || !device) return;
   cancelRegrow();
   cancelScreening();
-  if (m === 'batch') enterBatch();
-  else batch.sourceSnap = snapshot();
+  if (m === 'batch') {
+    // A drawing in progress becomes the grid's world, even if GROW was never pressed.
+    const drew = brush.dirty;
+    if (!commitDraft()) return;
+    if (drew) {
+      if (wallsOpened(R.grownWalls, st.walls)) restart();
+      commit();
+    }
+    enterBatch();
+  } else batch.sourceSnap = snapshot();
   mode = m;
   acc = 0;
   batch.hover = -1;
@@ -2441,6 +2481,8 @@ function undoBatch() {
   batch.lineage = h.lineage;
   batch.gen = h.gen;
   batch.parents = h.parents;
+  // Going back a generation doesn't bring back a drawing you have since changed.
+  for (const g of [...h.genomes, ...h.parents]) g.walls = st.walls || null;
   setBatchGenomes(h.genomes);
   batch.picks = h.picks;
   syncUi();
@@ -2792,8 +2834,11 @@ const HELP = {
   'draw.tool': { t: 'BRUSH', d: 'BARRIER paints walls organisms cannot enter. ERASE removes them. ORGANISM gathers the chosen species wherever you hold.', tip: 'Barrier changes wait until you press GROW, so you can draw without disturbing the current run.' },
   'draw.species': { t: 'SPECIES', d: 'Which species the ORGANISM brush gathers. You can pick from as many as this organism has.' },
   'draw.size': { t: 'BRUSH SIZE', d: 'How wide the brush is. The mouse wheel also changes it while you are over the picture.' },
-  'draw.clear': { t: 'CLEAR', d: 'Removes every barrier from the drawing. Press GROW to run without them, or UNDO to bring them back.' },
-  'draw.grow': { t: 'GROW', d: 'Starts a new run inside your barriers. It is the same as REROLL.', tip: 'MUTATE, RANDOM and REPLAY also use a new drawing. Children you breed inherit the barriers.' },
+  sandbox: { t: 'ORGANISMS', d: 'Whether the sandbox starts full of organisms or empty.' },
+  'sandbox.filled': { t: 'FILLED', d: 'Organisms start across the sandbox and grow by themselves.' },
+  'sandbox.empty': { t: 'EMPTY', d: 'Removes every organism and keeps your barriers. Choose the ORGANISM brush and hold on the picture to place life where you want it.', tip: 'Pressing EMPTY again wipes the sandbox for a new start.' },
+  'draw.clear': { t: 'CLEAR', d: 'Removes every barrier from the drawing, and from every BATCH tile once you continue. UNDO brings them back.', tip: 'Anything that grew around a removed barrier restarts, so no ghost of the drawing is left behind.' },
+  'draw.grow': { t: 'GROW', d: 'Starts a new run inside your barriers. It is the same as REROLL.', tip: 'MUTATE, RANDOM, REPLAY and switching to BATCH also use a new drawing.' },
   'draw.canvas': { t: 'DRAWING SURFACE', d: 'Drag to paint with the current brush. Bright outlines show barriers.', tip: 'Painted organisms are part of the run, so REPLAY and saves re-enact them at the same moment.' },
   learn: { t: 'LEARN', d: 'Remembers which tiles you pick and pass, then steers new variants toward what you keep choosing.', tip: 'One plain child and the WILD tile are never steered, so surprises keep coming.' },
   'learn.on': { t: 'LEARNING ON', d: 'During a run, new variants keep moving the way your picks are heading. A new run mixes in your past favorites.' },
@@ -2916,7 +2961,7 @@ function placeHelp(target) {
 function initHelp() {
   const rows = {
     segMode: 'view', segStrength: 'strength', segFilter: 'filter', segQuality: 'quality', segSpeed: 'speed', segInit: 'init',
-    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology',
+    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology', segSandbox: 'sandbox',
     segPal0: 'palette', segPal1: 'palette', segPal2: 'palette', segPalField: 'fieldPalette',
   };
   for (const [id, key] of Object.entries(rows)) {
@@ -3143,6 +3188,7 @@ async function unpackBody(blob, g) {
   if (hasGenes) { device.queue.writeBuffer(body.genes, 0, raw, o, geneBytes); o += geneBytes; }
   device.queue.writeTexture({ texture: body.trail }, new Uint8Array(raw, o, w * h * 16), { bytesPerRow: w * 16 }, [w, h]); o += w * h * 16;
   if (hasField) device.queue.writeTexture({ texture: body.field }, new Uint8Array(raw, o, FIELD_W * FIELD_H * 16), { bytesPerRow: FIELD_W * 16 }, [FIELD_W, FIELD_H]);
+  body.grownWalls = g.walls || null;
   return holdBody(body);
 }
 async function writeBody(dir, id, sim, g) {
@@ -4223,8 +4269,18 @@ function clearDraft() {
   brush.added++;
   brush.dirty = true;
   rebuildBrushMask();
+  applyBlankDraft();
   syncUi();
   flash('BARRIERS CLEARED');
+}
+// An empty sandbox has no run to disturb, so its barriers take effect right away and the next paint respects them.
+function applyBlankDraft() {
+  if (st.init !== 'empty' || !brush.dirty) return;
+  const painted = st.spawns;
+  if (!commitDraft()) return;
+  st.spawns = painted;
+  if (!painted?.length) R.grownWalls = st.walls || null;
+  commit();
 }
 // Turns the drawing into this organism's world. Returns false if it leaves no room to live.
 function commitDraft() {
@@ -4253,7 +4309,19 @@ function placeRing(e) {
   brushRing.className = brush.tool === 'wall' ? '' : brush.tool;
   brushRing.hidden = false;
 }
+// A quick swipe outruns the hold timer, so organisms are also placed at even spacing along the pointer's path.
+function spawnAlong(q) {
+  const from = brush.spawnAt || q, gap = brush.size / 100 * .7;
+  const steps = Math.min(64, Math.floor(Math.hypot((q.x - from.x) * 16 / 9, q.y - from.y) / gap));
+  for (let i = 1; i <= steps; i++) {
+    brush.x = +(from.x + (q.x - from.x) * i / steps).toFixed(4);
+    brush.y = +(from.y + (q.y - from.y) * i / steps).toFixed(4);
+    spawnTick();
+  }
+  brush.x = q.x; brush.y = q.y;
+}
 function spawnTick() {
+  brush.spawnAt = { x: brush.x, y: brush.y };
   if (growing || mode !== 'solo') return;
   if ((st.spawns?.length || 0) >= SPAWN.max) { flash('BRUSH MEMORY FULL'); return; }
   const k = Math.min(brush.species, st.count - 1), r = +(brush.size / 100).toFixed(4), mask = wallMask(st.walls);
@@ -4299,6 +4367,10 @@ function moveBrush(e) {
   placeRing(e);
   if (!brush.painting) return;
   const p = brushPoint(e);
+  if (brush.tool === 'life') {
+    for (const ev of e.getCoalescedEvents?.().length ? e.getCoalescedEvents() : [e]) spawnAlong(brushPoint(ev));
+    return;
+  }
   brush.x = p.x; brush.y = p.y;
   const s = brush.stroke;
   if (!s) return;
@@ -4310,6 +4382,7 @@ function endBrush() {
   brush.painting = false;
   // The curve always finishes exactly where the pointer stopped.
   if (brush.stroke && brush.pen) { curveStroke(brush.stroke, brush.pen.x, brush.pen.y, brush.x, brush.y); composeWalls(); }
+  const drewWall = !!brush.stroke;
   brush.pen = null;
   brush.stroke = null;
   if (brush.timer) {
@@ -4318,6 +4391,7 @@ function endBrush() {
     // Painting is part of the run rather than an undo step, so the current state becomes the baseline.
     committed = snapshot();
   }
+  if (drewWall) applyBlankDraft();
   syncUi();
 }
 function syncBrush() {
@@ -4330,24 +4404,33 @@ function syncBrush() {
   brush.species = Math.min(brush.species, st.count - 1);
   markSeg($('segTool'), brush.tool);
   markSeg($('segBrushSpecies'), brush.species);
+  markSeg($('segSandbox'), st.init === 'empty' ? 'empty' : 'filled');
   $('brushSpeciesRow').hidden = brush.tool !== 'life';
+  for (const b of $('segSandbox').children) b.disabled = !solo;
   for (const b of $('segTool').children) b.disabled = !solo;
   for (const b of $('segBrushSpecies').children) {
     const i = +b.dataset.value;
     b.disabled = !solo || i >= st.count;
     b.style.setProperty('--swatch', PALETTES[st.view.palettes[i]][3]);
   }
-  $('brushSize').disabled = $('drawClear').disabled = $('drawGrow').disabled = !solo;
+  $('brushSize').disabled = $('drawClear').disabled = !solo;
+  $('drawGrow').disabled = !solo || st.init === 'empty';
   $('brushSize').value = brush.size;
   $('brushSizeOut').textContent = brush.size.toFixed(1);
   $('drawGrow').classList.toggle('ready', brush.dirty);
   $('drawNote').textContent = !solo ? 'Open a tile in SOLO to draw on it.'
-    : brush.tool === 'life' && st.init === 'empty' ? 'Hold on the empty sandbox to place this species.'
+    : brush.tool === 'life' && st.init === 'empty' ? 'Hold on the sandbox to place this species.'
+    : st.init === 'empty' ? 'Barriers apply right away. Choose ORGANISM to place life.'
     : brush.tool === 'life' ? 'Hold on the picture to gather this species there.'
     : brush.dirty ? 'Press GROW to start a new run inside this drawing.'
     : 'Paint where organisms cannot go, then press GROW.';
 }
+function setSandbox(v) {
+  if (v === 'empty') setInit('empty');
+  else if (st.init === 'empty') setInit('scatter');
+}
 function initBrush() {
+  segmented($('segSandbox'), [['filled', 'FILLED'], ['empty', 'EMPTY']], setSandbox);
   segmented($('segTool'), Object.entries(BRUSH_TOOLS), v => { brush.tool = v; syncUi(); });
   segmented($('segBrushSpecies'), SPECIES_NAMES.map((name, i) => [i, name]), v => { brush.species = v; syncUi(); });
   $('brushSize').addEventListener('input', e => { brush.size = +e.target.value; syncBrush(); });
@@ -4568,9 +4651,12 @@ function applyHybrid(key) {
 }
 // BLANK goes straight to the organism brush, because that is the only way anything appears.
 function setInit(v) {
+  if (!commitDraft()) return;
+  // A new family record lets UNDO return to the previous run with its paint and body intact.
+  branchGenome(st);
   st.init = v;
   st.body = null;
-  if (v === 'empty') { st.spawns = null; activeTab = 'draw'; brush.tool = 'life'; }
+  if (v === 'empty') { activeTab = 'draw'; brush.tool = 'life'; }
   restart(); commit(); syncUi();
   if (v === 'empty') flash('PAINT TO SPAWN');
 }
@@ -4760,7 +4846,7 @@ window.DL = {
   exportImage, captureVideo, encodePng, renderPixels, exportItems, VIDEO, applySave, LIGHT_CURVES, lib, openLibrary, closeLibrary, save,
   layoutFamily, familyLine, lineageOf, setLibView, selectTreeNode, TREE,
   RANDOM, randomFounder, rollFounders, restartSim, actions, brush, wallMask, buildSave, parseSave, commitDraft,
-  captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, setInit, lifeOf, bodies, liveBody, wallArt,
+  wallsOpened, setSandbox, captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, setInit, lifeOf, bodies, liveBody, wallArt,
   get R() { return R; },
   // Reads every agent's inherited genes back, eight numbers each, starting with energy.
   async genes(sim = R) {
