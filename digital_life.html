@@ -26,7 +26,7 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .screen{position:relative;width:min(100cqw,calc(100cqh * 16 / 9));height:min(100cqh,calc(100cqw * 9 / 16))}
 #sim{display:block;width:100%;height:100%}
 #brushLayer{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}
-#brushLayer.applied{opacity:.4}
+#brushLayer.applied{opacity:.94}
 #brushRing{position:absolute;border:1.5px solid #d9fff2;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 1px #03060799}
 #brushRing.erase{border-style:dashed}
 #brushRing.life{border-color:var(--active)}
@@ -197,7 +197,9 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .row[hidden]{display:none}
 .group[hidden]{display:none}
 .tabs{flex:none}
-.tabs button{height:24px}
+.tabs button{height:24px;font-size:9.5px;letter-spacing:.01em}
+#saveMoment{flex:1;height:22px;padding:0 9px;border:0;border-radius:5px;background:var(--chassis-hi);
+  box-shadow:0 1px 0 #a5a29a;cursor:pointer;font-size:10px}
 .saves-row{display:flex;align-items:center;gap:6px;min-width:0}
 #savesName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft)}
 #savesName.set{color:var(--ink)}
@@ -295,6 +297,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <div class="row wide" id="ecoRow"><span>ECOLOGY</span><div class="seg" id="segEco"></div></div>
       <div id="simSliders"></div>
     </section>
+    <section class="group" id="tabLife" hidden><h2>LIFE</h2>
+      <div class="row wide"><span>INHERIT</span><div class="seg" id="segInherit"></div></div>
+      <div class="row wide"><span>BIOLOGY</span><div class="seg" id="segLife"></div></div>
+      <div id="lifeSliders"></div>
+      <div class="row wide" data-help="moment"><span>KEEP</span><div class="saves-row"><button type="button" id="saveMoment">SAVE THIS MOMENT</button></div></div>
+      <p class="taste-note" id="lifeNote"></p>
+    </section>
     <section class="group" id="tabField" hidden><h2 id="fieldTitle">REACTION FIELD</h2>
       <div class="row wide"><span>HYBRID</span><div class="seg" id="segHybrid"></div></div>
       <div id="fieldSliders"></div>
@@ -382,7 +391,7 @@ const BATCH_SIZE = 9;
 // The iteration count must stay even: agents and the renderer always read the first field texture.
 const FIELD_W = 480, FIELD_H = 270, FIELD_ITERS = 4;
 // Barriers are brush strokes rasterized onto one fixed grid, so a drawing means the same thing at every quality level.
-const WALL_W = 960, WALL_H = 540, WALL_MAX_COVER = .92;
+const WALL_W = 1920, WALL_H = 1080, WALL_MAX_COVER = .92;
 // The organism brush moves a small share of a species to the cursor on each tick. The agent count never changes.
 const SPAWN = { rate: .004, everyMs: 33, max: 4000 };
 // Metrics read a small summary of each run from the GPU: a coarse map of the trails and a grid of agent counts.
@@ -394,7 +403,9 @@ const SCREEN_CHECKS = [300, 600, 900, 1200], SCREEN_GAP = 60, SCOUTS = 3, SCREEN
 const SCREEN_STOPS = SCREEN_CHECKS.flatMap(c => [c - SCREEN_GAP, c]);
 const MAX_KEPT = 3;
 const SPEEDS = [1, 2, 4, 8];
-const INITS = { scatter:'SCATTER', in:'RING IN', out:'RING OUT' };
+const INITS = { scatter:'SCATTER', in:'RING IN', out:'RING OUT', empty:'BLANK' };
+// BLANK waits for the organism brush, so random rolls and mutations only choose starts that grow by themselves.
+const GROWN_INITS = ['scatter', 'in', 'out'];
 const MODES = { solo:'SOLO', batch:'BATCH' };
 const STRENGTHS = { subtle:['SUBTLE', .035], medium:['MEDIUM', .07], wild:['WILD', .15] };
 
@@ -444,7 +455,19 @@ const HYBRIDS = {
   waves: { label:'WAVES', feed:.014,  kill:.054 },
 };
 const DEFAULT_FIELD = { on:false, feed:.0545, kill:.062, seeding:.5 };
-const TABS = { organism:['ORGANISM', 'tabOrganism'], field:['FIELD', 'tabField'], light:['LIGHT', 'tabLight'], draw:['DRAW', 'tabDraw'], taste:['TASTE', 'tabTaste'] };
+// Early-life layers. Each is off by default, so existing organisms grow exactly as they always have.
+const LIFE_MODES = { off:'OFF', veins:'VEINS', cells:'CELLS' };
+const INHERIT_MODES = { body:'BODY', recipe:'RECIPE' };
+const DEFAULT_LIFE = { mode:'off', veins:.6, hunger:.4, drift:.35 };
+const lifeOf = g => g.life || (g.life = { ...DEFAULT_LIFE });
+const LIFE_PARAMS = [
+  { k:'veins',  label:'VEIN MEMORY', min:0,  max:1, step:.01, only:g => lifeOf(g).mode !== 'off',   fmt:v=>v.toFixed(2) },
+  { k:'hunger', label:'METABOLISM',  min:.1, max:1, step:.01, only:g => lifeOf(g).mode === 'cells', fmt:v=>v.toFixed(2) },
+  { k:'drift',  label:'GENE DRIFT',  min:0,  max:1, step:.01, only:g => lifeOf(g).mode === 'cells', fmt:v=>v.toFixed(2) },
+];
+// A copied body must have had time to grow, and copies are kept in GPU memory up to this limit.
+const BODY_MIN_STEPS = 60, BODY_LIMIT_BYTES = 1.5e9, BODY_MAGIC = 0x31424C44;
+const TABS = { organism:['ORGANISM', 'tabOrganism'], life:['LIFE', 'tabLife'], field:['FIELD', 'tabField'], light:['LIGHT', 'tabLight'], draw:['DRAW', 'tabDraw'], taste:['TASTE', 'tabTaste'] };
 // Glow and exposure sliders run 0 to 100 with 50 at the balanced look, measured as where colors stay richest across many organisms.
 // Below 50 they get finer control, and the full old range is still reachable at the top so older saves look the same.
 const LIGHT_MID = { glow: .25, exposure: .12 };
@@ -491,20 +514,17 @@ struct Sim {
   diffuse: vec4f, decay: vec4f,
   species: array<Species, 3>,
   toField: vec4f, trailNorm: vec4f,
-  feed: f32, kill: f32, seeding: f32, pad2: f32,
+  feed: f32, kill: f32, seeding: f32, veins: f32,
+  hunger: f32, drift: f32, pad3: f32, pad4: f32,
 }
 const FIELD_SIZE = vec2u(${FIELD_W}u, ${FIELD_H}u);
 const WALL_SIZE = vec2u(${WALL_W}u, ${WALL_H}u);`;
 
-const WGSL_AGENT = WGSL_SIM + /* wgsl */`
+// Sensing and randomness shared by the plain agent shader and the living-cell shader.
+const WGSL_AGENT_TOOLS = /* wgsl */`
 struct Agent { pos: vec2f, angle: f32, rng: u32 }
-@group(0) @binding(0) var<uniform> sim: Sim;
-@group(0) @binding(1) var<storage, read_write> agents: array<Agent>;
-@group(0) @binding(2) var<storage, read_write> deposits: array<atomic<u32>>;
-@group(0) @binding(3) var trail: texture_2d<f32>;
-@group(0) @binding(4) var chem: texture_2d<f32>;
-@group(0) @binding(5) var wallMask: texture_2d<f32>;
 const TAU = 6.283185307;
+const VEIN_PULL = 2.0;
 
 fn blocked(p: vec2f) -> bool {
   if (sim.walls == 0u) { return false; }
@@ -535,7 +555,10 @@ fn sense(p: vec2f, a: f32, reach: f32, response: vec3f, pull: f32) -> f32 {
   // With rivals or a field around, an empty wall would look safer than anything else, so it reads as the worst option.
   if (q.x < 0 || q.y < 0 || q.x >= s.x || q.y >= s.y) { return select(0.0, -1e9, sim.count > 1u || (sim.fieldOn != 0u && pull != 0.0)); }
   if (blocked(at)) { return -1e9; }
-  var v = dot(textureLoad(trail, q, 0).rgb, response);
+  let texel = textureLoad(trail, q, 0);
+  var v = dot(texel.rgb, response);
+  // Established veins are easier to follow. Alpha stores 1 minus vein strength, so a plain trail map means no veins.
+  if (sim.veins > 0.0 && v > 0.0) { v *= 1.0 + VEIN_PULL * sim.veins * (1.0 - texel.a); }
   if (sim.fieldOn != 0u) {
     let cell = vec2i(at / vec2f(s) * vec2f(FIELD_SIZE));
     v += pull * textureLoad(chem, min(cell, vec2i(FIELD_SIZE) - vec2i(1)), 0).g;
@@ -545,13 +568,23 @@ fn sense(p: vec2f, a: f32, reach: f32, response: vec3f, pull: f32) -> f32 {
   // Trail fades from the agents' view near the walls, so networks don't trace the canvas border.
   let edge = min(min(at.x, at.y), min(f32(s.x) - at.x, f32(s.y) - at.y));
   return v * smoothstep(0.0, f32(s.y) * 0.035, edge);
-}
+}`;
+
+const WGSL_AGENT = WGSL_SIM + WGSL_AGENT_TOOLS + /* wgsl */`
+@group(0) @binding(0) var<uniform> sim: Sim;
+@group(0) @binding(1) var<storage, read_write> agents: array<Agent>;
+@group(0) @binding(2) var<storage, read_write> deposits: array<atomic<u32>>;
+@group(0) @binding(3) var trail: texture_2d<f32>;
+@group(0) @binding(4) var chem: texture_2d<f32>;
+@group(0) @binding(5) var wallMask: texture_2d<f32>;
 
 @compute @workgroup_size(256)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let i = id.x;
   if (i >= sim.agents) { return; }
   var a = agents[i];
+  // A negative position means this agent is parked in reserve, off the canvas.
+  if (a.pos.x < 0.0) { return; }
   var rng = a.rng;
 
   let kind = kindOf(i);
@@ -595,6 +628,213 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   atomicAdd(&deposits[(c.y * sim.size.x + c.x) * 3u + kind], sp.deposit);
 }`;
 
+// Living cells: each agent has energy and its own inherited copy of the movement rules.
+// Growth uses a Lenia-style sweet spot, so both empty and overcrowded places cost energy.
+// Parents claim a parked agent with atomicMax, which gives the same winner in any execution order.
+const WGSL_CELLS = WGSL_SIM + WGSL_AGENT_TOOLS + /* wgsl */`
+struct Gene { energy: f32, sense: f32, reach: f32, turn: f32, speed: f32, appetite: f32, pad0: f32, pad1: f32 }
+@group(0) @binding(0) var<uniform> sim: Sim;
+@group(0) @binding(1) var<storage, read_write> agents: array<Agent>;
+@group(0) @binding(2) var<storage, read_write> genes: array<Gene>;
+@group(0) @binding(3) var<storage, read_write> claims: array<atomic<u32>>;
+@group(0) @binding(4) var<storage, read_write> deposits: array<atomic<u32>>;
+@group(0) @binding(5) var trail: texture_2d<f32>;
+@group(0) @binding(6) var chem: texture_2d<f32>;
+@group(0) @binding(7) var wallMask: texture_2d<f32>;
+const DIVIDE = 1.0;
+const MAX_ENERGY = 1.6;
+const GROWTH_CENTER = 1.0;
+const GROWTH_WIDTH = 0.7;
+const MOVE_COST = 0.1;
+const WEAR = 0.14;
+
+fn rangeOf(kind: u32) -> vec2u {
+  if (kind == 0u) { return vec2u(0u, sim.boundA); }
+  if (kind == 1u) { return vec2u(sim.boundA, sim.boundB); }
+  return vec2u(sim.boundB, sim.agents);
+}
+// A daughter stays in her parent's species, so each parent looks for an open place in its own part of the buffer.
+fn targetOf(i: u32, rng: u32) -> u32 {
+  let r = rangeOf(kindOf(i));
+  let h = (rng ^ (rng >> 15u)) * 2654435769u;
+  return r.x + ((h >> 7u) % max(r.y - r.x, 1u));
+}
+fn drifted(v: f32, low: f32, high: f32, rng: ptr<function, u32>) -> f32 {
+  let a = rand(rng);
+  let b = rand(rng);
+  return clamp(v * (1.0 + (a + b - 1.0) * sim.drift * 0.18), low, high);
+}
+
+@compute @workgroup_size(256)
+fn claim(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= sim.agents) { return; }
+  let a = agents[i];
+  if (a.pos.x < 0.0 || genes[i].energy < DIVIDE) { return; }
+  let t = targetOf(i, a.rng);
+  if (agents[t].pos.x < 0.0) { atomicMax(&claims[t], i + 1u); }
+}
+
+@compute @workgroup_size(256)
+fn birth(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= sim.agents || agents[i].pos.x >= 0.0) { return; }
+  let c = atomicLoad(&claims[i]);
+  if (c == 0u) { return; }
+  let parent = agents[c - 1u];
+  var g = genes[c - 1u];
+  var rng = (agents[i].rng ^ parent.rng) * 747796405u + i;
+  let th = rand(&rng) * TAU;
+  let r = rand(&rng) * 2.5 * f32(sim.size.y) / 1080.0;
+  var p = clamp(parent.pos + vec2f(cos(th), sin(th)) * r, vec2f(0.0), vec2f(sim.size) - vec2f(0.001));
+  if (blocked(p)) { p = parent.pos; }
+  g.energy *= 0.5;
+  g.sense = drifted(g.sense, 0.4, 2.2, &rng);
+  g.reach = drifted(g.reach, 0.4, 2.2, &rng);
+  g.turn = drifted(g.turn, 0.4, 2.2, &rng);
+  g.speed = drifted(g.speed, 0.4, 2.2, &rng);
+  let n0 = rand(&rng);
+  let n1 = rand(&rng);
+  g.appetite = clamp(g.appetite + (n0 + n1 - 1.0) * sim.drift * 0.12, -0.7, 0.7);
+  let heading = rand(&rng) * TAU;
+  agents[i] = Agent(p, heading, rng);
+  genes[i] = g;
+}
+
+@compute @workgroup_size(256)
+fn live(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= sim.agents) { return; }
+  var a = agents[i];
+  if (a.pos.x < 0.0) { return; }
+  var g = genes[i];
+  // A parent pays for a daughter only if its claim won.
+  if (g.energy >= DIVIDE && atomicLoad(&claims[targetOf(i, a.rng)]) == i + 1u) { g.energy *= 0.5; }
+  var rng = a.rng;
+  let kind = kindOf(i);
+  let sp = sim.species[kind];
+  let pull = sim.toField[kind];
+  let spread = sp.sensorAngle * g.sense;
+  let reach = sp.sensorDist * g.reach;
+  let turn = sp.turn * g.turn;
+  let f = sense(a.pos, a.angle, reach, sp.response, pull);
+  let l = sense(a.pos, a.angle + spread, reach, sp.response, pull);
+  let r = sense(a.pos, a.angle - spread, reach, sp.response, pull);
+  let t = rand(&rng);
+  if (!(f > l && f > r)) {
+    if (f < l && f < r) { a.angle += (t - 0.5) * 2.0 * turn; }
+    else if (l > r)     { a.angle += t * turn; }
+    else if (r > l)     { a.angle -= t * turn; }
+  }
+  a.angle += (rand(&rng) - 0.5) * 0.06;
+
+  // The FOLLOW matrix doubles as a food web: a trail you follow feeds you, and one you flee harms you.
+  let level = max(dot(textureLoad(trail, vec2i(a.pos), 0).rgb * sim.trailNorm.xyz, sp.response), 0.0);
+  let x = log(1.0 + level) - GROWTH_CENTER - g.appetite;
+  let growth = 2.0 * exp(-x * x / (2.0 * GROWTH_WIDTH * GROWTH_WIDTH)) - 1.0;
+  g.energy = min(g.energy + sim.hunger * (growth - MOVE_COST * g.speed), MAX_ENERGY);
+  // Cells also wear out at random, which keeps room open so the best-fed can keep dividing.
+  if (g.energy <= 0.0 || rand(&rng) < sim.hunger * WEAR) {
+    a.pos = vec2f(-1.0);
+    a.rng = rng;
+    agents[i] = a;
+    genes[i] = g;
+    return;
+  }
+
+  var np = a.pos + vec2f(cos(a.angle), sin(a.angle)) * sp.speed * g.speed;
+  let m = vec2f(sim.size) - vec2f(0.001);
+  if (np.x < 0.0 || np.y < 0.0 || np.x >= m.x || np.y >= m.y) {
+    np = clamp(np, vec2f(0.0), m);
+    let inward = vec2f(sim.size) * 0.5 - np;
+    a.angle = atan2(inward.y, inward.x) + (rand(&rng) - 0.5) * 2.4;
+  }
+  var bounced = false;
+  if (blocked(np) && !blocked(a.pos)) {
+    np = a.pos;
+    a.angle += TAU * 0.5 + (rand(&rng) - 0.5) * 2.4;
+    bounced = true;
+  }
+  a.angle = fract(a.angle / TAU) * TAU;
+  a.pos = np;
+  a.rng = rng;
+  agents[i] = a;
+  genes[i] = g;
+  if (bounced) { return; }
+  let c = vec2u(np);
+  atomicAdd(&deposits[(c.y * sim.size.x + c.x) * 3u + kind], sp.deposit);
+}
+
+@compute @workgroup_size(256)
+fn clear(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x < sim.agents) { atomicStore(&claims[id.x], 0u); }
+}`;
+
+// Moves a body between simulations of any size. Each new agent copies one from the same species' share of the source.
+const WGSL_RESAMPLE_MAP = /* wgsl */`
+struct Agent { pos: vec2f, angle: f32, rng: u32 }
+struct Job { srcSize: vec2f, dstSize: vec2f, srcCount: u32, dstCount: u32, srcA: u32, srcB: u32, dstA: u32, dstB: u32, seed: u32, fill: u32 }
+@group(0) @binding(0) var<uniform> job: Job;
+@group(0) @binding(1) var<storage, read> srcAgents: array<Agent>;
+fn shuffle(v: u32) -> u32 {
+  let s = v * 747796405u + 2891336453u;
+  let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+fn origin(i: u32) -> u32 {
+  var lo = 0u;
+  var hi = job.dstA;
+  var sLo = 0u;
+  var sHi = job.srcA;
+  if (i >= job.dstB) { lo = job.dstB; hi = job.dstCount; sLo = job.srcB; sHi = job.srcCount; }
+  else if (i >= job.dstA) { lo = job.dstA; hi = job.dstB; sLo = job.srcA; sHi = job.srcB; }
+  if (sHi <= sLo) { sLo = 0u; sHi = job.srcCount; }
+  var at = sLo + (i - lo);
+  if (hi - lo != sHi - sLo) { at = min(sLo + u32(f32(i - lo) / f32(max(hi - lo, 1u)) * f32(sHi - sLo)), sHi - 1u); }
+  if (job.fill != 0u && srcAgents[at].pos.x < 0.0) {
+    var h = shuffle(i ^ job.seed);
+    for (var t = 0u; t < 32u; t++) {
+      h = shuffle(h);
+      let k = sLo + (h % (sHi - sLo));
+      if (srcAgents[k].pos.x >= 0.0) { return k; }
+    }
+  }
+  return at;
+}`;
+const WGSL_RESAMPLE = WGSL_RESAMPLE_MAP + /* wgsl */`
+@group(0) @binding(2) var<storage, read_write> dstAgents: array<Agent>;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= job.dstCount) { return; }
+  let j = origin(i);
+  var a = srcAgents[j];
+  var r = shuffle(i ^ job.seed ^ (j * 40503u));
+  if (a.pos.x >= 0.0) {
+    let ratio = job.dstSize / job.srcSize;
+    if (j != i || ratio.x != 1.0 || ratio.y != 1.0) {
+      r = shuffle(r);
+      let jx = f32(r >> 8u) / 16777216.0 - 0.5;
+      r = shuffle(r);
+      let jy = f32(r >> 8u) / 16777216.0 - 0.5;
+      r = shuffle(r);
+      let ja = f32(r >> 8u) / 16777216.0 - 0.5;
+      a.pos = clamp(a.pos * ratio + vec2f(jx, jy) * max(ratio, vec2f(1.0)), vec2f(0.0), job.dstSize - vec2f(0.001));
+      a.angle += ja * 0.25;
+    }
+  }
+  a.rng = shuffle(r);
+  dstAgents[i] = a;
+}`;
+const WGSL_RESAMPLE_GENES = WGSL_RESAMPLE_MAP + /* wgsl */`
+struct Gene { energy: f32, sense: f32, reach: f32, turn: f32, speed: f32, appetite: f32, pad0: f32, pad1: f32 }
+@group(0) @binding(2) var<storage, read> srcGenes: array<Gene>;
+@group(0) @binding(3) var<storage, read_write> dstGenes: array<Gene>;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x < job.dstCount) { dstGenes[id.x] = srcGenes[origin(id.x)]; }
+}`;
+
 const WGSL_DIFFUSE = WGSL_SIM + /* wgsl */`
 @group(0) @binding(0) var<uniform> sim: Sim;
 @group(0) @binding(1) var<storage, read_write> deposits: array<atomic<u32>>;
@@ -632,8 +872,19 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // Extra fade toward the walls lets the network dissolve into the dark instead of forming a frame.
   let edge = f32(min(min(c.x, c.y), min(hi.x - c.x, hi.y - c.y)));
   let fade = mix(0.75, 1.0, smoothstep(0.0, f32(sim.size.y) * 0.06, edge));
-  let v = (mix(center, sum / 16.0, sim.diffuse.xyz) * sim.decay.xyz + added) * fade;
-  textureStore(dst, c, vec4f(v, 1.0));
+  var keep = sim.decay.xyz;
+  var tube = 1.0;
+  // Veins follow the Physarum rule dD/dt = f(|Q|) - D: traffic thickens a tube, and an unused tube withers.
+  // Local trail level stands in for flux, and a thick tube holds its trail longer.
+  if (sim.veins > 0.0) {
+    let d = 1.0 - textureLoad(src, c, 0).a;
+    let q = dot(center, sim.trailNorm.xyz);
+    let grown = clamp(d + 0.02 * (q * q / (1.0 + q * q) - d), 0.0, 1.0);
+    keep = mix(keep, vec3f(1.0) - (vec3f(1.0) - keep) * 0.4, sim.veins * grown);
+    tube = 1.0 - grown;
+  }
+  let v = (mix(center, sum / 16.0, sim.diffuse.xyz) * keep + added) * fade;
+  textureStore(dst, c, vec4f(v, tube));
 }`;
 
 // Gray-Scott reaction-diffusion. U is food, V is the living chemical, and agent trails convert one into the other.
@@ -698,6 +949,7 @@ const GRID = vec2u(${AGENT_GRID_W}u, ${AGENT_GRID_H}u);
 fn main(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= sim.agents) { return; }
   let a = agents[id.x];
+  if (a.pos.x < 0.0) { return; }
   let c = min(vec2u(a.pos / vec2f(sim.size) * vec2f(GRID)), GRID - vec2u(1u));
   let o = (c.y * GRID.x + c.x) * 3u;
   atomicAdd(&grid[o], 1);
@@ -840,7 +1092,7 @@ const WGSL_BLEND = WGSL_FS_VERT + /* wgsl */`
   return vec4f(mix(textureLoad(first, at, 0).rgb, textureLoad(second, at, 0).rgb, amount.x), 1.0);
 }`;
 
-// Enlarges a tile's trail map when it is opened at a higher quality.
+// Resizes a trail map between quality levels. Alpha travels too, because it holds the veins.
 const WGSL_UPSCALE = WGSL_FS_VERT + /* wgsl */`
 @group(0) @binding(0) var source: texture_2d<f32>;
 @fragment fn fs(io: VOut) -> @location(0) vec4f {
@@ -851,9 +1103,9 @@ const WGSL_UPSCALE = WGSL_FS_VERT + /* wgsl */`
   let hi = vec2i(size) - vec2i(1);
   let a = clamp(vec2i(base), vec2i(0), hi);
   let b = clamp(vec2i(base) + vec2i(1), vec2i(0), hi);
-  let upper = mix(textureLoad(source, a, 0).rgb, textureLoad(source, vec2i(b.x, a.y), 0).rgb, s.x);
-  let lower = mix(textureLoad(source, vec2i(a.x, b.y), 0).rgb, textureLoad(source, b, 0).rgb, s.x);
-  return vec4f(mix(upper, lower, s.y), 1.0);
+  let upper = mix(textureLoad(source, a, 0), textureLoad(source, vec2i(b.x, a.y), 0), s.x);
+  let lower = mix(textureLoad(source, vec2i(a.x, b.y), 0), textureLoad(source, b, 0), s.x);
+  return mix(upper, lower, s.y);
 }`;
 
 /* ---------- State ---------- */
@@ -861,9 +1113,9 @@ const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
 const defaults = list => Object.fromEntries(list.map(p => [p.k, p.def]));
 // `st` doubles as the solo organism's genome: seed, init, species and lineage.
 const st = {
-  seed: newSeed(), init: 'scatter', quality: 'med', speed: 1, strength: 'medium', filter: true,
+  seed: newSeed(), init: 'scatter', quality: 'med', speed: 1, strength: 'medium', filter: true, inherit: 'body',
   count: 1, editing: 0, species: SPECIES_TEMPLATES.map(s => ({ ...s })), field: { ...DEFAULT_FIELD },
-  saveId: null, parents: [], generation: 0, walls: null, spawns: null,
+  saveId: null, parents: [], generation: 0, walls: null, spawns: null, life: { ...DEFAULT_LIFE }, body: null,
   view: { palettes: ['ABYSS', 'GLACIER', 'KELP'], fieldPalette: 'BIOLUME', ...defaults(VIEW_PARAMS) },
 };
 const batch = {
@@ -911,12 +1163,16 @@ async function initGpu() {
   const bgl = entries => device.createBindGroupLayout({ entries: entries.map((e, i) => ({ binding: i, ...e })) });
   const uni = v => ({ visibility: v, buffer: { type: 'uniform' } });
   const sto = { visibility: C, buffer: { type: 'storage' } };
+  const ro = { visibility: C, buffer: { type: 'read-only-storage' } };
   const raw = v => ({ visibility: v, texture: { sampleType: 'unfilterable-float' } });
   const tex = { visibility: F, texture: { sampleType: 'float' } };
   const smp = { visibility: F, sampler: { type: 'filtering' } };
 
   const L = {
     agent: bgl([uni(C), sto, sto, raw(C), raw(C), raw(C)]),
+    cells: bgl([uni(C), sto, sto, sto, sto, raw(C), raw(C), raw(C)]),
+    resample: bgl([uni(C), ro, sto]),
+    resampleGenes: bgl([uni(C), ro, ro, sto]),
     field: bgl([uni(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, raw(C), raw(C)]),
     probeAgents: bgl([uni(C), { visibility: C, buffer: { type: 'read-only-storage' } }, sto]),
     probeTrail: bgl([uni(C), raw(C), raw(C), sto]),
@@ -927,9 +1183,9 @@ async function initGpu() {
     blur: bgl([tex, smp]),
     composite: bgl([uni(F), tex, tex, smp]),
   };
-  const comp = (layout, code) => device.createComputePipeline({
+  const comp = (layout, code, entryPoint = 'main') => device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
-    compute: { module: device.createShaderModule({ code }), entryPoint: 'main' },
+    compute: { module: device.createShaderModule({ code }), entryPoint },
   });
   const draw = (layout, code, format, blend) => {
     const module = device.createShaderModule({ code });
@@ -944,6 +1200,13 @@ async function initGpu() {
   P = {
     L,
     agent: comp(L.agent, WGSL_AGENT),
+    cellClaim: comp(L.cells, WGSL_CELLS, 'claim'),
+    cellBirth: comp(L.cells, WGSL_CELLS, 'birth'),
+    cellLive: comp(L.cells, WGSL_CELLS, 'live'),
+    cellClear: comp(L.cells, WGSL_CELLS, 'clear'),
+    resample: comp(L.resample, WGSL_RESAMPLE),
+    resampleGenes: comp(L.resampleGenes, WGSL_RESAMPLE_GENES),
+    resampleJob: device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }),
     diffuse: comp(L.diffuse, WGSL_DIFFUSE),
     field: comp(L.field, WGSL_FIELD),
     probeAgents: comp(L.probeAgents, WGSL_PROBE_AGENTS),
@@ -983,7 +1246,7 @@ function writePalette() {
 function createSim(q) {
   const { w, h, agents } = q;
   const T = GPUTextureUsage, B = GPUBufferUsage;
-  const simBuf = device.createBuffer({ size: 208, usage: B.UNIFORM | B.COPY_DST });
+  const simBuf = device.createBuffer({ size: 224, usage: B.UNIFORM | B.COPY_DST });
   const viewBuf = device.createBuffer({ size: 48, usage: B.UNIFORM | B.COPY_DST });
   const agentBuf = device.createBuffer({ size: agents * 16, usage: B.STORAGE | B.COPY_DST | B.COPY_SRC });
   // Three deposit counters per pixel, one for each species' trail channel.
@@ -1015,8 +1278,9 @@ function createSim(q) {
   });
   const blurGroup = v => group(P.L.blur, [v, P.sampler]);
   return {
-    q, levels, cur: 0, step: 0, wall, wallsFor: null, spawnNext: 0, spawnCursor: [0, 0, 0],
-    simBuf, viewBuf, agentBuf, depositBuf, trail, trailViews, scene, sceneView, bloom, bloomViews, field, fieldOn: false,
+    q, levels, cur: 0, step: 0, wall, wallView, wallsFor: null, spawnNext: 0, spawnCursor: [0, 0, 0],
+    simBuf, viewBuf, agentBuf, depositBuf, trail, trailViews, scene, sceneView, bloom, bloomViews, field, fieldViews, fieldOn: false,
+    geneBuf: null, claimBuf: null, cellBG: null, genesReady: false, cells: false,
     agentBG: [0, 1].map(i => group(P.L.agent, [simBuf, agentBuf, depositBuf, trailViews[i], fieldViews[0], wallView])),
     fieldBG: [0, 1].map(t => [0, 1].map(k => group(P.L.field, [simBuf, fieldViews[k], fieldViews[1 - k], trailViews[t], wallView]))),
     diffuseBG: [0, 1].map(i => group(P.L.diffuse, [simBuf, depositBuf, trailViews[i], trailViews[1 - i], wallView])),
@@ -1030,7 +1294,30 @@ function createSim(q) {
 }
 function destroySim(s) {
   s.dead = true;
-  [s.simBuf, s.viewBuf, s.agentBuf, s.depositBuf, ...s.trail, ...s.field, s.wall, s.scene, s.bloom].forEach(x => x.destroy());
+  [s.simBuf, s.viewBuf, s.agentBuf, s.depositBuf, ...s.trail, ...s.field, s.wall, s.scene, s.bloom, s.geneBuf, s.claimBuf].forEach(x => x?.destroy());
+}
+// Gene storage is only created for simulations that actually use living cells.
+function ensureCells(s) {
+  if (s.geneBuf) return;
+  const B = GPUBufferUsage, n = s.q.agents;
+  s.geneBuf = device.createBuffer({ size: n * 32, usage: B.STORAGE | B.COPY_DST | B.COPY_SRC });
+  s.claimBuf = device.createBuffer({ size: n * 4, usage: B.STORAGE | B.COPY_DST });
+  s.cellBG = [0, 1].map(i => device.createBindGroup({
+    layout: P.L.cells,
+    entries: [s.simBuf, s.agentBuf, s.geneBuf, s.claimBuf, s.depositBuf, s.trailViews[i], s.fieldViews[0], s.wallView]
+      .map((r, binding) => ({ binding, resource: r.usage !== undefined ? { buffer: r } : r })),
+  }));
+}
+function seedGenes(sim, g) {
+  ensureCells(sim);
+  const n = sim.q.agents, data = new Float32Array(n * 8), r = mulberry((g.seed ^ 0x2F6E2B1) >>> 0);
+  for (let i = 0; i < n; i++) {
+    const o = i * 8;
+    data[o] = .45 + r() / 4294967296 * .3;
+    data[o + 1] = data[o + 2] = data[o + 3] = data[o + 4] = 1;
+  }
+  device.queue.writeBuffer(sim.geneBuf, 0, data);
+  sim.genesReady = true;
 }
 function buildResources() {
   const old = R;
@@ -1108,8 +1395,17 @@ function applySpawn(s, g, e) {
   }
   // Recruits come from a rolling position in the species' range, so repeated painting draws on the whole population.
   const start = s.spawnCursor[e.k] % size, first = Math.min(n, size - start);
-  device.queue.writeBuffer(s.agentBuf, (lo + start) * 16, data, 0, first * 16);
-  if (first < n) device.queue.writeBuffer(s.agentBuf, lo * 16, data, first * 16, (n - first) * 16);
+  const put = (buffer, bytes, stride) => {
+    device.queue.writeBuffer(buffer, (lo + start) * stride, bytes, 0, first * stride);
+    if (first < n) device.queue.writeBuffer(buffer, lo * stride, bytes, first * stride, (n - first) * stride);
+  };
+  put(s.agentBuf, data, 16);
+  // Painted cells start fed, with the species' plain rules.
+  if (s.genesReady) {
+    const genes = new Float32Array(n * 8);
+    for (let i = 0; i < n; i++) { const o = i * 8; genes[o] = .7; genes[o + 1] = genes[o + 2] = genes[o + 3] = genes[o + 4] = 1; }
+    put(s.geneBuf, genes.buffer, 32);
+  }
   s.spawnCursor[e.k] = (start + n) % size;
 }
 // Applies anything due now and says how many steps can run before the next recorded moment.
@@ -1128,13 +1424,14 @@ function seedAgents(sim, g) {
   for (let i = 0; i < n; i++) {
     let x, y, a, tries = 0;
     do {
-      if (g.init === 'scatter') { x = rf() * w; y = rf() * h; a = rf() * TAU; }
+      if (g.init === 'empty') { x = -1; y = -1; a = rf() * TAU; }
+      else if (g.init === 'scatter') { x = rf() * w; y = rf() * h; a = rf() * TAU; }
       else {
         const th = rf() * TAU, rr = radius * Math.sqrt(rf());
         x = cx + Math.cos(th) * rr; y = cy + Math.sin(th) * rr;
         a = th + (g.init === 'in' ? Math.PI : 0);
       }
-    } while (mask && ++tries < 32 && maskBlocked(mask, x / w, y / h));
+    } while (mask && g.init !== 'empty' && ++tries < 32 && maskBlocked(mask, x / w, y / h));
     const o = i * 4;
     f[o] = x; f[o + 1] = y; f[o + 2] = a; u[o + 3] = r();
   }
@@ -1160,17 +1457,129 @@ function seedField(sim, g) {
   device.queue.writeTexture({ texture: sim.field[0] }, data, { bytesPerRow: FIELD_W * 16 }, [FIELD_W, FIELD_H]);
 }
 
+/* ---------- Inherited bodies ---------- */
+// A body is a complete copy of a living world: every agent, the trails, the veins, the chemical and any genes.
+// Copies live in GPU memory. The least recently used are released first, and a released one falls back to its recipe.
+const bodies = new Set();
+let bodyClock = 0;
+function dropBody(b) {
+  if (b.gone) return;
+  b.gone = true;
+  bodies.delete(b);
+  [b.agents, b.genes, b.trail, b.field].forEach(x => x?.destroy());
+}
+function holdBody(body) {
+  body.used = ++bodyClock;
+  bodies.add(body);
+  let total = 0;
+  for (const b of bodies) total += b.bytes;
+  while (total > BODY_LIMIT_BYTES && bodies.size > 1) {
+    let oldest = null;
+    for (const b of bodies) if (b !== body && (!oldest || b.used < oldest.used)) oldest = b;
+    total -= oldest.bytes;
+    dropBody(oldest);
+  }
+  return body;
+}
+function liveBody(g) {
+  if (!g.body) return null;
+  if (g.body.gone) { g.body = null; return null; }
+  g.body.used = ++bodyClock;
+  return g.body;
+}
+function newBody({ w, h, agents }, seed, bounds, hasGenes, hasField) {
+  const B = GPUBufferUsage, T = GPUTextureUsage, usage = B.STORAGE | B.COPY_SRC | B.COPY_DST;
+  const trail = device.createTexture({ size: [w, h], format: 'rgba32float', usage: T.TEXTURE_BINDING | T.COPY_SRC | T.COPY_DST });
+  return {
+    q: { w, h, agents }, seed, bounds, trail, trailView: trail.createView(), gone: false, used: 0,
+    agents: device.createBuffer({ size: agents * 16, usage }),
+    genes: hasGenes ? device.createBuffer({ size: agents * 32, usage }) : null,
+    field: hasField ? device.createTexture({ size: [FIELD_W, FIELD_H], format: 'rgba32float', usage: T.TEXTURE_BINDING | T.COPY_SRC | T.COPY_DST }) : null,
+    bytes: agents * (hasGenes ? 48 : 16) + w * h * 16 + (hasField ? FIELD_W * FIELD_H * 16 : 0),
+  };
+}
+function captureBody(sim, g) {
+  const { w, h, agents } = sim.q, hasField = g.field.on && sim.fieldOn;
+  const body = newBody(sim.q, g.seed, speciesBounds(agents, g), sim.genesReady, hasField);
+  const enc = device.createCommandEncoder();
+  enc.copyBufferToBuffer(sim.agentBuf, 0, body.agents, 0, agents * 16);
+  if (body.genes) enc.copyBufferToBuffer(sim.geneBuf, 0, body.genes, 0, agents * 32);
+  enc.copyTextureToTexture({ texture: sim.trail[sim.cur] }, { texture: body.trail }, [w, h]);
+  if (hasField) enc.copyTextureToTexture({ texture: sim.field[0] }, { texture: body.field }, [FIELD_W, FIELD_H]);
+  device.queue.submit([enc.finish()]);
+  return holdBody(body);
+}
+// What a child should start from. An untouched blank canvas has no body yet, so its children grow from the recipe.
+function inheritedBody(sim, g) {
+  if (st.inherit !== 'body' || (g.init === 'empty' && !g.spawns?.length && !liveBody(g))) return null;
+  return sim.step >= BODY_MIN_STEPS ? captureBody(sim, g) : liveBody(g);
+}
+function withBody(sim, g) {
+  const out = cloneGenome(g);
+  out.body = inheritedBody(sim, g);
+  // Anything painted so far is already part of the copied body.
+  if (out.body) out.spawns = null;
+  return out;
+}
+const stateOf = sim => ({
+  q: sim.q, agents: sim.agentBuf, genes: sim.genesReady ? sim.geneBuf : null,
+  trail: sim.trail[sim.cur], trailView: sim.trailViews[sim.cur], field: sim.fieldOn ? sim.field[0] : null, bounds: null,
+});
+// Writes a body or another simulation's state into `dst`. The same size with no new seed is an exact copy.
+function placeState(from, dst, g, { reseed = false, fill = false, seed = g.seed } = {}) {
+  const { w, h, agents } = dst.q, same = from.q.w === w && from.q.h === h && from.q.agents === agents;
+  const cells = lifeOf(g).mode === 'cells', carryGenes = cells && !!from.genes;
+  if (carryGenes) ensureCells(dst);
+  const enc = device.createCommandEncoder();
+  enc.clearBuffer(dst.depositBuf);
+  if (g.field.on) {
+    if (from.field) enc.copyTextureToTexture({ texture: from.field }, { texture: dst.field[0] }, [FIELD_W, FIELD_H]);
+    else seedField(dst, g);
+  }
+  if (same) enc.copyTextureToTexture({ texture: from.trail }, { texture: dst.trail[0] }, [w, h]);
+  else fullscreenPass(enc, dst.trailViews[0], P.upscale, device.createBindGroup({ layout: P.L.upscale, entries: [{ binding: 0, resource: from.trailView }] }));
+  if (same && !reseed && !fill) {
+    enc.copyBufferToBuffer(from.agents, 0, dst.agentBuf, 0, agents * 16);
+    if (carryGenes) enc.copyBufferToBuffer(from.genes, 0, dst.geneBuf, 0, agents * 32);
+  } else {
+    const [srcA, srcB] = from.bounds || speciesBounds(from.q.agents, g), [dstA, dstB] = speciesBounds(agents, g);
+    const job = new ArrayBuffer(48), jf = new Float32Array(job), ju = new Uint32Array(job);
+    jf[0] = from.q.w; jf[1] = from.q.h; jf[2] = w; jf[3] = h;
+    ju[4] = from.q.agents; ju[5] = agents; ju[6] = srcA; ju[7] = srcB; ju[8] = dstA; ju[9] = dstB; ju[10] = seed >>> 0; ju[11] = fill ? 1 : 0;
+    device.queue.writeBuffer(P.resampleJob, 0, job);
+    const buffer = r => ({ buffer: r }), pass = enc.beginComputePass(), groups = Math.ceil(agents / 256);
+    pass.setPipeline(P.resample);
+    pass.setBindGroup(0, device.createBindGroup({ layout: P.L.resample, entries: [P.resampleJob, from.agents, dst.agentBuf].map((r, binding) => ({ binding, resource: buffer(r) })) }));
+    pass.dispatchWorkgroups(groups);
+    if (carryGenes) {
+      pass.setPipeline(P.resampleGenes);
+      pass.setBindGroup(0, device.createBindGroup({ layout: P.L.resampleGenes, entries: [P.resampleJob, from.agents, from.genes, dst.geneBuf].map((r, binding) => ({ binding, resource: buffer(r) })) }));
+      pass.dispatchWorkgroups(groups);
+    }
+    pass.end();
+  }
+  device.queue.submit([enc.finish()]);
+  dst.genesReady = carryGenes;
+  if (cells && !carryGenes) seedGenes(dst, g);
+}
+
 function restartSim(sim, g) {
   syncWalls(sim, g);
   sim.spawnNext = 0; sim.spawnCursor = [0, 0, 0];
-  seedAgents(sim, g);
-  if (g.field.on) seedField(sim, g);
-  const enc = device.createCommandEncoder();
-  enc.clearBuffer(sim.depositBuf);
-  for (const view of sim.trailViews) {
-    enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] }).end();
+  const body = liveBody(g);
+  if (body) placeState(body, sim, g, { reseed: body.seed !== g.seed });
+  else {
+    sim.genesReady = false;
+    seedAgents(sim, g);
+    if (g.field.on) seedField(sim, g);
+    const enc = device.createCommandEncoder();
+    enc.clearBuffer(sim.depositBuf);
+    for (const view of sim.trailViews) {
+      enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] }).end();
+    }
+    device.queue.submit([enc.finish()]);
+    if (lifeOf(g).mode === 'cells') seedGenes(sim, g);
   }
-  device.queue.submit([enc.finish()]);
   sim.cur = 0; sim.step = 0;
   sim.analysis = null; sim.judged = null; sim.fromTile = false; sim.run = (sim.run || 0) + 1;
 }
@@ -1179,42 +1588,8 @@ function restart() { cancelRegrow(); restartSim(R, st); acc = 0; }
 // Carries a running simulation into the main view. At the same size this is an exact copy.
 // At a larger size, each agent becomes several neighbors and the trails are enlarged, so the pattern continues unbroken.
 async function continueFrom(src, g) {
-  const dst = R, { w, h, agents } = dst.q, same = w === src.q.w && h === src.q.h && agents === src.q.agents;
-  const step = src.step, cur = src.cur, judged = src.judged, fromTile = src.q === TILE || src.fromTile;
-  const enc = device.createCommandEncoder();
-  enc.clearBuffer(dst.depositBuf);
-  if (g.field.on) enc.copyTextureToTexture({ texture: src.field[0] }, { texture: dst.field[0] }, [FIELD_W, FIELD_H]);
-  if (same) {
-    enc.copyBufferToBuffer(src.agentBuf, 0, dst.agentBuf, 0, agents * 16);
-    enc.copyTextureToTexture({ texture: src.trail[cur] }, { texture: dst.trail[0] }, [w, h]);
-    device.queue.submit([enc.finish()]);
-  } else {
-    fullscreenPass(enc, dst.trailViews[0], P.upscale, device.createBindGroup({
-      layout: P.L.upscale, entries: [{ binding: 0, resource: src.trailViews[cur] }],
-    }));
-    const size = src.q.agents * 16, read = device.createBuffer({ size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    enc.copyBufferToBuffer(src.agentBuf, 0, read, 0, size);
-    device.queue.submit([enc.finish()]);
-    await read.mapAsync(GPUMapMode.READ);
-    const inF = new Float32Array(read.getMappedRange());
-    const data = new ArrayBuffer(agents * 16), f = new Float32Array(data), u = new Uint32Array(data);
-    const [fromA, fromB] = speciesBounds(src.q.agents, g), [toA, toB] = speciesBounds(agents, g);
-    const fromRanges = [[0, fromA], [fromA, fromB], [fromB, src.q.agents]], toRanges = [[0, toA], [toA, toB], [toB, agents]];
-    const r = mulberry((g.seed ^ step ^ 0x5BD1E995) >>> 0), rf = () => r() / 4294967296, ratioX = w / src.q.w, ratioY = h / src.q.h;
-    toRanges.forEach(([a, b], kind) => {
-      const [sa, sb] = fromRanges[kind][1] > fromRanges[kind][0] ? fromRanges[kind] : [0, src.q.agents];
-      for (let i = a; i < b; i++) {
-        const j = (sa + (i - a) % (sb - sa)) * 4, o = i * 4;
-        f[o] = clamp(inF[j] * ratioX + (rf() - .5) * ratioX, 0, w - .001);
-        f[o + 1] = clamp(inF[j + 1] * ratioY + (rf() - .5) * ratioY, 0, h - .001);
-        f[o + 2] = inF[j + 2] + (rf() - .5) * .25;
-        u[o + 3] = r();
-      }
-    });
-    read.unmap();
-    read.destroy();
-    device.queue.writeBuffer(dst.agentBuf, 0, data);
-  }
+  const dst = R, step = src.step, judged = src.judged, fromTile = src.q === TILE || src.fromTile;
+  placeState(stateOf(src), dst, g, { seed: (g.seed ^ step ^ 0x5BD1E995) >>> 0 });
   dst.cur = 0; dst.step = step; dst.analysis = null; dst.judged = judged; dst.fromTile = fromTile; dst.run = (dst.run || 0) + 1;
   dst.spawnNext = src.spawnNext; dst.spawnCursor = [...src.spawnCursor];
   syncWalls(dst, g);
@@ -1222,7 +1597,7 @@ async function continueFrom(src, g) {
 }
 
 /* ---------- Simulation and rendering ---------- */
-const simData = new ArrayBuffer(208), simU = new Uint32Array(simData), simF = new Float32Array(simData);
+const simData = new ArrayBuffer(224), simU = new Uint32Array(simData), simF = new Float32Array(simData);
 const viewData = new ArrayBuffer(48), viewF = new Float32Array(viewData), viewU = new Uint32Array(viewData);
 
 function speciesBounds(agents, g) {
@@ -1241,6 +1616,12 @@ function writeUniforms(s, g, now, view = st.view) {
   syncWalls(s, g);
   simU[7] = s.wallsFor ? 1 : 0;
   simF[48] = g.field.feed; simF[49] = g.field.kill; simF[50] = g.field.seeding;
+  const life = lifeOf(g);
+  s.cells = life.mode === 'cells';
+  if (s.cells && !s.genesReady) seedGenes(s, g);
+  simF[51] = life.mode === 'off' ? 0 : life.veins;
+  simF[52] = s.cells ? life.hunger * .012 : 0;
+  simF[53] = life.drift;
   for (let i = 0; i < 3; i++) {
     const p = sp[i], o = 16 + i * 8;
     // Blur spreads a fixed number of pixels per step, so its strength scales with area to match across resolutions.
@@ -1271,8 +1652,16 @@ function writeUniforms(s, g, now, view = st.view) {
 function simulate(pass, s, n) {
   const { w, h, agents } = s.q;
   for (let i = 0; i < n; i++) {
-    pass.setPipeline(P.agent); pass.setBindGroup(0, s.agentBG[s.cur]);
-    pass.dispatchWorkgroups(Math.ceil(agents / 256));
+    if (s.cells) {
+      pass.setBindGroup(0, s.cellBG[s.cur]);
+      for (const stage of [P.cellClaim, P.cellBirth, P.cellLive, P.cellClear]) {
+        pass.setPipeline(stage);
+        pass.dispatchWorkgroups(Math.ceil(agents / 256));
+      }
+    } else {
+      pass.setPipeline(P.agent); pass.setBindGroup(0, s.agentBG[s.cur]);
+      pass.dispatchWorkgroups(Math.ceil(agents / 256));
+    }
     pass.setPipeline(P.diffuse); pass.setBindGroup(0, s.diffuseBG[s.cur]);
     pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
     s.cur = 1 - s.cur;
@@ -1400,7 +1789,9 @@ function lcdLines() {
     state + ' STEP ' + String(R?.step ?? 0).padStart(11, ' '),
     rate,
     ag + ' ' + q.w + 'X' + q.h + ' ' + lifeLabel(R?.judged),
-    capture?.live ? captureLabel() : growing ? growing.label : flashing ? flashText : 'SEED ' + hex8(st.seed) + ' ' + (st.count > 1 || st.field.on ? st.count + ' SPP' + (st.field.on ? ' RD' : '') : st.view.palettes[0]),
+    capture?.live ? captureLabel() : growing ? growing.label : flashing ? flashText
+      : lifeOf(st).mode === 'cells' && Number.isFinite(R?.analysis?.values.alive) ? 'CELLS ' + Math.round(R.analysis.values.alive * 100) + '% ALIVE'
+      : 'SEED ' + hex8(st.seed) + ' ' + (st.count > 1 || st.field.on ? st.count + ' SPP' + (st.field.on ? ' RD' : '') : st.view.palettes[0]),
   ];
 }
 
@@ -1455,7 +1846,7 @@ function probe(sim) {
     const cells = new Float32Array(bytes.slice(0, PROBE_BYTES));
     const grid = new Int32Array(bytes.slice(PROBE_BYTES));
     P.probeRead.unmap();
-    return { cells, grid, step, simRun };
+    return { cells, grid, step, simRun, total: sim.q.agents };
   };
   const result = probeChain.then(run);
   probeChain = result.catch(() => null);
@@ -1580,6 +1971,7 @@ function analyze(sample, previous) {
       spatialEntropy: round(agents ? spread / Math.log(gridCells) : 0),
       clustering: round(agents ? 1 - (1 / squares) / gridCells : 1), alignment: round(agents ? order / agents : 0),
       change: round(change), fieldMean: round(fieldMean), fieldStd: round(fieldStd),
+      alive: round(agents / sample.total),
     },
   };
 }
@@ -1686,7 +2078,8 @@ const snapshot = () => {
   const node = family.get(familyId(st));
   node.walls = st.walls || null;
   node.spawns = st.spawns || null;
-  return JSON.stringify({ uid: st.uid, generation: st.generation || 0, painted: st.spawns?.length || 0, seed: st.seed, init: st.init, count: st.count, species: st.species, field: st.field });
+  node.body = st.body || null;
+  return JSON.stringify({ uid: st.uid, generation: st.generation || 0, painted: st.spawns?.length || 0, seed: st.seed, init: st.init, count: st.count, species: st.species, field: st.field, life: lifeOf(st) });
 };
 let committed = snapshot();
 function commit() {
@@ -1703,10 +2096,12 @@ function undo() {
   if (brush.added) { undoStroke(); return; }
   const prev = history.pop();
   if (!prev) return;
-  const o = JSON.parse(prev), node = family.get(o.uid), walls = node?.walls ?? null;
-  const reset = o.seed !== st.seed || o.init !== st.init || o.count !== st.count || o.field.on !== st.field.on || walls !== (st.walls || null);
+  const o = JSON.parse(prev), node = family.get(o.uid), walls = node?.walls ?? null, body = node?.body?.gone ? null : node?.body ?? null;
+  const life = { ...DEFAULT_LIFE, ...o.life };
+  const reset = o.seed !== st.seed || o.init !== st.init || o.count !== st.count || o.field.on !== st.field.on || walls !== (st.walls || null)
+    || body !== (st.body || null) || (life.mode === 'cells') !== (lifeOf(st).mode === 'cells');
   st.seed = o.seed; st.init = o.init; st.count = o.count; st.species = o.species; st.field = o.field;
-  st.walls = walls;
+  st.walls = walls; st.body = body; st.life = life;
   if (reset) st.spawns = node?.spawns ?? null;
   st.uid = o.uid; st.saveId = family.get(o.uid)?.saveId ?? null; st.generation = o.generation ?? st.generation;
   st.editing = Math.min(st.editing, st.count - 1);
@@ -1723,6 +2118,7 @@ const cloneSpecies = list => list.map(s => ({ ...s }));
 const cloneGenome = g => ({
   uid: familyId(g), seed: g.seed, init: g.init, count: g.count, species: cloneSpecies(g.species), field: { ...g.field }, saveId: g.saveId || null,
   parents: [...(g.parents || [])], generation: g.generation || 0, tag: g.tag || '', walls: g.walls || null, spawns: g.spawns || null,
+  life: { ...lifeOf(g) }, body: g.body || null,
 });
 
 function mutateSpecies(s, g, sigma) {
@@ -1783,13 +2179,15 @@ function makeChild(parents, sigma, tag = '') {
       for (const p of SIM_PARAMS) if (Math.random() < .5) species[i][p.k] = b.species[i][p.k];
     }
   }
-  const init = Math.random() < .12 ? pickOne(Object.keys(INITS)) : (b && Math.random() < .5 ? b.init : a.init);
+  const init = Math.random() < .12 ? pickOne(GROWN_INITS) : (b && Math.random() < .5 ? b.init : a.init);
+  // The child wakes up inside a parent's grown body. A second parent contributes rules, not structure.
+  const donor = st.inherit === 'body' ? [a, ...parents].find(p => liveBody(p)) : null, lead = donor || parents[0];
   const child = {
-    seed: newSeed(), init, count: a.count, species, saveId: null,
+    seed: newSeed(), init: init === 'empty' ? 'scatter' : init, count: a.count, species, saveId: null,
     field: { ...(b && Math.random() < .5 ? b.field : a.field) },
     uid: familyNode([familyId(a), ...(b ? [familyId(b)] : [])]), parents: [],
     generation: Math.max(a.generation || 0, b?.generation || 0) + 1, tag,
-    walls: a.walls || null, spawns: null,
+    walls: a.walls || lead.walls || null, spawns: null, life: { ...lifeOf(lead) }, body: donor?.body || null,
   };
   mutateCount(child, tag === 'WILD' ? .45 : .12);
   mutateHybrid(child, tag === 'WILD' ? .4 : .1);
@@ -1831,7 +2229,7 @@ function randomFounder() {
     const { feed, kill } = HYBRIDS[pickOne(['coral', 'maze', 'cells', 'waves'])];
     Object.assign(field, { on: true, feed, kill, seeding: snapTo(between(RANDOM.seeding), FIELD_PARAMS[2]) });
   }
-  return { uid: familyNode(), seed: newSeed(), init: pickOne(Object.keys(INITS)), count, species, field, saveId: null, parents: [], generation: 0, tag: '', walls: st.walls || null, spawns: null };
+  return { uid: familyNode(), seed: newSeed(), init: pickOne(GROWN_INITS), count, species, field, saveId: null, parents: [], generation: 0, tag: '', walls: st.walls || null, spawns: null, life: { ...lifeOf(st) }, body: null };
 }
 async function rollFounders(n) {
   const founders = Array.from({ length: n }, randomFounder);
@@ -1864,7 +2262,7 @@ async function randomSolo() {
   // Anything you changed while it was searching wins over the roll.
   if (!g || mode !== 'solo' || snapshot() !== before) return;
   st.seed = g.seed; st.init = g.init; st.count = g.count; st.species = g.species; st.field = g.field;
-  st.uid = g.uid; st.saveId = null; st.parents = []; st.generation = 0; st.walls = g.walls; st.spawns = null;
+  st.uid = g.uid; st.saveId = null; st.parents = []; st.generation = 0; st.walls = g.walls; st.spawns = null; st.life = g.life; st.body = null;
   st.editing = Math.min(st.editing, g.count - 1);
   restart(); commit(); syncUi(); flash('NEW FOUNDER');
 }
@@ -1974,7 +2372,7 @@ function pushBatchHistory(tasteEvent = null) {
   if (batch.history.length > 32) batch.history.shift();
 }
 async function startBatchFrom(g) {
-  const source = cloneGenome(g), parents = [source], lineage = `${Date.now().toString(36)}-${++tasteEventCount}`;
+  const source = g === st ? withBody(R, st) : cloneGenome(g), parents = [source], lineage = `${Date.now().toString(36)}-${++tasteEventCount}`;
   const next = await prepareGeneration(parents, [source], lineage);
   if (!next) return;
   if (batch.filled) pushBatchHistory();
@@ -2023,8 +2421,9 @@ function setMode(m) {
 async function breed() {
   if (batch.screening) return;
   if (!batch.picks.length && !batch.parents.length) { flash('PICK A TILE FIRST'); return; }
-  const picked = batch.picks.map(i => batch.tiles[i].genome);
-  const parents = picked.length ? picked.map(cloneGenome) : batch.parents;
+  // Each pick's living state is copied now, because its tile is about to be replaced.
+  const picked = batch.picks.map(i => withBody(batch.tiles[i].sim, batch.tiles[i].genome));
+  const parents = picked.length ? picked : batch.parents;
   const steered = !!steeringFor(batch.lineage);
   const next = await prepareGeneration(parents, picked, batch.lineage);
   if (!next) return;
@@ -2059,7 +2458,7 @@ async function openTile(i) {
   const tile = batch.tiles[i], g = tile.genome;
   st.seed = g.seed; st.init = g.init; st.count = g.count; st.species = cloneSpecies(g.species); st.field = { ...g.field };
   st.uid = familyId(g); st.saveId = family.get(st.uid).saveId; st.parents = [...g.parents]; st.generation = g.generation;
-  st.walls = g.walls || null; st.spawns = g.spawns || null;
+  st.walls = g.walls || null; st.spawns = g.spawns || null; st.life = { ...lifeOf(g) }; st.body = liveBody(g);
   batch.openIndex = i;
   setMode('solo');
   const job = growing = { label: 'OPENING TILE ' + (i + 1) };
@@ -2328,11 +2727,11 @@ const HELP = {
     ['LINE 4', 'Seed and species count, or your picks in BATCH. Confirmations flash here too.'],
   ] },
 
-  'pad.mutate': { t: 'MUTATE / BREED', d: 'In SOLO, nudges the settings at random and regrows. In BATCH, breeds the next generation from the tiles you picked.', tip: 'Nothing picked? BREED offers fresh variations of the last parents. Right after RANDOM there are none, so pick a tile first.' },
+  'pad.mutate': { t: 'MUTATE / BREED', d: 'In SOLO, changes the rules while the grown structure carries on. In BATCH, each child starts inside the body of a tile you picked.', tip: 'Nothing picked? BREED offers fresh variations of the last parents. To regrow from settings alone, set INHERIT to RECIPE on the LIFE page.' },
   'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'Colors stay as they are. UNDO brings back what you had.' },
-  'pad.reroll': { t: 'REROLL', d: 'Keeps the settings but scatters the agents differently.', tip: 'If a look survives a reroll, it comes from the settings and not a lucky start.' },
-  'pad.replay': { t: 'REPLAY', d: 'Regrows from step 0 with the same seed and settings, so you can watch it form again.' },
-  'pad.save': { t: 'SAVE', d: 'Stores the settings and seed in your saves folder. In BATCH, saves every tile you picked.', tip: 'A save regrows the organism rather than storing one exact frame.' },
+  'pad.reroll': { t: 'REROLL', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'If a look survives a reroll, it comes from the settings and not a lucky start.' },
+  'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.' },
+  'pad.save': { t: 'SAVE', d: 'Stores this organism in your saves folder. In BATCH, saves every tile you picked.', tip: 'Organisms with an inherited body automatically save their living state too. Shift + S saves the exact moment for any organism.' },
   'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation.' },
   'pad.undo': { t: 'UNDO', d: 'In SOLO, reverses the last settings change. In BATCH, returns to the previous generation.' },
   'pad.load': { t: 'LIBRARY', d: 'Browse all your saved organisms as pictures. Open one, name it, or breed from it.' },
@@ -2366,6 +2765,7 @@ const HELP = {
   'init.scatter': { t: 'SCATTER', d: 'Agents begin everywhere, facing random directions. Grows an even network.' },
   'init.in': { t: 'RING IN', d: 'Agents begin in a disc, all facing the center, and collapse inward before spreading.' },
   'init.out': { t: 'RING OUT', d: 'Agents begin in a disc, all facing outward, so growth radiates from the middle.' },
+  'init.empty': { t: 'BLANK', d: 'Starts with an empty sandbox. Hold the ORGANISM brush on the picture to place each species yourself.', tip: 'With CELLS on the LIFE page, a small painted colony can feed and grow by itself.' },
   saves: { t: 'WORKING FOLDER', d: 'Holds your saves, images and videos folders. CHANGE picks a different one.' },
   export: { t: 'EXPORT', d: 'Turns what is on screen into files you can keep and share, with no interface in them.' },
   'pad.image': { t: 'IMAGE', d: 'Saves a clean PNG at full resolution. In BATCH, saves each tile you picked, or the whole grid if none are picked.' },
@@ -2373,6 +2773,18 @@ const HELP = {
   'pad.record': { t: 'RECORD', d: 'Records to a 1080p MP4 until you press it again, up to 10 minutes. You can move sliders while it runs.', tip: 'PAUSE also pauses the recording.' },
 
   'tab.organism': { t: 'ORGANISM PAGE', d: 'How the agents sense, move and relate to each other.' },
+  'tab.life': { t: 'LIFE PAGE', d: 'How structure passes between generations, and whether agents behave like simple living cells.' },
+  inherit: { t: 'INHERIT', d: 'What a child receives from its parent when you BREED or MUTATE.' },
+  'inherit.body': { t: 'INHERIT BODY', d: "The child starts inside its parent's actual grown structure with changed rules, so the structure must adapt or dissolve." },
+  'inherit.recipe': { t: 'INHERIT RECIPE', d: 'The child receives settings only and grows again from nothing, the way breeding worked originally.' },
+  biology: { t: 'BIOLOGY', d: 'Adds early-life mechanisms on top of the slime mold. You can change this while an organism runs.' },
+  'biology.off': { t: 'NO BIOLOGY', d: 'Classic slime mold: agents follow trails and never eat, divide or die.' },
+  'biology.veins': { t: 'VEINS', d: 'Heavily used paths thicken and last longer, while unused ones wither, like tubes in real slime mold.', tip: 'This helps an inherited structure survive changed rules.' },
+  'biology.cells': { t: 'CELLS', d: 'Each agent has energy and its own copy of the rules. It feeds in the right density, divides when full, passes on slightly mutated rules, and dies when starved.', tip: 'Followed trails act as food and fled trails as poison, so ecology settings become a food web.' },
+  veins: { t: 'VEIN MEMORY', d: 'How strongly thick veins hold their trail and attract traffic.', lo: 'Structure changes freely', hi: 'Established networks persist' },
+  hunger: { t: 'METABOLISM', d: 'How quickly cells gain and lose energy.', lo: 'Slow, stable populations', hi: 'Fast boom, bust and turnover' },
+  drift: { t: 'GENE DRIFT', d: 'How much a daughter cell’s rules can differ from its parent’s.', lo: 'Faithful copies', hi: 'Rapid variation and more failed offspring' },
+  moment: { t: 'SAVE THIS MOMENT', d: 'Stores the complete living state, so it reopens exactly as it is now instead of regrowing.', tip: 'Shift + S does the same. With CELLS on, expect about 7 MB at LOW or from a Batch tile, 27 MB at MED and 49 MB at HIGH.' },
   'tab.field': { t: 'FIELD PAGE', d: 'The optional chemical layer that grows beneath the agents.' },
   'tab.light': { t: 'LIGHT PAGE', d: 'Color and glow. These change the look only, never the behavior.' },
   'tab.draw': { t: 'DRAW PAGE', d: 'Paint barriers that shape the organism, or gather a species under your cursor. Works in SOLO. Press D to jump here.' },
@@ -2504,7 +2916,7 @@ function placeHelp(target) {
 function initHelp() {
   const rows = {
     segMode: 'view', segStrength: 'strength', segFilter: 'filter', segQuality: 'quality', segSpeed: 'speed', segInit: 'init',
-    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn',
+    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology',
     segPal0: 'palette', segPal1: 'palette', segPal2: 'palette', segPalField: 'fieldPalette',
   };
   for (const [id, key] of Object.entries(rows)) {
@@ -2680,16 +3092,81 @@ function timeStamp(d) {
 function buildSave(g, sim) {
   const d = new Date();
   return {
-    format: 'digital-life-save', version: 6, id: `dl-${timeStamp(d)}-${hex8(g.seed).toLowerCase()}`,
+    format: 'digital-life-save', version: 7, id: `dl-${timeStamp(d)}-${hex8(g.seed).toLowerCase()}`,
     parents: lineageOf(g), generation: g.generation || 0, name: '', tags: [],
     createdAt: d.toISOString(), seed: g.seed, step: sim.step, quality: st.quality, init: g.init,
     // Tiles grow at their own resolution, so a save remembers that in order to regrow the same pattern.
     grownAt: sim.q === TILE || sim.fromTile ? 'tile' : 'full',
-    count: g.count, species: cloneSpecies(g.species), field: { ...g.field },
+    count: g.count, species: cloneSpecies(g.species), field: { ...g.field }, life: { ...lifeOf(g) },
     ...(g.walls?.length ? { walls: g.walls.map(w => ({ r: w.r, ...(w.erase ? { erase: true } : {}), pts: w.pts.join(' ') })) } : {}),
     ...(g.spawns?.length ? { spawns: g.spawns.map(e => [e.s, e.k, e.x, e.y, e.r, e.n].join(' ')) } : {}),
     view: { ...st.view, palettes: [...st.view.palettes] }, metrics: metricsFor(sim),
   };
+}
+// A moment file holds the whole living state. Trail values drop their least visible bits so the file compresses well.
+async function packBody(sim, g) {
+  const { w, h, agents } = sim.q, hasGenes = sim.genesReady, hasField = g.field.on && sim.fieldOn;
+  const trailRow = Math.ceil(w * 16 / 256) * 256, fieldRow = Math.ceil(FIELD_W * 16 / 256) * 256;
+  const agentBytes = agents * 16, geneBytes = hasGenes ? agents * 32 : 0, trailAt = agentBytes + geneBytes, fieldAt = trailAt + trailRow * h;
+  const read = device.createBuffer({ size: fieldAt + (hasField ? fieldRow * FIELD_H : 0), usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const enc = device.createCommandEncoder();
+  enc.copyBufferToBuffer(sim.agentBuf, 0, read, 0, agentBytes);
+  if (hasGenes) enc.copyBufferToBuffer(sim.geneBuf, 0, read, agentBytes, geneBytes);
+  enc.copyTextureToBuffer({ texture: sim.trail[sim.cur] }, { buffer: read, offset: trailAt, bytesPerRow: trailRow }, [w, h]);
+  if (hasField) enc.copyTextureToBuffer({ texture: sim.field[0] }, { buffer: read, offset: fieldAt, bytesPerRow: fieldRow }, [FIELD_W, FIELD_H]);
+  device.queue.submit([enc.finish()]);
+  await read.mapAsync(GPUMapMode.READ);
+  const mapped = new Uint8Array(read.getMappedRange());
+  const out = new Uint8Array(32 + trailAt + w * h * 16 + (hasField ? FIELD_W * FIELD_H * 16 : 0));
+  out.set(new Uint8Array(new Uint32Array([BODY_MAGIC, 1, w, h, agents, (hasGenes ? 1 : 0) | (hasField ? 2 : 0), g.seed >>> 0, 0]).buffer), 0);
+  out.set(mapped.subarray(0, trailAt), 32);
+  let o = 32 + trailAt;
+  const trailStart = o;
+  for (let y = 0; y < h; y++, o += w * 16) out.set(mapped.subarray(trailAt + y * trailRow, trailAt + y * trailRow + w * 16), o);
+  if (hasField) for (let y = 0; y < FIELD_H; y++, o += FIELD_W * 16) out.set(mapped.subarray(fieldAt + y * fieldRow, fieldAt + y * fieldRow + FIELD_W * 16), o);
+  read.unmap();
+  read.destroy();
+  const words = new Uint32Array(out.buffer, trailStart, w * h * 4);
+  for (let i = 0; i < words.length; i++) words[i] &= 0xFFFFF800;
+  return new Response(new Blob([out]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
+}
+async function unpackBody(blob, g) {
+  const raw = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  if (raw.byteLength < 32) return null;
+  const [magic, version, w, h, agents, flags, seed] = new Uint32Array(raw, 0, 8);
+  const hasGenes = !!(flags & 1), hasField = !!(flags & 2), geneBytes = hasGenes ? agents * 32 : 0, limit = device.limits.maxTextureDimension2D;
+  const need = 32 + agents * 16 + geneBytes + w * h * 16 + (hasField ? FIELD_W * FIELD_H * 16 : 0);
+  if (magic !== BODY_MAGIC || version !== 1 || !w || !h || !agents || w > limit || h > limit || raw.byteLength !== need) return null;
+  const body = newBody({ w, h, agents }, seed, speciesBounds(agents, g), hasGenes, hasField);
+  let o = 32;
+  device.queue.writeBuffer(body.agents, 0, raw, o, agents * 16); o += agents * 16;
+  if (hasGenes) { device.queue.writeBuffer(body.genes, 0, raw, o, geneBytes); o += geneBytes; }
+  device.queue.writeTexture({ texture: body.trail }, new Uint8Array(raw, o, w * h * 16), { bytesPerRow: w * 16 }, [w, h]); o += w * h * 16;
+  if (hasField) device.queue.writeTexture({ texture: body.field }, new Uint8Array(raw, o, FIELD_W * FIELD_H * 16), { bytesPerRow: FIELD_W * 16 }, [FIELD_W, FIELD_H]);
+  return holdBody(body);
+}
+async function writeBody(dir, id, sim, g) {
+  const blob = await packBody(sim, g), store = await dir.getDirectoryHandle('bodies', { create: true });
+  const out = await (await store.getFileHandle(id + '.dlbody', { create: true })).createWritable();
+  await out.write(blob);
+  await out.close();
+  return { file: `bodies/${id}.dlbody`, bytes: blob.size, w: sim.q.w, h: sim.q.h, agents: sim.q.agents };
+}
+async function loadBody(d, g) {
+  try {
+    if (typeof d.id !== 'string' || (!lib.dir && !await grantFolder())) return null;
+    const store = await (lib.dir || folder).getDirectoryHandle('bodies');
+    return await unpackBody(await (await store.getFileHandle(d.id + '.dlbody')).getFile(), g);
+  } catch (e) {
+    if (e.name !== 'NotFoundError') console.error(e);
+    return null;
+  }
+}
+function readLife(d) {
+  const life = { ...DEFAULT_LIFE };
+  if (LIFE_MODES[d?.mode]) life.mode = d.mode;
+  for (const p of LIFE_PARAMS) if (Number.isFinite(d?.[p.k])) life[p.k] = clamp(d[p.k], p.min, p.max);
+  return life;
 }
 // Drawings are checked on load, since a save is a plain file that could have been edited by hand.
 function readWalls(list) {
@@ -2713,7 +3190,8 @@ function readSpawns(list) {
   spawns.sort((a, b) => a.s - b.s);
   return spawns.length ? spawns : null;
 }
-async function save() {
+// A recipe can regrow from scratch. An organism carrying an inherited body also needs its living state saved.
+async function save({ moment = false } = {}) {
   const targets = mode === 'batch'
     ? batch.picks.map(i => ({ genome: batch.tiles[i].genome, sim: batch.tiles[i].sim }))
     : [{ genome: st, sim: R }];
@@ -2723,7 +3201,12 @@ async function save() {
     const dir = canPick ? await savesFolder() : null;
     if (canPick && !dir) { flash('SAVE CANCELLED'); return; }
     for (const { genome, sim } of targets) {
-      const data = buildSave(genome, sim), json = JSON.stringify(data, null, 2), file = data.id + '.json';
+      const data = buildSave(genome, sim), file = data.id + '.json';
+      if (dir && (moment || liveBody(genome))) {
+        data.body = await writeBody(dir, data.id, sim, genome);
+        delete data.spawns; // Anything painted is already inside the saved body.
+      }
+      const json = JSON.stringify(data, null, 2);
       if (dir) {
         const w = await (await dir.getFileHandle(file, { create: true })).createWritable();
         await w.write(json); await w.close();
@@ -2738,7 +3221,7 @@ async function save() {
       family.get(familyId(genome)).saveId = data.id;
       markTasteSaved(genome, data.id);
     }
-    flash(targets.length > 1 ? 'SAVED ' + targets.length + ' VARIANTS' : 'SAVED ' + hex8(targets[0].genome.seed));
+    flash(targets.length > 1 ? 'SAVED ' + targets.length + ' VARIANTS' : moment ? 'MOMENT SAVED' : 'SAVED ' + hex8(targets[0].genome.seed));
     syncTasteFile();
   } catch (e) {
     if (e.name === 'AbortError') flash('SAVE CANCELLED');
@@ -2766,7 +3249,7 @@ function parseSave(d) {
     // Version 1 saves stored a single `parent`.
     parents: Array.isArray(d.parents) ? d.parents.filter(x => typeof x === 'string') : typeof d.parent === 'string' ? [d.parent] : [],
     generation: Number.isFinite(d.generation) ? d.generation : 0, tag: '',
-    walls: readWalls(d.walls), spawns: readSpawns(d.spawns),
+    walls: readWalls(d.walls), spawns: readSpawns(d.spawns), life: readLife(d.life), body: null,
   };
 }
 function savedView(d) {
@@ -2799,11 +3282,14 @@ async function applySave(d, regrow = true) {
   if (!g) throw new Error('not a save file');
   setMode('solo');
   batch.openIndex = -1;
-  Object.assign(st, { uid: null, seed: g.seed, init: g.init, count: g.count, species: g.species, field: g.field, saveId: g.saveId, parents: g.parents, generation: g.generation, walls: g.walls, spawns: g.spawns });
+  const body = d.body ? await loadBody(d, g) : null;
+  Object.assign(st, { uid: null, seed: g.seed, init: g.init, count: g.count, species: g.species, field: g.field, saveId: g.saveId, parents: g.parents, generation: g.generation, walls: g.walls, spawns: g.spawns, life: g.life, body });
   st.view = savedView(d);
   const fromTile = d.grownAt === 'tile';
   if (!fromTile && QUALITY[d.quality] && d.quality !== st.quality) { st.quality = d.quality; buildResources(); }
   restart(); commit(); syncUi();
+  // A moment save needs no regrowing, because the grown world itself was stored.
+  if (body) { flash('MOMENT LOADED'); return; }
   if (!regrow) return;
   // Fast-forward to the saved moment, so what opens matches what was saved.
   const target = Math.min(Number.isFinite(d.step) ? d.step : 0, REGROW_LIMIT), job = growing = { label: 'REGROWING 0%' };
@@ -2816,7 +3302,7 @@ async function applySave(d, regrow = true) {
   } else await growSim(R, st, target, job);
   if (growing !== job) return;
   growing = null;
-  flash('LOADED ' + hex8(st.seed));
+  flash(d.body ? 'BODY MISSING, REGREW' : 'LOADED ' + hex8(st.seed));
 }
 
 /* ---------- Library ---------- */
@@ -2838,7 +3324,7 @@ const saveTime = d => new Date(d.createdAt || 0).getTime() || 0;
 const saveScore = d => Number.isFinite(d.metrics?.score) ? d.metrics.score : -1;
 function saveDescription({ data: d, genome: g }) {
   const when = saveTime(d) ? new Date(d.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Undated';
-  return [when, g.count === 1 ? '1 species' : g.count + ' species', ...(g.field.on ? ['hybrid'] : []), ...(g.walls ? ['barriers'] : []), ...(g.generation ? ['gen ' + g.generation] : [])].join(' · ');
+  return [when, g.count === 1 ? '1 species' : g.count + ' species', ...(g.field.on ? ['hybrid'] : []), ...(g.walls ? ['barriers'] : []), ...(g.life?.mode !== 'off' ? [g.life.mode] : []), ...(d.body ? ['moment'] : []), ...(g.generation ? ['gen ' + g.generation] : [])].join(' · ');
 }
 function setThumb(item, blob) {
   if (item.url) URL.revokeObjectURL(item.url);
@@ -2864,12 +3350,24 @@ async function useSave(item, breedIt) {
   await saveMeta(item).catch(e => console.error(e));
   const data = item.data;
   closeLibrary();
-  await applySave(data, !breedIt);
+  // With body inheritance, a recipe save first regrows so its children have a grown structure to inherit.
+  await applySave(data, !breedIt || st.inherit === 'body');
   if (breedIt) { batch.sourceSnap = null; setMode('batch'); }
 }
 // Removed saves move to a subfolder instead of being deleted, so they can always be brought back.
 async function removeSave(item) {
   const bin = await lib.dir.getDirectoryHandle('removed', { create: true });
+  if (item.data.body) {
+    const name = item.data.id + '.dlbody';
+    try {
+      const store = await lib.dir.getDirectoryHandle('bodies'), source = await store.getFileHandle(name);
+      const kept = await bin.getDirectoryHandle('bodies', { create: true });
+      const out = await (await kept.getFileHandle(name, { create: true })).createWritable();
+      await out.write(await source.getFile());
+      await out.close();
+      await store.removeEntry(name);
+    } catch (e) { if (e.name !== 'NotFoundError') throw e; }
+  }
   const w = await (await bin.getFileHandle(item.name, { create: true })).createWritable();
   await w.write(await item.handle.getFile());
   await w.close();
@@ -3155,9 +3653,10 @@ async function growMissingThumbs(run) {
   try {
     for (const item of lib.items.filter(x => !x.url)) {
       if (run !== lib.run) return;
-      const { data: d, genome: g } = item, q = d.grownAt === 'tile' ? TILE : QUALITY[d.quality] || QUALITY.med;
+      const { data: d, genome } = item, q = d.grownAt === 'tile' ? TILE : QUALITY[d.quality] || QUALITY.med;
       if (lib.sim?.q !== q) { if (lib.sim) destroySim(lib.sim); lib.sim = createSim(q); }
-      const sim = lib.sim, view = savedView(d), target = Math.min(Number.isFinite(d.step) ? d.step : 1500, REGROW_LIMIT);
+      const body = d.body ? await loadBody(d, genome) : null, g = body ? { ...genome, body } : genome;
+      const sim = lib.sim, view = savedView(d), target = body ? 0 : Math.min(Number.isFinite(d.step) ? d.step : 1500, REGROW_LIMIT);
       restartSim(sim, g);
       while (sim.step < target && run === lib.run) {
         writeUniforms(sim, g, 0, view);
@@ -3169,6 +3668,7 @@ async function growMissingThumbs(run) {
       }
       if (run !== lib.run) return;
       const blob = await writeThumb(lib.dir, item.key, sim, g, view);
+      if (body) dropBody(body);
       if (run === lib.run) setThumb(item, blob);
     }
   } catch (e) {
@@ -3610,30 +4110,97 @@ async function captureVideo(kind) {
 const BRUSH_TOOLS = { wall: 'BARRIER', erase: 'ERASE', life: 'ORGANISM' };
 const brush = {
   tool: 'wall', size: 5, species: 0, base: null, draft: [], added: 0, dirty: false,
-  mask: new Uint8Array(WALL_W * WALL_H), stroke: null, painting: false, timer: 0, x: .5, y: .5,
+  mask: new Uint8Array(WALL_W * WALL_H), stroke: null, pen: null, painting: false, timer: 0, x: .5, y: .5,
 };
 const brushLayer = $('brushLayer'), brushRing = $('brushRing');
-brushLayer.width = WALL_W; brushLayer.height = WALL_H;
-const brushCtx = brushLayer.getContext('2d'), brushImage = brushCtx.createImageData(WALL_W, WALL_H);
+const brushCtx = brushLayer.getContext('2d');
+// Barriers are drawn as smooth vector strokes at screen resolution, then given a perforated hardware finish.
+const wallArt = { shape: document.createElement('canvas'), rim: document.createElement('canvas'), fill: document.createElement('canvas'), pattern: null, edge: 1 };
+const shapeCtx = wallArt.shape.getContext('2d'), rimCtx = wallArt.rim.getContext('2d'), fillCtx = wallArt.fill.getContext('2d');
 
-// Barriers show as a faint fill with a bright outline, so the living picture stays visible underneath.
-function paintBrushLayer(box = [0, 0, WALL_W - 1, WALL_H - 1]) {
-  const x0 = Math.max(0, box[0] - 1), y0 = Math.max(0, box[1] - 1), x1 = Math.min(WALL_W - 1, box[2] + 1), y1 = Math.min(WALL_H - 1, box[3] + 1);
-  const m = brush.mask, px = brushImage.data;
-  for (let y = y0; y <= y1; y++) {
-    for (let x = x0; x <= x1; x++) {
-      const i = y * WALL_W + x, o = i * 4;
-      if (m[i] < 128) { px[o + 3] = 0; continue; }
-      const edge = (x > 0 && m[i - 1] < 128) || (x < WALL_W - 1 && m[i + 1] < 128) || (y > 0 && m[i - WALL_W] < 128) || (y < WALL_H - 1 && m[i + WALL_W] < 128);
-      px[o] = edge ? 190 : 134; px[o + 1] = edge ? 255 : 220; px[o + 2] = edge ? 235 : 195; px[o + 3] = edge ? 235 : 42;
-    }
-  }
-  brushCtx.putImageData(brushImage, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+function makeWallPattern(dpr) {
+  const pitch = Math.max(6, Math.round(8 * dpr)), tile = document.createElement('canvas');
+  tile.width = tile.height = pitch;
+  const c = tile.getContext('2d');
+  c.fillStyle = '#8e8b83';
+  c.fillRect(0, 0, pitch, pitch);
+  c.fillStyle = '#65625b';
+  c.beginPath();
+  c.arc(pitch / 2, pitch / 2, Math.max(.8, pitch * .13), 0, TAU);
+  c.fill();
+  return fillCtx.createPattern(tile, 'repeat');
+}
+function traceStroke(c, stroke, from = 0) {
+  const { width: w, height: h } = c.canvas;
+  if (stroke.clear) { c.clearRect(0, 0, w, h); return; }
+  const p = stroke.pts, start = Math.max(from - 2, 0);
+  c.globalCompositeOperation = stroke.erase ? 'destination-out' : 'source-over';
+  c.strokeStyle = '#000';
+  c.lineWidth = stroke.r * h * 2;
+  c.lineCap = c.lineJoin = 'round';
+  c.beginPath();
+  c.moveTo(p[start] * w, p[start + 1] * h);
+  if (p.length <= start + 2) c.lineTo(p[start] * w + .01, p[start + 1] * h);
+  for (let i = start + 2; i < p.length; i += 2) c.lineTo(p[i] * w, p[i + 1] * h);
+  c.stroke();
+  c.globalCompositeOperation = 'source-over';
+}
+function composeWalls() {
+  const { shape, rim, fill, pattern, edge } = wallArt, { width: w, height: h } = shape;
+  if (!pattern) return;
+  rimCtx.globalCompositeOperation = 'source-over';
+  rimCtx.clearRect(0, 0, w, h);
+  for (let i = 0; i < 8; i++) rimCtx.drawImage(shape, Math.cos(i * TAU / 8) * edge, Math.sin(i * TAU / 8) * edge);
+  rimCtx.globalCompositeOperation = 'source-in';
+  rimCtx.fillStyle = '#d9d6cf';
+  rimCtx.fillRect(0, 0, w, h);
+  fillCtx.globalCompositeOperation = 'source-over';
+  fillCtx.clearRect(0, 0, w, h);
+  fillCtx.drawImage(shape, 0, 0);
+  fillCtx.globalCompositeOperation = 'source-in';
+  fillCtx.fillStyle = pattern;
+  fillCtx.fillRect(0, 0, w, h);
+  brushCtx.clearRect(0, 0, w, h);
+  brushCtx.drawImage(rim, 0, 0);
+  brushCtx.drawImage(fill, 0, 0);
+}
+function retraceWalls() {
+  shapeCtx.clearRect(0, 0, wallArt.shape.width, wallArt.shape.height);
+  for (const stroke of brush.draft) traceStroke(shapeCtx, stroke);
+  composeWalls();
+}
+function sizeBrushLayer() {
+  const r = brushLayer.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const dpr = devicePixelRatio || 1, w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (w === brushLayer.width && h === brushLayer.height && wallArt.pattern) return;
+  for (const c of [brushLayer, wallArt.shape, wallArt.rim, wallArt.fill]) { c.width = w; c.height = h; }
+  wallArt.pattern = makeWallPattern(dpr);
+  wallArt.edge = 1.25 * dpr;
+  retraceWalls();
 }
 function rebuildBrushMask() {
   brush.mask.fill(0);
   for (const stroke of brush.draft) stampStroke(brush.mask, stroke);
-  paintBrushLayer();
+  retraceWalls();
+}
+// Pointer samples become a gently steadied curve, so a stroke never shows the mouse's small jitters.
+function curveStroke(s, cx, cy, ex, ey) {
+  const pen = brush.pen, n0 = s.pts.length, steps = clamp(Math.ceil(Math.hypot((ex - pen.midX) * 16 / 9, ey - pen.midY) / .003), 1, 24);
+  for (let k = 1; k <= steps && s.pts.length < 20000; k++) {
+    const t = k / steps, u = 1 - t;
+    s.pts.push(+(u * u * pen.midX + 2 * u * t * cx + t * t * ex).toFixed(4), +(u * u * pen.midY + 2 * u * t * cy + t * t * ey).toFixed(4));
+  }
+  pen.midX = ex; pen.midY = ey;
+  if (s.pts.length === n0) return;
+  stampStroke(brush.mask, s, n0);
+  traceStroke(shapeCtx, s, n0);
+}
+function extendStroke(s, raw) {
+  const pen = brush.pen, x = pen.x + (raw.x - pen.x) * .6, y = pen.y + (raw.y - pen.y) * .6;
+  if (Math.hypot((x - pen.x) * 16 / 9, y - pen.y) < .002) return;
+  curveStroke(s, pen.x, pen.y, (pen.x + x) / 2, (pen.y + y) / 2);
+  pen.x = x; pen.y = y;
 }
 function resetDraft(walls) {
   brush.base = walls;
@@ -3718,10 +4285,13 @@ function startBrush(e) {
     return;
   }
   brush.stroke = { r: +(brush.size / 100).toFixed(4), ...(brush.tool === 'erase' ? { erase: true } : {}), pts: [p.x, p.y] };
+  brush.pen = { x: p.x, y: p.y, midX: p.x, midY: p.y };
   brush.draft = [...brush.draft, brush.stroke];
   brush.added++;
   brush.dirty = true;
-  paintBrushLayer(stampStroke(brush.mask, brush.stroke));
+  stampStroke(brush.mask, brush.stroke);
+  traceStroke(shapeCtx, brush.stroke);
+  composeWalls();
   syncBrush();
 }
 function moveBrush(e) {
@@ -3732,16 +4302,15 @@ function moveBrush(e) {
   brush.x = p.x; brush.y = p.y;
   const s = brush.stroke;
   if (!s) return;
-  for (const ev of e.getCoalescedEvents?.().length ? e.getCoalescedEvents() : [e]) {
-    const q = brushPoint(ev), n = s.pts.length;
-    if (Math.hypot((q.x - s.pts[n - 2]) * 16 / 9, q.y - s.pts[n - 1]) < .003 || s.pts.length >= 20000) continue;
-    s.pts.push(q.x, q.y);
-    paintBrushLayer(stampStroke(brush.mask, s, n));
-  }
+  for (const ev of e.getCoalescedEvents?.().length ? e.getCoalescedEvents() : [e]) extendStroke(s, brushPoint(ev));
+  composeWalls();
 }
 function endBrush() {
   if (!brush.painting) return;
   brush.painting = false;
+  // The curve always finishes exactly where the pointer stopped.
+  if (brush.stroke && brush.pen) { curveStroke(brush.stroke, brush.pen.x, brush.pen.y, brush.x, brush.y); composeWalls(); }
+  brush.pen = null;
   brush.stroke = null;
   if (brush.timer) {
     clearInterval(brush.timer);
@@ -3773,6 +4342,7 @@ function syncBrush() {
   $('brushSizeOut').textContent = brush.size.toFixed(1);
   $('drawGrow').classList.toggle('ready', brush.dirty);
   $('drawNote').textContent = !solo ? 'Open a tile in SOLO to draw on it.'
+    : brush.tool === 'life' && st.init === 'empty' ? 'Hold on the empty sandbox to place this species.'
     : brush.tool === 'life' ? 'Hold on the picture to gather this species there.'
     : brush.dirty ? 'Press GROW to start a new run inside this drawing.'
     : 'Paint where organisms cannot go, then press GROW.';
@@ -3783,6 +4353,7 @@ function initBrush() {
   $('brushSize').addEventListener('input', e => { brush.size = +e.target.value; syncBrush(); });
   $('drawClear').addEventListener('click', e => { clearDraft(); if (e.detail) e.currentTarget.blur(); });
   $('drawGrow').addEventListener('click', e => { actions.reroll(); if (e.detail) e.currentTarget.blur(); });
+  new ResizeObserver(sizeBrushLayer).observe(brushLayer);
   brushLayer.addEventListener('pointerdown', startBrush);
   brushLayer.addEventListener('pointermove', moveBrush);
   brushLayer.addEventListener('pointerup', endBrush);
@@ -3801,10 +4372,13 @@ const actions = {
   mutate() {
     if (mode === 'batch') { breed(); return; }
     if (!commitDraft()) return;
+    // The grown structure carries over, so it has to survive its own changed rules.
+    const body = inheritedBody(R, st);
     branchGenome(st);
     st.generation = (st.generation || 0) + 1;
+    st.body = body;
     mutateGenome(st, STRENGTHS[st.strength][1]);
-    restart(); commit(); syncUi(); flash('MUTATED');
+    restart(); commit(); syncUi(); flash(body ? 'MUTATED BODY' : 'MUTATED');
   },
   random() {
     if (capture || imageBusy) return;
@@ -3815,7 +4389,7 @@ const actions = {
       cancelScreening();
       pushBatchHistory();
       const picks = batch.picks;
-      setBatchGenomes(batch.tiles.map(t => branchGenome({ ...cloneGenome(t.genome), seed: newSeed() })));
+      setBatchGenomes(batch.tiles.map(t => branchGenome({ ...cloneGenome(t.genome), seed: newSeed(), body: null })));
       batch.picks = picks;
       syncUi(); flash('NEW SEEDS');
       return;
@@ -3824,6 +4398,7 @@ const actions = {
     if (!commitDraft()) return;
     branchGenome(st);
     st.seed = newSeed();
+    st.body = null; // REROLL is a fresh start from the recipe.
     restart(); commit(); syncUi(); flash(drew ? 'GROWING' : 'NEW SEED');
   },
   replay() {
@@ -3953,15 +4528,23 @@ function syncUi() {
   $('playLabel').textContent = running ? 'PAUSE' : 'PLAY';
   $('led').classList.toggle('on', running);
   $('undoPad').disabled = inBatch ? !batch.history.length : !history.length && !brush.added;
+  const life = lifeOf(g);
+  markSeg($('segInherit'), st.inherit);
+  markSeg($('segLife'), life.mode);
+  $('lifeNote').textContent = inBatch ? 'Open a tile to change its biology. INHERIT applies to every breed.'
+    : life.mode === 'cells' ? 'Cells feed, divide, die and pass on their own mutated rules.'
+    : life.mode === 'veins' ? 'Busy paths thicken and last. Unused paths wither.'
+    : st.inherit === 'body' ? "Children start inside their parent's grown structure."
+    : 'Children regrow from settings alone.';
   syncBrush();
   $('mutateLabel').textContent = inBatch ? 'BREED' : 'MUTATE';
   $('mutateKey').textContent = inBatch ? 'ENTER' : 'M';
   $('tiles').hidden = !inBatch;
   $('organismTitle').textContent = inBatch ? 'ORGANISM · TILE ' + (displayedTile() + 1) + ' · OPEN TO EDIT' : 'ORGANISM';
-  for (const id of ['segQuality', 'segInit', 'segCount', 'segEco', 'segHybrid']) for (const b of $(id).children) b.disabled = inBatch;
+  for (const id of ['segQuality', 'segInit', 'segCount', 'segEco', 'segHybrid', 'segLife']) for (const b of $(id).children) b.disabled = inBatch;
   // A cycle needs three species to close the loop.
   if (g.count < 3) $('segEco').querySelector('[data-value=cycle]').disabled = true;
-  for (const input of document.querySelectorAll('#simSliders input, #fieldSliders input, #followSliders input')) input.disabled = inBatch;
+  for (const input of document.querySelectorAll('#simSliders input, #fieldSliders input, #followSliders input, #lifeSliders input')) input.disabled = inBatch;
   syncTiles();
 }
 function setQuality(q) {
@@ -3972,14 +4555,41 @@ function setSpeed(v) { st.speed = v; syncUi(); drawLcd(); }
 function setCount(n) {
   if (n === st.count) return;
   st.count = n;
+  st.body = null;
   st.editing = Math.min(st.editing, n - 1);
   restart(); commit(); syncUi(); drawLcd();
 }
 function applyHybrid(key) {
   const h = HYBRIDS[key];
   st.field.on = key !== 'off';
+  st.body = null;
   if (st.field.on) { st.field.feed = h.feed; st.field.kill = h.kill; }
   restart(); commit(); syncUi(); flash('HYBRID ' + h.label);
+}
+// BLANK goes straight to the organism brush, because that is the only way anything appears.
+function setInit(v) {
+  st.init = v;
+  st.body = null;
+  if (v === 'empty') { st.spawns = null; activeTab = 'draw'; brush.tool = 'life'; }
+  restart(); commit(); syncUi();
+  if (v === 'empty') flash('PAINT TO SPAWN');
+}
+// Biology can change on a running organism. Leaving CELLS brings the population back from the survivors.
+function setLifeMode(m) {
+  const life = lifeOf(st), was = life.mode;
+  if (m === was || mode !== 'solo') return;
+  life.mode = m;
+  if (m === 'cells') seedGenes(R, st);
+  else if (was === 'cells') {
+    if (st.init !== 'empty') {
+      const held = captureBody(R, st);
+      placeState(held, R, st, { fill: true, seed: (st.seed ^ R.step ^ 0x51ED270B) >>> 0 });
+      R.cur = 0;
+      dropBody(held);
+    }
+    R.genesReady = false;
+  }
+  commit(); syncUi(); flash('BIOLOGY ' + LIFE_MODES[m]);
 }
 function applyEcology(key) {
   const [label, rule] = ECOLOGIES[key], n = st.count;
@@ -4017,6 +4627,10 @@ function initUi() {
   SPECIES_NAMES.forEach((name, i) => makeSlider($('followSliders'),
     { ...followField, label: name + ' FOLLOWS', only: g => g.field.on && i < g.count }, () => shownGenome().species[i], null, commit));
   VIEW_PARAMS.forEach(p => makeSlider($('viewSliders'), p, () => st.view));
+  LIFE_PARAMS.forEach(p => makeSlider($('lifeSliders'), p, () => lifeOf(shownGenome()), null, commit));
+  segmented($('segInherit'), Object.entries(INHERIT_MODES), v => { st.inherit = v; syncUi(); flash('INHERIT ' + INHERIT_MODES[v]); });
+  segmented($('segLife'), Object.entries(LIFE_MODES), setLifeMode);
+  $('saveMoment').addEventListener('click', e => { save({ moment: true }); if (e.detail) e.currentTarget.blur(); });
   segmented($('segTab'), Object.entries(TABS).map(([k, [label]]) => [k, label]), v => { activeTab = v; syncUi(); });
   segmented($('segHybrid'), Object.entries(HYBRIDS).map(([k, h]) => [k, h.label]), applyHybrid);
   initBrush();
@@ -4078,7 +4692,7 @@ function initUi() {
   });
   segmented($('segQuality'), Object.entries(QUALITY).map(([k, q]) => [k, q.label]), setQuality);
   segmented($('segSpeed'), SPEEDS.map(s => [s, s + 'X']), setSpeed);
-  segmented($('segInit'), Object.entries(INITS), v => { st.init = v; restart(); commit(); syncUi(); });
+  segmented($('segInit'), Object.entries(INITS), setInit);
   const swatches = Object.entries(PALETTES).map(([k, c]) => [k, k, `linear-gradient(90deg,${c.slice(0, 5).join(',')})`]);
   for (let i = 0; i < 3; i++) segmented($('segPal' + i), swatches, v => { st.view.palettes[i] = v; syncUi(); drawLcd(); });
   segmented($('segPalField'), swatches, v => { st.view.fieldPalette = v; syncUi(); });
@@ -4122,6 +4736,7 @@ function initUi() {
       }
       if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); breed(); return; }
     }
+    if (e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); save({ moment: true }); return; }
     const act = { m: 'mutate', n: 'random', d: 'draw', r: 'reroll', p: 'replay', s: 'save', u: 'undo', l: 'load', f: 'full', b: 'view', h: 'help', i: 'image', c: 'clip', v: 'record' }[e.key.toLowerCase()];
     if (act) { e.preventDefault(); actions[act](); }
   });
@@ -4145,7 +4760,20 @@ window.DL = {
   exportImage, captureVideo, encodePng, renderPixels, exportItems, VIDEO, applySave, LIGHT_CURVES, lib, openLibrary, closeLibrary, save,
   layoutFamily, familyLine, lineageOf, setLibView, selectTreeNode, TREE,
   RANDOM, randomFounder, rollFounders, restartSim, actions, brush, wallMask, buildSave, parseSave, commitDraft,
+  captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, setInit, lifeOf, bodies, liveBody, wallArt,
   get R() { return R; },
+  // Reads every agent's inherited genes back, eight numbers each, starting with energy.
+  async genes(sim = R) {
+    if (!sim.geneBuf) return null;
+    const size = sim.q.agents * 32, read = device.createBuffer({ size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    const enc = device.createCommandEncoder();
+    enc.copyBufferToBuffer(sim.geneBuf, 0, read, 0, size);
+    device.queue.submit([enc.finish()]);
+    await read.mapAsync(GPUMapMode.READ);
+    const out = new Float32Array(read.getMappedRange().slice(0));
+    read.unmap(); read.destroy();
+    return out;
+  },
   // Reads every agent back, for checking where they are.
   async agents(sim = R) {
     const size = sim.q.agents * 16, read = device.createBuffer({ size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });

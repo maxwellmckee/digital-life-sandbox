@@ -24,7 +24,7 @@ The goal is **art through emergence**: organic, soft, luminous forms that are di
 
 <p align="center"><em>Organisms grown and bred in the sandbox.</em></p>
 
-> **New here, or a new Claude session?** Read this file first, then skim [Build Update 2](Digital%20Life%20Sandbox%20Build%20Update%202.md) and the [Project Notes](Digital%20Life%20Sandbox%20Project%20Notes.md). This README says what exists today. Those two documents hold the vision and the plan.
+> **New here, or a new Claude session?** Read this file first, then skim [Build Update 2](Digital%20Life%20Sandbox%20Build%20Update%202.md), the [Project Notes](Digital%20Life%20Sandbox%20Project%20Notes.md) and the [Research Notes](docs/RESEARCH.md). This README says what exists today. The first two hold the vision and plan, and the last explains the science behind the LIFE systems.
 
 ## Run it
 
@@ -42,9 +42,11 @@ There is nothing to install and no build step. The project was built for a deskt
 | `Digital Life Sandbox Project Notes.md` | The original vision and design document |
 | `Digital Life Sandbox Build Update 2.md` | The next planned changes. It overrides the Project Notes where they conflict |
 | `saves/` | Saved organisms (`dl-*.json`) and `taste.json` |
+| `saves/bodies/` | Full living states (`.dlbody`) for moment saves and organisms with inherited bodies |
 | `saves/thumbs/` | Library pictures. They can be regrown if missing |
 | `saves/removed/` | Saves removed in the Library. Nothing is permanently deleted there |
 | `images/`, `videos/` | PNG and MP4 exports |
+| `docs/RESEARCH.md` | Papers behind the LIFE systems, how they were adapted, and test results |
 | `docs/screenshots/` | Pictures used in this README |
 
 `saves/`, `images/` and `videos/` are personal working folders. They stay on your computer and are not uploaded to GitHub. The app creates what it needs when you choose a folder.
@@ -62,11 +64,12 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 
 | Control | Key | What it does |
 |---|---|---|
-| MUTATE / BREED | `M` / `Enter` | Solo nudges the settings. Batch breeds from your picks |
+| MUTATE / BREED | `M` / `Enter` | Changes the rules. With INHERIT BODY, the grown structure carries over |
 | RANDOM | `N` | Rolls unrelated new organisms. Batch keeps picked tiles |
-| REROLL | `R` | Same settings, new starting positions |
-| REPLAY | `P` | Same settings and same start, regrown from step 0 |
+| REROLL | `R` | Same settings, fresh start, leaving any inherited body behind |
+| REPLAY | `P` | Same settings and same start. An inherited body returns to its moment of birth |
 | SAVE | `S` | Saves the organism, or every picked tile |
+| SAVE THIS MOMENT | `Shift`+`S` | Stores the exact living state |
 | PAUSE | `Space` | Freezes or resumes |
 | UNDO | `U`, `Ctrl+Z` | Reverses the last change, brush stroke or generation |
 | LIBRARY | `L` | Browse saves as a grid or family tree |
@@ -81,6 +84,7 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 ### Control pages
 
 - **ORGANISM:** species count, ecology and movement sliders.
+- **LIFE:** what children inherit, plus optional veins and living cells.
 - **FIELD:** an optional reaction-diffusion chemical that agents interact with.
 - **LIGHT:** color gradients, glow and exposure. These change the look only.
 - **DRAW:** barrier and organism brushes, in Solo.
@@ -88,15 +92,25 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 
 ### Drawing
 
-- **BARRIER** paints thick walls organisms cannot enter. **ERASE** removes them. The current run continues while you draw, then **GROW** starts a new run inside the drawing.
-- MUTATE, RANDOM, REROLL and REPLAY also pick up a new drawing.
+- **BARRIER** paints smooth, thick walls organisms cannot enter. **ERASE** removes them. The current run continues while you draw, then **GROW** starts a new run inside the drawing.
+- MUTATE, RANDOM, REROLL and REPLAY also pick up a new drawing. MUTATE keeps the grown body, so a structure can adapt to a new wall.
+- **START: BLANK** opens an empty sandbox and selects the organism brush, so you place every species yourself.
 - Children you breed inherit their parent's barriers. RANDOM keeps the current barriers too. Use **CLEAR**, then **GROW**, to remove them.
 - **ORGANISM** gathers the chosen species wherever you hold the mouse. It moves existing agents to the brush, so the total population stays constant and performance is unaffected.
 - Painted organisms are recorded by simulation step, so REPLAY and saves re-enact them. REROLL, MUTATE, RANDOM and breeding start without them.
 
+### Inheritance and early life
+
+- **INHERIT: BODY** (default) starts each child inside its parent's grown structure with mutated rules. **RECIPE** regrows from settings alone.
+- With two picked parents, the child lives in one parent's body and mixes rules from both.
+- **BIOLOGY: VEINS** thickens busy paths and withers unused ones, which helps structure survive new rules.
+- **BIOLOGY: CELLS** adds veins plus energy, feeding, division, death and per-cell inherited rules. Followed trails act as food and fled trails as poison.
+
 ### Saves and breeding
 
-A save stores the **recipe and seed**, not a frozen image, and regrows the organism when opened. Breeding never changes a save file. Children are new organisms until you save them. The Library's **TREE** view shows which save came from which.
+A normal save stores the **recipe and seed** and regrows when opened. A **moment save** also stores the complete living state and reopens exactly as it was. Organisms with an inherited body always save this way, because a recipe cannot rebuild them. With CELLS on, moment files are about 7 MB at LOW or from a Batch tile, 27 MB at MED and 49 MB at HIGH.
+
+Breeding never changes a save file. Children are new organisms until you save them. The Library's **TREE** view shows which save came from which.
 
 ## How it works
 
@@ -112,15 +126,18 @@ A save stores the **recipe and seed**, not a frozen image, and regrows the organ
 
 - **Species:** up to 3, stored as index ranges in one agent buffer, with a follow/avoid matrix (RIVAL, ALLY, CHASE, CYCLE).
 - **Reaction field:** Gray-Scott on a fixed 480x270 grid (CORAL, MAZE, CELLS, WAVES).
-- **Barriers:** strokes rasterized to a fixed 960x540 mask. Agents bounce off, and trail and chemical cannot enter.
-- **Organism brush:** timed events stored in the genome and applied between simulation steps.
+- **Barriers:** smoothed strokes rasterized to a fixed 1920x1080 mask and drawn as vector art with a perforated finish. Agents bounce off, and trail and chemical cannot enter.
+- **Organism brush:** timed events stored in the genome and applied between simulation steps. A negative position marks an agent as parked in reserve, which is how BLANK works.
+- **Bodies:** full GPU copies of agents, trail, veins, chemical and genes, up to 1.5 GB with the oldest released first. `placeState` moves them between quality levels.
+- **Veins:** stored in the trail texture's alpha channel as 1 minus vein strength, so a plain map means no veins.
+- **Living cells:** a four-stage compute step of claim, birth, live and clear, with a separate 32-byte gene record per agent. Atomic claims keep runs repeatable.
 - **Rendering:** per-species gradient lookup, bloom, ACES tone mapping and fine grain.
 - **Metrics:** a GPU probe produces the LIFE score and verdicts ALIVE, NOISE, BLOB, FLAT or EMPTY. New variants get four checkpoints because good organisms can start slowly.
 - **Taste learning:** momentum from recent pick direction plus memory of favorites. One plain child and the WILD child are never steered.
 - **Family records:** an in-memory graph connects unsaved generations, so a save links to its nearest saved ancestors.
 - **Export:** a custom PNG writer, plus WebCodecs H.264 with a custom MP4 muxer.
 
-**Save format (version 6):** `id, parents, generation, name, tags, createdAt, seed, step, quality, init, grownAt, count, species, field, view, metrics`, plus optional `walls` and `spawns`. Older versions still load. When changing the format, keep them loading.
+**Save format (version 7):** `id, parents, generation, name, tags, createdAt, seed, step, quality, init, grownAt, count, species, field, life, view, metrics`, plus optional `walls`, `spawns` and `body`. `body` points to a gzip file in `saves/bodies/`. Older versions still load. When changing the format, keep them loading.
 
 ## Rules for future changes
 
@@ -146,23 +163,27 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 
 ## Known limitations
 
-- Reopening a save regrows at most 3,000 steps, so a very long run will not return to its exact late structure.
-- Slider changes made during a run are not recorded. A save regrows with its final settings from step 0.
-- Children inherit the recipe, not the grown structure. **This is the top item on the roadmap.**
+- Reopening a recipe save regrows at most 3,000 steps. Use SAVE THIS MOMENT to keep a long run's exact structure.
+- Slider changes made during a run are not recorded. A recipe save regrows with its final settings from step 0.
+- After a moment save is reopened, REPLAY returns to that saved moment rather than the organism's birth.
+- A moment file is compressed with very slightly rounded trail values. Agents, genes and chemical are exact.
+- Undo and old generations may fall back to their recipe once the 1.5 GB body memory fills.
+- A child inherits one parent's body. Merging two bodies is not built yet.
+- Cells have no true self-made membrane yet, and evidence of in-world selection is still small.
 - There is no WebGL2 fallback.
 - A hidden browser tab or preview pane throttles animation, so frame-rate measurements there are not meaningful.
 
 ## Status and roadmap
 
-**Built:** WebGPU simulation, Solo and Batch, breeding, 3 species, ecologies, reaction-diffusion hybrids, 12 color gradients, metrics and dead-variant filter, Help mode, taste learning, PNG and MP4 export, visual Library, family tree, RANDOM, barrier brush and organism brush.
+**Built:** WebGPU simulation, Solo and Batch, breeding, 3 species, ecologies, reaction-diffusion hybrids, 12 color gradients, metrics and dead-variant filter, Help mode, taste learning, PNG and MP4 export, visual Library, family tree, RANDOM, barrier brush, organism brush, BLANK start, inherited bodies, moment saves, veins, and living cells with energy, division, death and per-cell inherited rules.
 
-**Next, in the order from Build Update 2:**
+**Build Update 2 progress:**
 
-1. Children inherit the grown structure, not only the recipe.
-2. "Save this moment" full-state saves.
-3. Per-agent inherited parameters.
-4. Merge two saved structures into one world.
-5. Energy, food and species interaction.
-6. Endosymbiosis-inspired dependence.
+1. Done: children inherit the grown structure.
+2. Done: "Save this moment" full-state saves.
+3. Done: per-agent inherited parameters, through CELLS.
+4. **Next:** merge two saved structures into one world.
+5. Partly done: energy and a food web from the FOLLOW matrix. Separate food sources are not built.
+6. Not started: endosymbiosis-inspired dependence.
 
-**Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, a density limit, per-agent sensor variation, and small evolvable brains.
+**Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, mutating only part of a body, and small evolvable brains.
