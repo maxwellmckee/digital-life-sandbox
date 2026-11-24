@@ -1554,7 +1554,7 @@ const batch = {
 };
 let device, ctx, canvasFormat, R = null, P = null;
 let mode = 'solo', running = true, acc = 0, stepLimit = MAX_STEPS_PER_FRAME;
-let gpuName = 'GPU';
+let gpuName = 'GPU', gpuInfo = { vendor: '', architecture: '', fallback: false };
 let lastT = 0, frameMs = 16.7, gpuMs = 8, stepsWindow = 0, windowStart = 0, stepsPerSec = 0, throttleTick = 0;
 let flashText = '', flashUntil = 0;
 
@@ -1581,6 +1581,8 @@ async function initGpu() {
   const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
   if (!adapter) { fault('No compatible GPU adapter was found. Check that hardware acceleration is on in your browser settings.'); return false; }
   gpuName = (adapter.info?.vendor || 'GPU').toUpperCase();
+  // Named on the display at start, so it's easy to confirm the simulation runs on the graphics card.
+  gpuInfo = { vendor: adapter.info?.vendor || '', architecture: adapter.info?.architecture || '', fallback: !!(adapter.info?.isFallbackAdapter ?? adapter.isFallbackAdapter) };
   device = await adapter.requestDevice();
   device.lost.then(i => { if (i.reason !== 'destroyed') fault('The GPU device was lost. Reload the page to continue. (' + i.message + ')'); });
   device.addEventListener('uncapturederror', e => { console.error(e.error); fault('GPU error: ' + e.error.message); });
@@ -2246,7 +2248,7 @@ function lcdLines() {
       state + ' GEN ' + String(batch.gen).padEnd(3) + 'ST ' + String(step).padStart(7),
       rate,
       BATCH_SIZE + 'X' + Math.round(TILE.agents / 1000) + 'K ' + TILE.w + 'X' + TILE.h + ' ' + gpuName.slice(0, 6),
-      capture?.live ? captureLabel() : batch.screening ? 'SCREENING ' + batch.screening.done + ' OF ' + batch.screening.total
+      capture?.live ? captureLabel() : lib.loading ? lib.status : batch.screening ? 'SCREENING ' + batch.screening.done + ' OF ' + batch.screening.total
         : flashing ? flashText : 'PICKED ' + batch.picks.length + '/' + BATCH_SIZE + ' PASS ' + (st.inherit === 'body' ? 'BODY' : 'RULES'),
     ];
   }
@@ -2257,7 +2259,7 @@ function lcdLines() {
       state + ' ARENA ST ' + String(arena.sim.step).padStart(8),
       rate,
       c ? 'POP ' + k(c.total).padEnd(5) + ' FOOD ' + Math.round(c.food * 100) + '%' : 'POP --    FOOD 100%',
-      capture?.live ? captureLabel() : arena.task ? arena.task + '...' : flashing ? flashText : arena.placing ? 'CLICK TO PLACE'
+      capture?.live ? captureLabel() : lib.loading ? lib.status : arena.task ? arena.task + '...' : flashing ? flashText : arena.placing ? 'CLICK TO PLACE'
         : arena.keeping ? 'CLICK A BODY TO KEEP'
         : !arena.founders.length ? 'PRESS M TO ADD' : 'LINEAGES ' + alive + '/' + arena.founders.length + ' ' + lifeLabel(arena.sim.judged),
     ];
@@ -2268,7 +2270,7 @@ function lcdLines() {
     state + ' STEP ' + String(R?.step ?? 0).padStart(11, ' '),
     rate,
     ag + ' ' + q.w + 'X' + q.h + ' ' + lifeLabel(R?.judged),
-    capture?.live ? captureLabel() : growing ? growing.label : flashing ? flashText
+    capture?.live ? captureLabel() : lib.loading ? lib.status : growing ? growing.label : flashing ? flashText
       : lifeOf(st).mode === 'cells' && Number.isFinite(R?.analysis?.values.alive) ? 'CELLS ' + Math.round(R.analysis.values.alive * 100) + '% ALIVE'
       : 'SEED ' + hex8(st.seed) + ' ' + (st.count > 1 || st.field.on ? st.count + ' SPP' + (st.field.on ? ' RD' : '') : st.view.palettes[0]),
   ];
@@ -3030,12 +3032,19 @@ async function openTile(i) {
   batch.openIndex = i;
   setMode('solo');
   const job = growing = { label: 'OPENING TILE ' + (i + 1) };
-  commit();
-  batch.openSnap = snapshot();
-  syncUi();
-  await continueFrom(tile.sim, st);
-  if (growing === job) growing = null;
-  flash('RESUMED AT ' + R.step);
+  // Whatever happens, the busy state is cleared, or the simulation and the Library would stay frozen.
+  try {
+    commit();
+    batch.openSnap = snapshot();
+    syncUi();
+    await continueFrom(tile.sim, st);
+    flash('RESUMED AT ' + R.step);
+  } catch (e) {
+    console.error(e);
+    flash('COULD NOT OPEN TILE');
+  } finally {
+    if (growing === job) growing = null;
+  }
 }
 
 /* ---------- Learning from picks ---------- */
@@ -3292,7 +3301,7 @@ const HELP = {
     ['LINE 1', 'Running or on HOLD, the generation in BATCH, and steps so far.'],
     ['LINE 2', 'Frames per second, simulation steps per second, and speed.'],
     ['LINE 3', 'Agent count and trail resolution, plus the LIFE score in SOLO.'],
-    ['LINE 4', 'Seed and species count. In BATCH, your picks and what children will receive (PASS BODY or PASS RULES). Confirmations flash here too.'],
+    ['LINE 4', 'Seed and species count. In BATCH, your picks and what children will receive (PASS BODY or PASS RULES). Confirmations flash here too, along with the graphics card in use at start and Library loading progress.'],
   ] },
 
   'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'In ARENA this is ADD: it cuts a living specimen from your SOLO organism for you to place. Press it again for an open spot.' },
@@ -3758,9 +3767,11 @@ async function loadBody(d, g) {
   try {
     if (typeof d.id !== 'string' || (!lib.dir && !await grantFolder())) return null;
     const store = await (lib.dir || folder).getDirectoryHandle('bodies');
-    return await unpackBody(await (await store.getFileHandle(d.id + '.dlbody')).getFile(), g);
+    // Body files are large, so a cloud download gets longer than other files before it is given up on.
+    return await unpackBody(await withTimeout((await store.getFileHandle(d.id + '.dlbody')).getFile(), 60000), g);
   } catch (e) {
-    if (e.name !== 'NotFoundError') console.error(e);
+    if (e.name === 'TimeoutError') flash('BODY STILL DOWNLOADING');
+    else if (e.name !== 'NotFoundError') console.error(e);
     return null;
   }
 }
@@ -3792,6 +3803,16 @@ function readSpawns(list) {
   spawns.sort((a, b) => a.s - b.s);
   return spawns.length ? spawns : null;
 }
+// The saves folder may sit in a cloud-synced folder like OneDrive, where a file can have to download before it opens.
+// A read that takes too long is given up on, so the Library and the simulation never wait forever.
+const FILE_WAIT_MS = 15000;
+function withTimeout(promise, ms = FILE_WAIT_MS) {
+  let timer;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('timed out'), { name: 'TimeoutError' })), ms); });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+const readFile = handle => withTimeout(handle.getFile());
+const readText = handle => withTimeout(handle.getFile().then(f => f.text()));
 async function writeJson(handle, data) {
   const w = await handle.createWritable();
   await w.write(JSON.stringify(data, null, 2));
@@ -3801,7 +3822,7 @@ async function readSaves(dir) {
   const out = [];
   for await (const [name, handle] of dir.entries()) {
     if (handle.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
-    try { out.push({ name, handle, data: JSON.parse(await (await handle.getFile()).text()) }); } catch { /* not a save */ }
+    try { out.push({ name, handle, data: JSON.parse(await readText(handle)) }); } catch { /* not a save, or not downloaded yet */ }
   }
   return out;
 }
@@ -3937,21 +3958,30 @@ async function applySave(d, regrow = true) {
   if (!regrow) return;
   // Fast-forward to the saved moment, so what opens matches what was saved.
   const target = Math.min(Number.isFinite(d.step) ? d.step : 0, REGROW_LIMIT), job = growing = { label: 'REGROWING 0%' };
-  if (fromTile) {
-    const tileSim = createSim(TILE);
-    restartSim(tileSim, st);
-    await growSim(tileSim, st, target, job);
-    if (growing === job) await continueFrom(tileSim, st);
-    destroySim(tileSim);
-  } else await growSim(R, st, target, job);
-  if (growing !== job) return;
-  growing = null;
-  flash(d.body ? 'BODY MISSING, REGREW' : 'OPENED RULES ONLY');
+  // Whatever happens, the busy state is cleared, or the simulation and the Library would stay frozen.
+  let finished = false;
+  try {
+    if (fromTile) {
+      const tileSim = createSim(TILE);
+      try {
+        restartSim(tileSim, st);
+        await growSim(tileSim, st, target, job);
+        if (growing === job) await continueFrom(tileSim, st);
+      } finally { destroySim(tileSim); }
+    } else await growSim(R, st, target, job);
+    finished = growing === job;
+  } catch (e) {
+    console.error(e);
+    flash('REGROWING FAILED');
+  } finally {
+    if (growing === job) growing = null;
+  }
+  if (finished) flash(d.body ? 'BODY MISSING, REGREW' : 'OPENED RULES ONLY');
 }
 
 /* ---------- Library ---------- */
 const THUMB = { w: 480, h: 270 };
-const lib = { open: false, dir: null, thumbs: null, items: [], removed: [], sort: 'new', view: 'grid', tree: null, selected: null, query: '', run: 0, sim: null, growth: Promise.resolve() };
+const lib = { open: false, loading: false, status: '', dir: null, thumbs: null, items: [], removed: [], sort: 'new', view: 'grid', tree: null, selected: null, query: '', run: 0, sim: null, growth: Promise.resolve() };
 
 async function renderThumb(sim, genome, view) {
   const pixels = await renderPixels([{ sim, genome, view, rect: null }], THUMB.w, THUMB.h);
@@ -4478,59 +4508,85 @@ async function growMissingThumbs(run) {
     if (lib.sim) { destroySim(lib.sim); lib.sim = null; }
   }
 }
+// Why the Library can't open right now, so the button never silently does nothing.
+function libraryBlocked() {
+  if (lib.loading) return 'LIBRARY IS OPENING';
+  if (capture) return 'STOP THE RECORDING FIRST';
+  if (growing) return 'WAIT: ' + growing.label;
+  if (batch.screening) return 'WAIT FOR THE NEW TILES';
+  if (arena.busy) return 'WAIT: ' + arena.task;
+  return '';
+}
 async function openLibrary() {
-  if (lib.open || capture || growing || batch.screening) return;
+  if (lib.open) return;
+  const blocked = libraryBlocked();
+  if (blocked) { flash(blocked); return; }
   if (!window.showDirectoryPicker) { loadSave(); return; }
+  // The simulation keeps running while the folder is read. The display counts the files, and a file that is still
+  // downloading from the cloud is skipped instead of holding everything up.
+  lib.loading = true;
+  lib.status = 'OPENING LIBRARY';
+  drawLcd();
+  let late = 0;
+  const readAll = async (folderHandle, into) => {
+    const files = [];
+    for await (const [name, handle] of folderHandle.entries()) if (handle.kind === 'file' && name.toLowerCase().endsWith('.json')) files.push([name, handle]);
+    for (const [i, [name, handle]] of files.entries()) {
+      lib.status = `READING ${i + 1} OF ${files.length}`;
+      if (i % 5 === 0) drawLcd();
+      try {
+        const data = JSON.parse(await readText(handle)), genome = parseSave(data);
+        if (genome) into.push({ name, handle, data, genome, key: name.slice(0, -5), url: null, card: null });
+      } catch (e) { if (e.name === 'TimeoutError') late++; }
+    }
+  };
   try {
     const dir = await savesFolder();
     if (!dir) { flash('LIBRARY CANCELLED'); return; }
     const items = [], thumbs = await dir.getDirectoryHandle('thumbs', { create: true });
-    for await (const [name, handle] of dir.entries()) {
-      if (handle.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
-      let data;
-      try { data = JSON.parse(await (await handle.getFile()).text()); } catch { continue; }
-      const genome = parseSave(data);
-      if (genome) items.push({ name, handle, data, genome, key: name.slice(0, -5), url: null, card: null });
-    }
+    await readAll(dir, items);
     // Removed saves are never shown, but they are still read so the family tree can connect their children to their parents.
     const removed = [];
     const bin = await dir.getDirectoryHandle('removed').catch(e => { if (e.name === 'NotFoundError') return null; throw e; });
-    if (bin) {
-      for await (const [name, handle] of bin.entries()) {
-        if (handle.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
-        try {
-          const data = JSON.parse(await (await handle.getFile()).text()), genome = parseSave(data);
-          if (genome) removed.push({ name, handle, data, genome, key: name.slice(0, -5), url: null, card: null });
-        } catch { /* a damaged file just won't appear */ }
-      }
-    }
+    if (bin) await readAll(bin, removed);
     lib.dir = dir;
-    const copies = await mergeDuplicates(items);
+    // Tidying duplicates is a convenience. If it fails, the Library still opens.
+    let copies = [];
+    try { copies = await withTimeout(mergeDuplicates(items), 30000); } catch (e) { console.error(e); }
     const kept = items.filter(x => !copies.includes(x));
     removed.push(...copies);
-    lib.note = copies.length ? ` · ${copies.length} duplicate${copies.length === 1 ? '' : 's'} moved to removed` : '';
-    Object.assign(lib, { dir, thumbs, items: kept, removed, tree: null, selected: null, query: '', open: true });
-    lib.specimens = await readSpecimens(dir);
+    lib.note = (copies.length ? ` · ${copies.length} duplicate${copies.length === 1 ? '' : 's'} moved to removed` : '')
+      + (late ? ` · ${late} still downloading` : '');
+    Object.assign(lib, { dir, thumbs, items: kept, removed, tree: null, selected: null, query: '' });
+    lib.status = 'LOADING PICTURES';
+    drawLcd();
+    lib.specimens = await readSpecimens(dir).catch(e => { console.error(e); return []; });
     lib.specimens.forEach(buildSpecimenCard);
     const run = ++lib.run;
     $('libSearch').value = '';
     $('treeBar').hidden = true;
     kept.forEach(buildCard);
     for (const item of kept) {
-      try { setThumb(item, await (await thumbs.getFileHandle(item.key + '.webp')).getFile()); }
-      catch (e) { if (e.name !== 'NotFoundError') console.error(e); }
+      try { setThumb(item, await readFile(await thumbs.getFileHandle(item.key + '.webp'))); }
+      catch (e) { if (e.name !== 'NotFoundError' && e.name !== 'TimeoutError') console.error(e); }
     }
     hideHelp();
     $('treeBreed').textContent = mode === 'arena' ? 'ADD' : 'BREED';
     $('treeBreed').dataset.help = mode === 'arena' ? 'lib.add' : 'lib.breed';
     $('library').append($('helpCard'));
+    lib.open = true;
     $('library').showModal();
     renderLibrary();
+    if (late) flash(late + ' FILES STILL DOWNLOADING');
     lib.growth = lib.growth.then(() => nameSaves(run)).then(() => growMissingThumbs(run));
   } catch (e) {
-    lib.open = false;
+    lib.open = $('library').open;
     if (e.name === 'NotFoundError') { await forgetFolder(); flash('FOLDER MISSING'); }
     else { console.error(e); flash('LIBRARY FAILED'); }
+  } finally {
+    lib.loading = false;
+    lib.status = '';
+    drawLcd();
   }
 }
 function closeLibrary() { if ($('library').open) $('library').close(); }
@@ -4544,10 +4600,10 @@ async function readSpecimens(dir) {
   for await (const [name, handle] of store.entries()) {
     if (handle.kind !== 'file' || !name.endsWith('.json')) continue;
     try {
-      const meta = JSON.parse(await (await handle.getFile()).text());
+      const meta = JSON.parse(await readText(handle));
       if (meta.format !== 'digital-life-specimen') continue;
       const item = { name, handle, meta, key: name.slice(0, -5), store, url: null, card: null };
-      try { item.url = URL.createObjectURL(await (await store.getFileHandle(item.key + '.webp')).getFile()); } catch { /* no picture */ }
+      try { item.url = URL.createObjectURL(await readFile(await store.getFileHandle(item.key + '.webp'))); } catch { /* no picture */ }
       out.push(item);
     } catch { /* a damaged file just won't appear */ }
   }
@@ -6644,6 +6700,8 @@ window.DL = {
   },
   get mode() { return mode; },
   get gpu() { return gpuName; },
+  get gpuInfo() { return gpuInfo; },
+  get libState() { return { open: lib.open, loading: lib.loading, status: lib.status, growing: growing?.label ?? null, screening: !!batch.screening, capture: !!capture, arenaBusy: arena.busy }; },
   get step() { return mode === 'batch' ? batch.tiles[0].sim.step : R.step; },
   pause() { running = false; syncUi(); },
   resume() { running = true; syncUi(); },
@@ -6704,6 +6762,10 @@ window.DL = {
     restart();
     syncUi();
     drawLcd();
+    // A software adapter means the browser isn't using the graphics card at all, which is far too slow to run this.
+    if (gpuInfo.fallback) fault('The browser is running WebGPU in software, not on your graphics card. Turn on hardware acceleration in the browser settings, then reload.');
+    else flash(('GPU ' + gpuInfo.vendor + ' ' + gpuInfo.architecture).trim().toUpperCase());
+    console.info('Digital Life Sandbox is running on', gpuInfo);
     lastT = windowStart = performance.now();
     requestAnimationFrame(frame);
   } catch (e) {
