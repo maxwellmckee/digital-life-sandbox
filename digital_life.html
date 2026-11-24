@@ -68,7 +68,8 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 #libSearch{flex:1 1 200px;min-width:140px;height:32px;padding:0 10px;border:0;border-radius:7px;background:var(--chassis-hi);color:var(--ink);
   font:inherit;box-shadow:inset 0 1px 2px #0003}
 #libSort{flex:none;width:210px}
-.lib-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));align-content:start;gap:14px;padding:14px}
+/* Rows size to their cards. Without this, cards (which clip their rounded corners) shrink to fit the window and the grid never scrolls. */
+.lib-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));grid-auto-rows:max-content;align-content:start;gap:14px;padding:14px}
 .lib-card{display:flex;flex-direction:column;min-width:0;border-radius:10px;overflow:hidden;background:#0b1719;box-shadow:inset 0 0 0 1px #86dcc322}
 .lib-thumb{position:relative;display:block;width:100%;aspect-ratio:16/9;padding:0;border:0;background:#071113;cursor:pointer}
 .lib-thumb:hover{filter:brightness(1.12)}
@@ -114,9 +115,7 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .tree-label{display:flex;align-items:center;justify-content:space-between;gap:6px;height:29px;padding:0 7px}
 .tree-label b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400;font-size:11px}
 .tree-label i{flex:none;font-style:normal;font-size:9px;color:#a9d8cc}
-.tree-node.removed,.tree-node.missing{background:#0a1012;color:#a9b8b4;box-shadow:inset 0 0 0 1px #86dcc322}
-.tree-node.removed img{opacity:.42;filter:saturate(.45)}
-.tree-node.removed .tree-label i{color:#ffc79e}
+.tree-node.missing{background:#0a1012;color:#a9b8b4;box-shadow:inset 0 0 0 1px #86dcc322}
 .tree-node.missing .tree-label i{color:#ffc79e}
 .lib-tree.focused .tree-node:not(.on){opacity:.3}
 .tree-node.on{box-shadow:inset 0 0 0 1px var(--seafoam)}
@@ -3664,15 +3663,22 @@ function layoutFamily(active, removed = []) {
   const blank = (id, entry, state) => ({
     id, entry, state, parents: [], children: [], kids: [], depth: 0, row: 0, generation: entry?.generation ?? null, time: entry?.time ?? 0,
   });
+  const activeIds = new Set(active.map(s => s.id));
+  // A removed save is left out entirely. Its children connect straight to its own nearest ancestors,
+  // and the generation label on that line counts it among the generations in between.
+  const through = (ids, seen) => {
+    const out = [];
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const gone = !activeIds.has(id) && known.get(id);
+      if (gone) out.push(...through(gone.parents || [], seen)); else out.push(id);
+    }
+    return out;
+  };
   const link = (node, parents) => {
-    for (const p of new Set(parents)) {
-      if (p === node.id) continue;
-      if (!nodes.has(p)) {
-        // An ancestor that was removed stays visible, so its descendants remain connected to the rest of the family.
-        const gone = known.get(p), ghost = blank(p, gone || null, gone ? 'removed' : 'missing');
-        nodes.set(p, ghost);
-        if (gone) link(ghost, gone.parents);
-      }
+    for (const p of new Set(through(parents, new Set([node.id])))) {
+      if (!nodes.has(p)) nodes.set(p, blank(p, null, 'missing'));
       node.parents.push(p);
     }
   };
@@ -3741,7 +3747,7 @@ function treeNodeElement(node, placed) {
   pic.hidden = !item?.url;
   if (item?.url) pic.src = item.url;
   if (item) item.treeImg = pic;
-  const tagText = node.state === 'removed' ? 'REMOVED' : node.state === 'missing' ? 'NOT FOUND' : node.generation ? 'GEN ' + node.generation : 'FOUNDER';
+  const tagText = node.state === 'missing' ? 'NOT FOUND' : node.generation ? 'GEN ' + node.generation : 'FOUNDER';
   label.append(el('b', '', treeName(node)), el('i', '', tagText));
   b.append(el('span', 'tree-pic'), label);
   b.firstChild.append(pic);
@@ -3830,7 +3836,7 @@ function selectTreeNode(id) {
   $('treeBarInfo').textContent = [
     from.length ? 'Child of ' + from.join(' and ') : node.state === 'saved' ? 'Founder of this line' : '',
     kids ? kids + (kids === 1 ? ' saved child' : ' saved children') : 'No saved children yet',
-    node.state === 'removed' ? 'In your removed folder' : node.state === 'missing' ? 'This file is no longer in your saves' : '',
+    node.state === 'missing' ? 'This file is no longer in your saves' : '',
   ].filter(Boolean).join(' · ');
   $('treeOpen').disabled = $('treeBreed').disabled = node.state !== 'saved';
 }
@@ -3926,7 +3932,7 @@ async function openLibrary() {
       const genome = parseSave(data);
       if (genome) items.push({ name, handle, data, genome, key: name.slice(0, -5), url: null, card: null });
     }
-    // Removed saves are still read, because they may be the ancestors that connect a family.
+    // Removed saves are never shown, but they are still read so the family tree can connect their children to their parents.
     const removed = [];
     const bin = await dir.getDirectoryHandle('removed').catch(e => { if (e.name === 'NotFoundError') return null; throw e; });
     if (bin) {
@@ -3948,7 +3954,7 @@ async function openLibrary() {
     $('libSearch').value = '';
     $('treeBar').hidden = true;
     kept.forEach(buildCard);
-    for (const item of [...kept, ...removed]) {
+    for (const item of kept) {
       try { setThumb(item, await (await thumbs.getFileHandle(item.key + '.webp')).getFile()); }
       catch (e) { if (e.name !== 'NotFoundError') console.error(e); }
     }

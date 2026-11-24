@@ -119,6 +119,7 @@ Every organism has two parts. The **rules** are its settings. The **body** is th
 - Each Library card shows **BODY + RULES** or **RULES ONLY**. RULES ONLY marks an older save that regrows from settings. Open it and SAVE again to store its body.
 - Library **BREED** passes on whatever PASS ON says, so with BODY + RULES the children start inside the saved body.
 - In the TREE view, a label like **+2 GEN** on a line is not a copy. It means two generations were bred in between without being saved.
+- Removed saves don't appear in the TREE. Their children connect straight to the removed save's own parents, and the +GEN label counts the removed generation.
 
 Breeding never changes a save file. Children are new organisms until you save them.
 
