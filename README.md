@@ -155,7 +155,8 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 
 - **Food** regrows like sunlight, and dead particles return to it.
 - **Food flows through veins** about five times faster than across open ground, the way *Physarum* streams nutrients through its tubes. A body's vein network drains its territory and feeds its middle.
-- **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. Higher homeostasis makes bodies hold their imprinted density more strictly.
+- **Homing.** A particle that has wandered away, sensing little of its kin where it stands or where its sensors reach, turns back. Swarming bacteria such as *Myxococcus* reverse direction in a similar way to stay with their swarm. Without homing, a wanderer has nothing to steer by, lays a trail others follow, and the body frays into a spreading network.
+- **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. HOMEOSTASIS sets how reliably lost particles turn back, how hard crowding pushes out, and how narrowly they digest around their target density. At 0 the Arena behaves like classic slime. From about 0.5, bodies stay separate individuals.
 
 **What you can see:**
 

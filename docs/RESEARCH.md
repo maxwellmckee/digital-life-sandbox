@@ -75,6 +75,7 @@ Each time a design seemed settled, the next step was to ask whether it was truly
 - **Food flow:** food spreads between neighboring cells at a rate set by their conductance. Veins conduct best, plain trail a little and open ground barely, like cytoplasmic streaming in Physarum's tubes. Flow is symmetric, so food is moved, never made.
 - **Matter:** a particle is 0.3 units of matter plus its energy. Division splits both. Death returns both to the food field. Living costs energy that is not returned, and regrowth adds it, like sunlight.
 - **Acclimation:** the set point moves 0.07% of the way toward the density actually experienced each step. The inherited value is a starting point, like phenotypic plasticity.
+- **Homing:** if the most kin a particle senses, where it stands or at any of its three sensors, is below 35% of its set point, it reverses heading, with probability equal to HOMEOSTASIS. This resembles the direction reversals *Myxococcus xanthus* uses to stay with its swarm.
 - **Heredity:** daughters inherit every gene with small changes, including the chemical identity. Claims use atomic maximums, so runs replay exactly.
 
 ### What happened as it was built
@@ -98,6 +99,27 @@ Checks:
 - Two replays of the same founders gave identical trail hashes.
 - All five Solo regression hashes are unchanged.
 - An arena step costs about 0.97 ms at MED, against 0.44 ms for Solo.
+
+### Why bodies frayed, and homing
+
+Before homing, the HOMEOSTASIS slider barely mattered. With two of the user's saves side by side, settings 0 and 1 looked almost the same after 4,000 steps. In a four-save arena, the winning lineage turned into a single network covering the world by step 8,000.
+
+The cause: a particle only senses trail at three points just ahead of it. Once it wanders past that distance from its body, it sees nothing and drifts. Its trail then recruits others, and the body frays into a network. The crowding penalty only pushes particles *out* of dense spots, so nothing pulled wanderers back.
+
+With homing, the same comparisons, run with copies of the user's saves on the same seed:
+
+| Setup | HOMEOSTASIS 0 | 0.5 | 1 |
+|---|---|---|---|
+| "Silver Web IV" after 4,000 steps | Its second species spreads into a network, 162K particles | A few separate ribbon-shaped bodies, 113K | Ribbons, 97K |
+
+In the four-save arena at the default 0.5, run for 12,000 steps:
+
+- No network formed.
+- The cell-like save stayed a C-shaped membrane holding its organelles (62K particles).
+- The winner grew to 283K as separate ribbons and rings, not one sprawl.
+- One lineage went extinct, and food stayed near 80%.
+
+Replays still gave identical trail hashes.
 
 ### Measuring individuals, not just population
 

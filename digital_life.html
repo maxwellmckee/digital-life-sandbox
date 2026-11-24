@@ -837,7 +837,7 @@ struct Arena {
   trailNorm: vec4f,
   hunger: f32, drift: f32, crowd: f32, sigma: f32,
   eat: f32, regrow: f32, wear: f32, veins: f32,
-  scale: f32, pad0: f32, pad1: f32, pad2: f32,
+  scale: f32, homing: f32, pad1: f32, pad2: f32,
 }
 const FIELD_SIZE = vec2u(${FIELD_W}u, ${FIELD_H}u);
 const TAU = 6.283185307;
@@ -877,6 +877,7 @@ const DEPOSIT_COST = 0.00015;
 const VEIN_PULL = 2.0;
 const COOP = 1.0;
 const ACCLIMATE = 0.0007;
+const LOST = 0.35;
 
 fn targetOf(rng: u32) -> u32 {
   let h = (rng ^ (rng >> 15u)) * 2654435769u;
@@ -901,11 +902,12 @@ fn wobble(rng: ptr<function, u32>) -> vec3f {
 
 // How good a spot looks: Particle Lenia's energy with the trail as its field. Chemicals pull or push by the
 // particle's responses, food pulls by its forage gene, and crowding past its set point pushes back.
-fn score(p: vec2f, a: f32, reach: f32, g: Gene) -> f32 {
+// Returns the score and how much of its kin the particle senses there.
+fn score(p: vec2f, a: f32, reach: f32, g: Gene) -> vec2f {
   let at = p + vec2f(cos(a), sin(a)) * reach;
   let q = vec2i(floor(at));
   let s = vec2i(arena.size);
-  if (q.x < 0 || q.y < 0 || q.x >= s.x || q.y >= s.y) { return -1e9; }
+  if (q.x < 0 || q.y < 0 || q.x >= s.x || q.y >= s.y) { return vec2f(-1e9, 0.0); }
   let texel = textureLoad(trail, q, 0);
   var v = dot(texel.rgb * arena.trailNorm.xyz, g.resp.xyz);
   if (arena.veins > 0.0 && v > 0.0) { v *= 1.0 + VEIN_PULL * arena.veins * (1.0 - texel.a); }
@@ -913,7 +915,7 @@ fn score(p: vec2f, a: f32, reach: f32, g: Gene) -> f32 {
   // Food pulls only where kin are too, so a body crawls toward food together instead of shedding scouts.
   v += g.emit.w * textureLoad(food, vec2i(fieldCell(at)), 0).g * together(u);
   let over = max(u - g.setpoint, 0.0);
-  return v - arena.crowd * over * over;
+  return vec2f(v - arena.crowd * over * over, u);
 }
 // Cooperative digestion: shared enzymes only pay off where enough kin are around (a Hill curve, as in cooperative binding).
 fn together(u: f32) -> f32 { return u * u / (u * u + COOP * COOP); }
@@ -968,9 +970,12 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   // A parent pays for a daughter only if its claim won.
   if (g.energy >= DIVIDE && atomicLoad(&claims[targetOf(a.rng)]) == i + 1u) { g.energy = (g.energy - BODY) * 0.5; }
   var rng = a.rng;
-  let f = score(a.pos, a.angle, g.dist, g);
-  let l = score(a.pos, a.angle + g.angle, g.dist, g);
-  let r = score(a.pos, a.angle - g.angle, g.dist, g);
+  let sf = score(a.pos, a.angle, g.dist, g);
+  let sl = score(a.pos, a.angle + g.angle, g.dist, g);
+  let sr = score(a.pos, a.angle - g.angle, g.dist, g);
+  let f = sf.x;
+  let l = sl.x;
+  let r = sr.x;
   let t = rand(&rng);
   if (!(f > l && f > r)) {
     if (f < l && f < r) { a.angle += (t - 0.5) * 2.0 * g.turn; }
@@ -978,11 +983,16 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
     else if (r > l)     { a.angle -= t * g.turn; }
   }
   a.angle += (rand(&rng) - 0.5) * 0.06;
+  let u = usable(textureLoad(trail, vec2i(a.pos), 0), g);
+  // Homing: a particle that has wandered off, sensing little of its kin where it stands or where its sensors reach,
+  // turns back, the way swarming bacteria reverse to stay with their swarm. Without it, a wanderer sees nothing to steer
+  // by, lays a trail others follow, and the body frays into a spreading network. HOMEOSTASIS sets how reliably it turns.
+  let near = max(max(sf.y, sl.y), max(sr.y, u));
+  if (near < LOST * g.setpoint && rand(&rng) < arena.homing) { a.angle += TAU * 0.5 + (rand(&rng) - 0.5) * 0.8; }
 
   // Food is digested with the help of the chemicals a particle is drawn to, like enzymes shared among kin. A loner can
   // barely eat whatever its set point, and past its set point it chokes. Together these give a body one shared fate.
   let cell = fieldCell(a.pos);
-  let u = usable(textureLoad(trail, vec2i(a.pos), 0), g);
   let x = u - g.setpoint;
   let digest = together(u) * exp(-x * x / (2.0 * arena.sigma * arena.sigma));
   // Acclimation: the inherited set point drifts slowly toward the density a particle actually lives at, so a body
@@ -3318,7 +3328,7 @@ const HELP = {
   'arena.specimen': { t: 'SPECIMEN', d: 'How large a disc is cut from a body when you add it. Bodies keep their own scale, so a small cut holds a small piece of the structure.' },
   'arena.food': { t: 'FOOD', d: 'How fast food grows back. Particles eat it to gain energy, and dead particles return to it.', lo: 'Scarce food: hard competition and crashes', hi: 'Plenty: fast growth and crowding' },
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
-  'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly each particle holds the density it lived at in its original body. It was imprinted when the specimen was cut.', lo: 'Classic slime: bodies spread and merge', hi: 'Bodies hold their shape and starve if pulled apart' },
+  'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together. A particle that wanders away from its kin turns back, crowding past its imprinted density pushes it out, and it digests best near that density.', lo: 'Classic slime: wanderers lay trails others follow, and bodies fray into spreading networks', hi: 'Bodies stay separate individuals: rings, ribbons and cells that move and compete' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful lineages', hi: 'Fast evolution and more failed offspring' },
   'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each lineage has, stacked in its chemical color. PARTICLES charts each lineage's share of the world.", tip: 'For life-like behavior, bodies matter more: they show whether a lineage stays as individuals, divides, or spreads into one sprawl.' },
   'arena.founders': { t: 'FOUNDERS', d: 'Every specimen placed in this arena, with its share of the world and its number of bodies. Click one for its full stats.', tip: 'A founder’s color shows its chemical identity. Similar colors can smell each other.' },
@@ -4739,7 +4749,7 @@ function writeArenaUniforms(s, now, view = st.view) {
   // At the middle food setting a field cell regrows enough for a body at about its imprinted density, so growth
   // beyond that has to be won by spreading into fresh food.
   af[12] = .03 * p.hunger; af[13] = .012 * p.food * p.hunger; af[14] = .00004 * p.hunger; af[15] = .6;
-  af[16] = h / 1080;
+  af[16] = h / 1080; af[17] = p.homeo;
   device.queue.writeBuffer(arena.uniform, 0, data);
   for (let c = 0; c < 3; c++) {
     // A longer-lasting chemical piles up brighter, so the picture is balanced by each channel's fade.
