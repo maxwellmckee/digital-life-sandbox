@@ -44,7 +44,8 @@ There is nothing to install and no build step. The project was built for a deskt
 | `saves/` | Saved organisms (`dl-*.json`) and `taste.json` |
 | `saves/bodies/` | The grown body of each save (`.dlbody`): every agent, trail, vein and chemical |
 | `saves/thumbs/` | Library pictures. They can be regrown if missing |
-| `saves/removed/` | Saves removed in the Library. Nothing is permanently deleted there |
+| `saves/specimens/` | Living bodies kept from the Arena: a description (`.json`), a picture (`.webp`) and their particles and trail (`.dlspec`, gzip) |
+| `saves/removed/` | Saves and specimens removed in the Library. Nothing is permanently deleted there |
 | `images/`, `videos/` | PNG and MP4 exports |
 | `docs/RESEARCH.md` | Papers behind the LIFE systems, how they were adapted, and test results |
 | `docs/screenshots/` | Pictures used in this README |
@@ -130,10 +131,16 @@ Breeding never changes a save file. Children are new organisms until you save th
 
 The two pages are two levels of selection. In Solo and Batch you choose bodies for their structure. In the Arena, specimens of those bodies compete for food, and only the ones that can sustain themselves last.
 
-1. Press **A**, or click **ARENA** under VIEW.
-2. Press **ADD** (`M`) to cut a living disc from your Solo organism. Or open the **LIBRARY** and press **ADD** on a save. A save without a body is regrown out of sight first.
-3. A ring the size of the cut follows the pointer. Click to place it. Press ADD again to drop it in the most open spot, or Esc to cancel.
-4. **RANDOM** grows a wild organism and places a specimen of it automatically.
+1. Press **A**, or click **ARENA** under VIEW. The ARENA page replaces the organism pages.
+2. Choose what to add on the **ADD FROM** row:
+   - **SOLO** cuts the organism you last had in Solo. To use a different organism, open it in Solo first.
+   - **LIBRARY** opens the Library. Press **ADD** on any save, or switch to **SPECIMENS** and press **ADD TO ARENA**. A save without a body is regrown out of sight first.
+   - **WILD** grows a random organism and places it in the most open spot.
+3. A ring the size of the cut follows the pointer. Click to place it. Press **ADD** (`M`) for the most open spot, or Esc to cancel.
+4. The **WORLD** row:
+   - **KEEP** saves a living body as a specimen. Click it, then click a body; everything inside the ring is kept.
+   - **REPLAY** places the same founders again and replays the same history.
+   - **CLEAR** removes every founder. Press it twice. The EMPTY pad does the same.
 
 **What carries over.** A specimen keeps its particles where they were, the trail and veins beneath them, and each particle's own rules. Living cells keep their inherited multipliers. It is cut at its own scale, so a body is never shrunk. **SPECIMEN** sets the disc size.
 
@@ -149,7 +156,21 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - **Food** regrows like sunlight, and dead particles return to it.
 - **Food flows through veins** about five times faster than across open ground, the way *Physarum* streams nutrients through its tubes. A body's vein network drains its territory and feeds its middle.
 - **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. Higher homeostasis makes bodies hold their imprinted density more strictly.
-- The chart stacks each founder's share of the world over time, in its chemical color. Similar colors can smell each other.
+
+**What you can see:**
+
+- **CHART: BODIES** stacks how many separate bodies each lineage has over time, in its chemical color. For life-like behavior, this matters more than size: it shows whether a lineage stays as individuals, divides, or merges into one sprawl. **PARTICLES** stacks each lineage's share of the world instead.
+- **Founders:** each row shows its share of the world and its number of bodies. Click one to see:
+  - its particles and bodies;
+  - its largest and oldest body;
+  - divisions, body deaths and typical body lifespan;
+  - energy;
+  - how each gene has drifted since it was placed: set point, speed, sensor angle and reach, deposit, foraging, and chemistry shown as a color swatch.
+  - **KEEP LARGEST BODY** saves that body as a specimen.
+- **How bodies are found:** where a lineage is dense on a 96x54 grid, each connected patch is a body. Bodies are followed by overlap between counts, twice a second. One body becoming two counts as a division. The counts are approximate, since a thin bridge that flickers can look like a split.
+- Colors show chemical identity. Similar colors can smell each other.
+
+**Specimens.** A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. It is saved in `saves/specimens/` and listed in the Library under **SPECIMENS**. Each card shows when it was kept, its average set point, speed and sensors, and which founders its particles came from. Added back to an Arena, its particles keep their own genes and set points.
 - The arena always runs at MED: 1920x1080 and 500,000 particle places. A step costs about 1 ms on the RTX 4070. Up to 16 founders, each thinned to at most 60,000 particles.
 - **REPLAY** places the same founders again and reproduces the same history exactly.
 
@@ -165,6 +186,7 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 - **NOISE** now also requires that no closed structure formed, so jagged crystal lattices are no longer called noise.
 - It was checked against saves tagged as scoring too high or too low. All five moved the right way: 99→55, 95→52, 92→19 (GRID), 75→87 and 19→81.
 - Older saves keep the score they were saved with.
+- In the Library, with Help on (`H`), pointing at a card's LIFE chip shows its parts. Saves from before version 2 lack BODIES and VARIETY, and the card says so.
 
 ## How it works
 
@@ -232,7 +254,8 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 - A child inherits one parent's body. In the Arena, separate bodies share a world, but they never fuse into one organism.
 - Arena membranes are rings of particles held by density preferences. Their wall is not built from a material the cell makes itself.
 - In the Arena, whole bodies have not yet been seen dividing into two. Runs of 3,000 to 4,000 steps showed coexistence, spreading networks, persistent rings and lineages invading each other.
-- Arena founders and their history are lost when the page closes. Images and clips are the way to keep them.
+- An Arena's founders and history are lost when the page closes. KEEP saves living bodies as specimens, and images and clips keep the look.
+- Body counts, divisions and deaths in the Arena are measured on a coarse grid, so they are approximate.
 - A body shaped by a reaction-diffusion field loses that field in the Arena, so it reorganizes after placing.
 - There is no WebGL2 fallback.
 - A hidden browser tab or preview pane throttles animation, so frame-rate measurements there are not meaningful.
@@ -252,8 +275,8 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 
 **Arena next steps:**
 
-1. Bring a survivor back to Solo as a saveable organism.
+1. Save and reopen a whole Arena, with its founders and history.
 2. Membrane material made by the particles themselves.
-3. Track bodies over time, so division and death of whole bodies can be counted and scored.
+3. Score lineages by their bodies: how long they last and how often they divide.
 
 **Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, mutating only part of a body, and small evolvable brains.

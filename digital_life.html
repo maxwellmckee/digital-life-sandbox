@@ -34,12 +34,24 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 #placeRing{position:absolute;border:1.5px dashed var(--active);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 1px #03060799,0 0 18px #2ff0c433}
 #placeRing[hidden]{display:none}
 #arenaChart{display:block;width:100%;height:72px;margin:6px 0 4px;border-radius:6px;background:#071113;box-shadow:inset 0 1px 2px #0006}
+#placeRing.keep{border-style:solid;border-color:#ffd27a;box-shadow:0 0 0 1px #03060799,0 0 18px #ffd27a33}
 #arenaFounders{display:flex;flex-direction:column;gap:3px}
-.founder{display:flex;align-items:center;gap:7px;font-size:10px}
-.founder i{flex:none;width:10px;height:10px;border-radius:3px}
-.founder b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}
-.founder span{color:var(--ink-soft)}
+.founder{border-radius:6px}
+.founder.open{background:var(--chassis-hi);box-shadow:inset 0 0 0 1px #0001}
+.founder-head{display:flex;align-items:center;gap:7px;width:100%;padding:3px 4px;border:0;border-radius:6px;background:transparent;cursor:pointer;font-size:10px;text-align:left}
+.founder-head:hover{background:var(--chassis-hi)}
+.founder-head i{flex:none;width:10px;height:10px;border-radius:3px}
+.founder-head b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}
+.founder-head span{flex:none;color:var(--ink-soft)}
 .founder.gone{opacity:.45}
+.founder-detail{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;padding:4px 8px 8px 21px;font-size:9.5px}
+.founder-detail[hidden]{display:none}
+.founder-detail b{font-weight:400;color:var(--ink-soft)}
+.founder-detail span{text-align:right;white-space:nowrap}
+.founder-detail .chem i{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:-1px}
+.founder-keep{grid-column:1/-1;height:22px;margin-top:4px;border:0;border-radius:5px;background:var(--chassis);box-shadow:0 1px 0 #a5a29a;cursor:pointer;font-size:9.5px}
+.founder-keep:disabled{opacity:.5;cursor:default}
+#arenaWorld .armed{background:#8a3b1e;color:#fff3ec}
 #drawGrow.ready{background:var(--teal);color:#eafff8}
 .fault{position:absolute;inset:0;display:grid;place-items:center;padding:32px;text-align:center;
   color:var(--seafoam);font-size:13px;line-height:1.6;background:#030607}
@@ -105,7 +117,12 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .lib-empty{flex:none;margin:0;padding:48px 24px;text-align:center;color:#a9d8cc;font-size:13px}
 .lib-empty[hidden]{display:none}
 .lib-grid[hidden],.lib-tree[hidden],.tree-bar[hidden],.tree-loose[hidden],.tree-note[hidden],.lib-head .seg[hidden]{display:none}
-#libView{flex:none;width:130px}
+#libView{flex:none;width:230px}
+.lib-stats{display:grid;grid-template-columns:auto 1fr;gap:2px 9px;color:#a9d8cc;font-size:10px;line-height:1.45}
+.lib-stats b{font-weight:400;color:#7fa79d}
+.lib-origin{display:flex;flex-wrap:wrap;gap:3px 8px;color:#a9d8cc;font-size:10px}
+.lib-origin i{display:inline-block;width:8px;height:8px;margin-right:4px;border-radius:2px}
+.lib-title{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib-tree{flex:1;min-height:0;overflow:auto;padding:16px;cursor:grab}
 .lib-tree.panning{cursor:grabbing;user-select:none}
 .tree-note{margin:0 0 16px;color:#a9d8cc;font-size:13px}
@@ -304,10 +321,21 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
     <div class="seg tabs" id="segTab" role="group" aria-label="Control page"></div>
 
     <section class="group" id="tabArena" hidden><h2>ARENA</h2>
+      <div class="row wide"><span>ADD FROM</span><div class="seg" id="arenaAdd">
+        <button type="button" data-add="solo" data-help="arena.add.solo">SOLO</button>
+        <button type="button" data-add="library" data-help="arena.add.library">LIBRARY</button>
+        <button type="button" data-add="wild" data-help="arena.add.wild">WILD</button>
+      </div></div>
+      <div class="row wide"><span>WORLD</span><div class="seg" id="arenaWorld">
+        <button type="button" data-do="keep" data-help="arena.keep">KEEP</button>
+        <button type="button" data-do="replay" data-help="arena.replay">REPLAY</button>
+        <button type="button" data-do="clear" data-help="arena.clear">CLEAR</button>
+      </div></div>
       <div class="row wide"><span>SPECIMEN</span><div class="seg" id="segSpecimen"></div></div>
       <div id="arenaSliders"></div>
+      <div class="row wide"><span>CHART</span><div class="seg" id="segChart"></div></div>
       <canvas id="arenaChart" data-help="arena.chart"></canvas>
-      <div id="arenaFounders" data-help="arena.founders"></div>
+      <div id="arenaFounders"></div>
       <p class="taste-note" id="arenaNote"></p>
     </section>
     <section class="group" id="tabOrganism"><h2 id="organismTitle">ORGANISM</h2>
@@ -375,6 +403,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
     <button type="button" class="dlg-btn primary" id="libClose">CLOSE</button>
   </header>
   <div class="lib-grid" id="libGrid"></div>
+  <div class="lib-grid" id="specGrid" hidden></div>
   <div class="lib-tree" id="libTree" hidden>
     <p class="tree-note" id="treeNote" hidden>Nothing is connected yet. Save a tile, breed from it, then save one of its children to start a family.</p>
     <div class="tree-stage" id="treeStage"><svg id="treeEdges" aria-hidden="true"></svg></div>
@@ -1086,8 +1115,9 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
 // Writes a specimen's particles into free places. Each one's set point is imprinted from the density it lived at:
 // the most it senses where it stands and where its sensors reach, so it stays content in its own part of the body.
+// A specimen kept from an arena already has set points of its own, so it skips the imprint.
 const WGSL_ARENA_PLACE = WGSL_ARENA_BASE + /* wgsl */`
-struct Job { count: u32, pad0: u32, pad1: u32, pad2: u32 }
+struct Job { count: u32, imprint: u32, pad1: u32, pad2: u32 }
 @group(0) @binding(0) var<uniform> arena: Arena;
 @group(0) @binding(1) var<uniform> job: Job;
 @group(0) @binding(2) var<storage, read> slots: array<u32>;
@@ -1105,18 +1135,23 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= job.count) { return; }
   let a = newAgents[id.x];
   var g = newGenes[id.x];
-  let here = usableAt(a.pos, g);
-  let f = usableAt(a.pos + vec2f(cos(a.angle), sin(a.angle)) * g.dist, g);
-  let l = usableAt(a.pos + vec2f(cos(a.angle + g.angle), sin(a.angle + g.angle)) * g.dist, g);
-  let r = usableAt(a.pos + vec2f(cos(a.angle - g.angle), sin(a.angle - g.angle)) * g.dist, g);
-  g.setpoint = max(here, (f + l + r) / 3.0) + 0.1;
+  if (job.imprint != 0u) {
+    let here = usableAt(a.pos, g);
+    let f = usableAt(a.pos + vec2f(cos(a.angle), sin(a.angle)) * g.dist, g);
+    let l = usableAt(a.pos + vec2f(cos(a.angle + g.angle), sin(a.angle + g.angle)) * g.dist, g);
+    let r = usableAt(a.pos + vec2f(cos(a.angle - g.angle), sin(a.angle - g.angle)) * g.dist, g);
+    g.setpoint = max(here, (f + l + r) / 3.0) + 0.1;
+  }
   let s = slots[id.x];
   agents[s] = a;
   genes[s] = g;
 }`;
 
-// Counts each lineage's particles, energy and set points, and the food left in the world.
-const ARENA_SLOTS = 64;
+// Counts each lineage's particles and sums its genes, so drift can be followed, and maps where each lineage lives on a
+// coarse grid, from which separate bodies are found and tracked. Also adds up the food left in the world.
+const ARENA_SLOTS = 64, ARENA_STATS = 11, ARENA_GRID = { w: 96, h: 54 };
+const CENSUS_FOOD = ARENA_STATS * ARENA_SLOTS, CENSUS_GRID = CENSUS_FOOD + 4;
+const CENSUS_BYTES = (CENSUS_GRID + 16 * ARENA_GRID.w * ARENA_GRID.h) * 4;
 const WGSL_ARENA_CENSUS = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(0) var<uniform> arena: Arena;
 @group(0) @binding(1) var<storage, read> agents: array<Agent>;
@@ -1124,20 +1159,35 @@ const WGSL_ARENA_CENSUS = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(3) var<storage, read_write> census: array<atomic<u32>>;
 @group(0) @binding(4) var food: texture_2d<f32>;
 const SLOTS = ${ARENA_SLOTS}u;
+const GRID = vec2u(${ARENA_GRID.w}u, ${ARENA_GRID.h}u);
+fn tally(stat: u32, lineage: u32, v: f32) { atomicAdd(&census[stat * SLOTS + lineage], u32(max(v, 0.0))); }
 @compute @workgroup_size(256)
 fn people(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= arena.agents) { return; }
-  if (agents[id.x].pos.x < 0.0) { return; }
+  let a = agents[id.x];
+  if (a.pos.x < 0.0) { return; }
   let g = genes[id.x];
   let l = min(g.lineage, SLOTS - 1u);
   atomicAdd(&census[l], 1u);
-  atomicAdd(&census[SLOTS + l], u32(clamp(g.energy, 0.0, 2.0) * 256.0));
-  atomicAdd(&census[2u * SLOTS + l], u32(clamp(g.setpoint, 0.0, 8.0) * 256.0));
+  tally(1u, l, clamp(g.energy, 0.0, 2.0) * 256.0);
+  tally(2u, l, clamp(g.setpoint, 0.0, 8.0) * 256.0);
+  tally(3u, l, g.speed / arena.scale * 256.0);
+  tally(4u, l, g.angle * 256.0);
+  tally(5u, l, g.dist / arena.scale * 16.0);
+  tally(6u, l, g.deposit * 256.0);
+  tally(7u, l, (clamp(g.emit.w, -1.0, 2.0) + 1.0) * 256.0);
+  tally(8u, l, g.emit.x * 256.0);
+  tally(9u, l, g.emit.y * 256.0);
+  tally(10u, l, g.emit.z * 256.0);
+  if (l < 16u) {
+    let c = min(vec2u(a.pos / vec2f(arena.size) * vec2f(GRID)), GRID - vec2u(1u));
+    atomicAdd(&census[${CENSUS_GRID}u + l * GRID.x * GRID.y + c.y * GRID.x + c.x], 1u);
+  }
 }
 @compute @workgroup_size(8, 8)
 fn pantry(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= FIELD_SIZE.x || id.y >= FIELD_SIZE.y) { return; }
-  atomicAdd(&census[3u * SLOTS], u32(textureLoad(food, vec2i(id.xy), 0).g * 64.0));
+  atomicAdd(&census[${CENSUS_FOOD}u], u32(textureLoad(food, vec2i(id.xy), 0).g * 64.0));
 }`;
 
 // Moves a body between simulations of any size. Each new agent copies one from the same species' share of the source.
@@ -2198,6 +2248,7 @@ function lcdLines() {
       rate,
       c ? 'POP ' + k(c.total).padEnd(5) + ' FOOD ' + Math.round(c.food * 100) + '%' : 'POP --    FOOD 100%',
       capture?.live ? captureLabel() : arena.task ? arena.task + '...' : flashing ? flashText : arena.placing ? 'CLICK TO PLACE'
+        : arena.keeping ? 'CLICK A BODY TO KEEP'
         : !arena.founders.length ? 'PRESS M TO ADD' : 'LINEAGES ' + alive + '/' + arena.founders.length + ' ' + lifeLabel(arena.sim.judged),
     ];
   }
@@ -2913,7 +2964,7 @@ function setMode(m) {
     enterBatch();
   } else if (mode === 'batch') batch.sourceSnap = snapshot();
   if (m === 'arena') ensureArena();
-  if (mode === 'arena') cancelPlacing();
+  if (mode === 'arena') { arena.keeping = false; cancelPlacing(); }
   mode = m;
   acc = 0;
   batch.hover = -1;
@@ -3236,7 +3287,7 @@ const HELP = {
 
   'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'In ARENA this is ADD: it cuts a living specimen from your SOLO organism for you to place. Press it again for an open spot.' },
   'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'In ARENA it grows a wild organism out of sight and places a specimen of it in an open spot.' },
-  'pad.reroll': { t: 'REROLL / EMPTY', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'In ARENA this is EMPTY: press it twice to clear every founder and start a new world.' },
+  'pad.reroll': { t: 'REROLL / EMPTY', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'In ARENA this is EMPTY, the same as CLEAR on the ARENA page: press it twice to remove every founder.' },
   'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.', tip: 'In ARENA it places the same founders again, which replays the same history.' },
   'pad.save': { t: 'SAVE', d: 'Always stores the body and the rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked.', tip: 'Saving the same organism again updates its library entry instead of adding a copy. It is named automatically, and you can rename it in the library.' },
   'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation.' },
@@ -3244,7 +3295,11 @@ const HELP = {
   'pad.load': { t: 'LIBRARY', d: 'Browse all your saved organisms as pictures. Open one, name it, or breed from it.' },
   'lib.search': { t: 'SEARCH', d: 'Filters by name, tags, color, species count, or the word hybrid.' },
   'lib.sort': { t: 'SORT', d: 'Newest first, highest LIFE score first, or alphabetical by name.' },
-  'lib.view': { t: 'GRID OR TREE', d: 'GRID shows every save as a card. TREE shows your family history, with parents on the left and children on the right.' },
+  'lib.view': { t: 'GRID, TREE OR SPECIMENS', d: 'GRID shows every save as a card. TREE shows your family history, with parents on the left and children on the right. SPECIMENS shows living bodies you kept from the Arena.' },
+  'lib.life': { t: 'LIFE SCORE', d: 'How this save scored when it was saved, broken down into its parts below.' },
+  'lib.specimen': { t: 'SPECIMEN', d: 'A living body kept from the Arena: every particle in the disc, of any lineage, with every gene it evolved, and the trail beneath.', tip: 'Add it to an Arena to see it live again, or to set it against new rivals.' },
+  'lib.specimen.add': { t: 'ADD TO ARENA', d: 'Opens the Arena and lets you place this specimen. Its particles keep their own genes and set points.' },
+  'lib.origin': { t: 'ORIGIN', d: 'Which founder lineages the kept particles came from, and their share. A body can hold more than one lineage, like a membrane around another lineage inside it.' },
   'tree.node': { t: 'FAMILY MEMBER', d: 'Point at it to light up its ancestors and descendants. Click to select it, or double-click to open it.', tip: 'A label like +3 GEN on a line is not a copy. It means 3 generations were bred in between without being saved.' },
   'lib.file': { t: 'OPEN FILE', d: 'Opens a save from anywhere on your computer.' },
   'lib.thumb': { t: 'OPEN', d: 'Click the picture to open this organism at the moment you saved it.' },
@@ -3265,8 +3320,15 @@ const HELP = {
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly each particle holds the density it lived at in its original body. It was imprinted when the specimen was cut.', lo: 'Classic slime: bodies spread and merge', hi: 'Bodies hold their shape and starve if pulled apart' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful lineages', hi: 'Fast evolution and more failed offspring' },
-  'arena.chart': { t: 'POPULATION', d: "Each founder lineage's share of the world over time, stacked, in its chemical color." },
-  'arena.founders': { t: 'FOUNDERS', d: 'Every specimen placed in this arena, with its lineage’s share of the particle pool now.', tip: 'A founder’s color shows its chemical identity. Similar colors can smell each other.' },
+  'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each lineage has, stacked in its chemical color. PARTICLES charts each lineage's share of the world.", tip: 'For life-like behavior, bodies matter more: they show whether a lineage stays as individuals, divides, or spreads into one sprawl.' },
+  'arena.founders': { t: 'FOUNDERS', d: 'Every specimen placed in this arena, with its share of the world and its number of bodies. Click one for its full stats.', tip: 'A founder’s color shows its chemical identity. Similar colors can smell each other.' },
+  'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Cuts a living disc from the organism you last had in SOLO, then lets you place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
+  'arena.add.library': { t: 'ADD FROM LIBRARY', d: 'Opens the Library. Press ADD on any save, or switch to SPECIMENS and press ADD TO ARENA on a kept body.' },
+  'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight and places a specimen of it in the most open spot.' },
+  'arena.keep': { t: 'KEEP', d: 'Click a living body in the arena to keep it as a specimen. Everything inside the ring is saved, with every gene it evolved.', tip: 'Kept specimens appear in the Library under SPECIMENS. The ring size follows SPECIMEN.' },
+  'arena.replay': { t: 'REPLAY', d: 'Places the same founders again from the start, which replays exactly the same history.' },
+  'arena.clear': { t: 'CLEAR', d: 'Removes every founder and starts an empty world. Press it twice to confirm.', tip: 'Kept specimens are not affected.' },
+  'arena.keepBody': { t: 'KEEP LARGEST BODY', d: "Keeps this lineage's largest body as a specimen, with a ring fitted around it." },
   strength: { t: 'MUTATION', d: 'How different children are from their parents.' },
   'strength.subtle': { t: 'SUBTLE MUTATION', d: 'Small refinements of what you already like.' },
   'strength.medium': { t: 'MEDIUM MUTATION', d: 'A balance of familiar and surprising.' },
@@ -3409,7 +3471,11 @@ function showHelp(target) {
 
   // Tiles and scores show why this particular organism got its number.
   const tile = batch.tiles.find(t => t.el.contains(target));
-  const judged = (target.dataset.help === 'tile' || target.dataset.help === 'life') ? tile?.sim?.judged : null;
+  // A saved organism's score is broken down from the measurements stored with it.
+  const saved = target.dataset.help === 'lib.life' ? lib.items.find(x => x.key === target.dataset.key) : null;
+  const judged = saved ? judge(saved.data.metrics, saved.genome.field.on)
+    : (target.dataset.help === 'tile' || target.dataset.help === 'life') ? tile?.sim?.judged : null;
+  if (saved && (saved.data.metrics.version || 1) < 2) card.append(el('p', 'help-tip', 'Saved before LIFE version 2, so BODIES and VARIETY were not measured and the breakdown below is lower than the saved score. Open and save it again to measure them.'));
   if (judged) {
     card.append(el('h4', '', lifeLabel(judged)));
     if (judged.verdict !== 'ALIVE') card.append(el('p', '', judged.early ? 'Still forming. Some organisms take a while to organize.' : VERDICTS[judged.verdict]));
@@ -3439,7 +3505,7 @@ function placeHelp(target) {
 function initHelp() {
   const rows = {
     segMode: 'view', segStrength: 'strength', segFilter: 'filter', segQuality: 'quality', segSpeed: 'speed', segInit: 'init',
-    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology', segSandbox: 'sandbox', segSpecimen: 'arena.specimen',
+    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology', segSandbox: 'sandbox', segSpecimen: 'arena.specimen', segChart: 'arena.chart',
     // Help keys match the internal values, so 'recipe' explains RULES ONLY.
     segPal0: 'palette', segPal1: 'palette', segPal2: 'palette', segPalField: 'fieldPalette',
   };
@@ -4078,7 +4144,12 @@ function buildCard(item) {
   img.hidden = true;
   thumb.append(img, wait);
   // Always a number here: you saved this one because you liked it, whatever the filter would have called it.
-  if (Number.isFinite(item.data.metrics?.score)) thumb.append(el('span', 'chip', 'LIFE ' + item.data.metrics.score));
+  if (Number.isFinite(item.data.metrics?.score)) {
+    const chip = el('span', 'chip', 'LIFE ' + item.data.metrics.score);
+    chip.dataset.help = 'lib.life';
+    chip.dataset.key = item.key;
+    thumb.append(chip);
+  }
   // What this save holds, which is also what it can pass on to children.
   const keep = el('span', 'chip keep' + (item.data.body ? ' body' : ''), item.data.body ? 'BODY + RULES' : 'RULES ONLY');
   keep.dataset.help = item.data.body ? 'lib.keep.body' : 'lib.keep.rules';
@@ -4332,10 +4403,12 @@ function setLibView(view) {
   $('treeBar').hidden = true;
   $('libGrid').hidden = view !== 'grid';
   $('libTree').hidden = view !== 'tree';
+  $('specGrid').hidden = view !== 'specimens';
   $('libSort').hidden = view !== 'grid';
   renderLibrary();
 }
 function renderLibrary() {
+  if (lib.view === 'specimens') { renderSpecimens(); return; }
   const words = searchWords(), matches = item => libMatches(item, words);
   const order = {
     new: (a, b) => saveTime(b.data) - saveTime(a.data),
@@ -4427,6 +4500,8 @@ async function openLibrary() {
     removed.push(...copies);
     lib.note = copies.length ? ` · ${copies.length} duplicate${copies.length === 1 ? '' : 's'} moved to removed` : '';
     Object.assign(lib, { dir, thumbs, items: kept, removed, tree: null, selected: null, query: '', open: true });
+    lib.specimens = await readSpecimens(dir);
+    lib.specimens.forEach(buildSpecimenCard);
     const run = ++lib.run;
     $('libSearch').value = '';
     $('treeBar').hidden = true;
@@ -4449,8 +4524,98 @@ async function openLibrary() {
   }
 }
 function closeLibrary() { if ($('library').open) $('library').close(); }
+
+// Specimens kept from the Arena live in the saves folder's "specimens" subfolder, each as a description, a picture
+// and a compressed file of its particles and trail.
+async function readSpecimens(dir) {
+  const store = await dir.getDirectoryHandle('specimens').catch(e => { if (e.name === 'NotFoundError') return null; throw e; });
+  if (!store) return [];
+  const out = [];
+  for await (const [name, handle] of store.entries()) {
+    if (handle.kind !== 'file' || !name.endsWith('.json')) continue;
+    try {
+      const meta = JSON.parse(await (await handle.getFile()).text());
+      if (meta.format !== 'digital-life-specimen') continue;
+      const item = { name, handle, meta, key: name.slice(0, -5), store, url: null, card: null };
+      try { item.url = URL.createObjectURL(await (await store.getFileHandle(item.key + '.webp')).getFile()); } catch { /* no picture */ }
+      out.push(item);
+    } catch { /* a damaged file just won't appear */ }
+  }
+  return out.sort((a, b) => new Date(b.meta.createdAt) - new Date(a.meta.createdAt));
+}
+function buildSpecimenCard(item) {
+  const m = item.meta, card = el('article', 'lib-card'), thumb = el('div', 'lib-thumb'), img = el('img');
+  img.alt = '';
+  img.hidden = !item.url;
+  if (item.url) img.src = item.url;
+  thumb.append(img, el('span', 'chip keep body', kilo(m.particles) + ' PARTICLES'));
+  thumb.dataset.help = 'lib.specimen';
+  const info = el('div', 'lib-info'), stats = el('div', 'lib-stats'), origin = el('div', 'lib-origin');
+  const t = m.traits || {}, row = (label, value) => stats.append(el('b', '', label), el('span', '', value));
+  row('KEPT', `step ${kilo(m.keptAt)} · ${new Date(m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`);
+  if (Number.isFinite(t.setpoint)) row('SET POINT', t.setpoint.toFixed(2));
+  if (Number.isFinite(t.speed)) row('SPEED', t.speed.toFixed(2));
+  if (Number.isFinite(t.angle)) row('SENSORS', `${Math.round(t.angle)}° · reach ${t.reach.toFixed(1)}`);
+  for (const o of (m.origin || []).filter(o => o.share >= .01).slice(0, 4)) {
+    const s = el('span'), sw = el('i');
+    sw.style.background = o.color;
+    s.append(sw, `${o.name} ${Math.round(o.share * 100)}%`);
+    origin.append(s);
+  }
+  origin.dataset.help = 'lib.origin';
+  const actions = el('div', 'lib-actions'), add = el('button', 'breed', 'ADD TO ARENA'), remove = el('button', 'remove', 'REMOVE');
+  add.type = remove.type = 'button';
+  add.dataset.help = 'lib.specimen.add';
+  remove.dataset.help = 'lib.remove';
+  add.addEventListener('click', () => useSpecimen(item));
+  let armed = 0;
+  remove.addEventListener('click', () => {
+    if (armed) { clearTimeout(armed); removeSpecimen(item).catch(e => { console.error(e); remove.textContent = 'FAILED'; }); return; }
+    remove.classList.add('armed');
+    remove.textContent = 'SURE?';
+    armed = setTimeout(() => { armed = 0; remove.classList.remove('armed'); remove.textContent = 'REMOVE'; }, 3000);
+  });
+  actions.append(add, remove);
+  info.append(el('div', 'lib-title', m.name), stats, origin, actions);
+  card.append(thumb, info);
+  item.card = card;
+}
+function renderSpecimens() {
+  const words = searchWords(), list = (lib.specimens || []).filter(x => words.every(w => [x.meta.name, ...(x.meta.origin || []).map(o => o.name)].join(' ').toLowerCase().includes(w)));
+  $('specGrid').replaceChildren(...list.map(x => x.card));
+  const all = (lib.specimens || []).length;
+  $('libCount').textContent = list.length === all ? `${all} ${all === 1 ? 'specimen' : 'specimens'}` : `${list.length} of ${all}`;
+  $('libEmpty').hidden = list.length > 0;
+  $('libEmpty').textContent = all ? 'Nothing matches that search.' : 'No specimens yet. In the ARENA, press KEEP and click a living body, or open a founder and press KEEP LARGEST BODY.';
+  markSeg($('libView'), lib.view);
+}
+async function useSpecimen(item) {
+  closeLibrary();
+  setMode('arena');
+  const specimen = await arenaWork('LOADING', async () => {
+    const file = await (await item.store.getFileHandle(item.key + '.dlspec')).getFile();
+    return unpackSpecimen(file, item.meta);
+  });
+  if (specimen) beginPlacing(specimen); else flash('SPECIMEN FILE MISSING');
+}
+// Removed specimens move to the "removed" folder like saves, so they can be brought back.
+async function removeSpecimen(item) {
+  const bin = await (await lib.dir.getDirectoryHandle('removed', { create: true })).getDirectoryHandle('specimens', { create: true });
+  for (const ext of ['.json', '.dlspec', '.webp']) {
+    try {
+      const source = await item.store.getFileHandle(item.key + ext), w = await (await bin.getFileHandle(item.key + ext, { create: true })).createWritable();
+      await w.write(await source.getFile());
+      await w.close();
+      await item.store.removeEntry(item.key + ext);
+    } catch (e) { if (e.name !== 'NotFoundError') throw e; }
+  }
+  lib.specimens = lib.specimens.filter(x => x !== item);
+  renderLibrary();
+}
 function libraryClosed() {
   const items = lib.items, removed = lib.removed;
+  (lib.specimens || []).forEach(x => { if (x.url) URL.revokeObjectURL(x.url); });
+  lib.specimens = [];
   lib.open = false;
   lib.run++;
   lib.items = [];
@@ -4463,6 +4628,7 @@ function libraryClosed() {
     [...items, ...removed].forEach(x => { if (x.url) URL.revokeObjectURL(x.url); });
     if (lib.open) return;
     $('libGrid').replaceChildren();
+    $('specGrid').replaceChildren();
     $('treeStage').replaceChildren($('treeEdges'));
     $('treeEdges').replaceChildren();
     $('treeLooseGrid').replaceChildren();
@@ -4485,7 +4651,8 @@ const ARENA_PARAMS = [
 ];
 const arena = {
   sim: null, seed: newSeed(), founders: [], params: defaults(ARENA_PARAMS), size: 'm', fcur: 0, busy: false,
-  placing: null, history: [], census: null, censusPending: false, nextCensusAt: 0, chem: null, task: '', emptyArmed: 0,
+  placing: null, keeping: false, history: [], census: null, censusPending: false, nextCensusAt: 0, chem: null, task: '',
+  clearArmed: 0, chart: 'bodies', open: -1, rows: null,
 };
 // The shared probe and judge only need to know there is no reaction field.
 const arenaGenome = { field: { on: false } };
@@ -4503,8 +4670,8 @@ function ensureArena() {
     claims: buf(n * 4, B.STORAGE | B.COPY_DST),
     crowd: buf(cells * 4, B.STORAGE | B.COPY_DST),
     returned: buf(cells * 4, B.STORAGE | B.COPY_DST),
-    censusBuf: buf(1024, B.STORAGE | B.COPY_SRC | B.COPY_DST),
-    censusRead: buf(1024, B.MAP_READ | B.COPY_DST),
+    censusBuf: buf(CENSUS_BYTES, B.STORAGE | B.COPY_SRC | B.COPY_DST),
+    censusRead: buf(CENSUS_BYTES, B.MAP_READ | B.COPY_DST),
     placeJob: buf(16, B.UNIFORM | B.COPY_DST),
     stampJob: buf(96, B.UNIFORM | B.COPY_DST),
   });
@@ -4533,20 +4700,23 @@ function resetArena() {
   arena.fcur = 0;
   arena.history = [];
   arena.census = null;
+  for (const f of arena.founders) { f.track = null; f.start = null; }
   s.colorBG = arena.colorBG[0];
 }
 
 // Each channel's fade and spread are the average of the founders giving off that chemical, so a lone specimen keeps its own.
+// A specimen kept from an arena brings that arena's chemistry with it.
 function arenaChemistry() {
   const decay = [0, 0, 0], diffuse = [0, 0, 0], weight = [0, 0, 0];
   for (const f of arena.founders) {
     const sp = f.specimen;
-    sp.g.species.slice(0, sp.g.count).forEach((s, k) => {
-      for (let c = 0; c < 3; c++) {
-        const w = sp.counts[k] * f.emit[k][c];
-        decay[c] += w * s.decay; diffuse[c] += w * s.diffuse; weight[c] += w;
-      }
-    });
+    const parts = sp.genes
+      ? [{ n: sp.agents.dx.length, e: f.emit[0], decay: sp.chem.decay, diffuse: sp.chem.diffuse }]
+      : sp.g.species.slice(0, sp.g.count).map((s, k) => ({ n: sp.counts[k], e: f.emit[k], decay: [s.decay, s.decay, s.decay], diffuse: [s.diffuse, s.diffuse, s.diffuse] }));
+    for (const p of parts) for (let c = 0; c < 3; c++) {
+      const w = p.n * p.e[c];
+      decay[c] += w * p.decay[c]; diffuse[c] += w * p.diffuse[c]; weight[c] += w;
+    }
   }
   arena.chem = { decay: decay.map((v, c) => weight[c] ? v / weight[c] : .95), diffuse: diffuse.map((v, c) => weight[c] ? v / weight[c] : .4) };
 }
@@ -4693,8 +4863,21 @@ function invert(m) {
   }
   return a.map(row => row.slice(n));
 }
+// The swatch blends each chemical's color by how much is given off.
+function chemColor(emits, weights) {
+  const total = weights.reduce((a, b) => a + b, 0) || 1, rgb = [0, 0, 0];
+  emits.forEach((e, k) => e.forEach((v, c) => {
+    const hex = PALETTES[ARENA.palettes[c]][4];
+    for (let i = 0; i < 3; i++) rgb[i] += weights[k] / total * v * parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  }));
+  const top = Math.max(...rgb, 1);
+  return `rgb(${rgb.map(v => Math.round(v / top * 255)).join(',')})`;
+}
 function founderChemistry(f) {
-  const sp = f.specimen, n = sp.g.count, base = f.lineage * GOLDEN + (arena.seed % 1000) / 1000 * TAU;
+  const sp = f.specimen;
+  // A kept specimen already carries its own chemistry on every particle.
+  if (sp.genes) { f.emit = [sp.meanEmit]; f.resp = null; f.color = chemColor(f.emit, [1]); return; }
+  const n = sp.g.count, base = f.lineage * GOLDEN + (arena.seed % 1000) / 1000 * TAU;
   // A founder's own species sit a third of the wheel apart, so they stay chemically distinct from each other.
   f.emit = Array.from({ length: n }, (_, k) => hueMix(base + (k - (n - 1) / 2) * TAU / 3));
   const F = sp.g.species.map(s => Array.from({ length: n }, (_, j) => n === 1 ? 1 : s[RELATION_KEYS[j]]));
@@ -4703,14 +4886,7 @@ function founderChemistry(f) {
     const alpha = row.map((_, j) => row.reduce((s, v, i) => s + v * Ginv[i][j], 0));
     return [0, 1, 2].map(c => clamp(alpha.reduce((s, a, j) => s + a * f.emit[j][c], 0), -2, 2));
   });
-  // The swatch blends each chemical's color by how much the founder gives off.
-  const total = sp.counts.reduce((a, b) => a + b, 0) || 1, rgb = [0, 0, 0];
-  f.emit.forEach((e, k) => e.forEach((v, c) => {
-    const hex = PALETTES[ARENA.palettes[c]][4];
-    for (let i = 0; i < 3; i++) rgb[i] += sp.counts[k] / total * v * parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
-  }));
-  const top = Math.max(...rgb, 1);
-  f.color = `rgb(${rgb.map(v => Math.round(v / top * 255)).join(',')})`;
+  f.color = chemColor(f.emit, sp.counts);
 }
 
 // Writes one founder into the arena: its trail first, then its particles into free places, imprinting each one.
@@ -4723,7 +4899,9 @@ async function stampFounder(f) {
   device.queue.writeTexture({ texture: crop }, sp.crop.data, { bytesPerRow: sp.crop.w * 16 }, [sp.crop.w, sp.crop.h]);
   const job = new Float32Array(24);
   job.set([cx, cy, R, .15, sp.crop.cx, sp.crop.cy, scale, 0]);
-  for (let c = 0; c < 3; c++) for (let k = 0; k < sp.g.count; k++) job[8 + c * 4 + k] = f.emit[k][c] * keep;
+  // A cut organism's own trails are mixed into the three chemicals by its identity. A kept specimen's trail already is in them.
+  if (sp.genes) for (let c = 0; c < 3; c++) job[8 + c * 4 + c] = keep;
+  else for (let c = 0; c < 3; c++) for (let k = 0; k < sp.g.count; k++) job[8 + c * 4 + k] = f.emit[k][c] * keep;
   device.queue.writeBuffer(arena.stampJob, 0, job);
   let enc = device.createCommandEncoder(), pass = enc.beginComputePass();
   pass.setPipeline(P.arenaStamp);
@@ -4742,15 +4920,23 @@ async function stampFounder(f) {
   const r = mulberry((arena.seed ^ Math.imul(f.lineage + 1, 0x9E3779B1)) >>> 0), rf = () => r() / 4294967296, a = sp.agents;
   const reps = scale * scale * keep, deg = Math.PI / 180, unit = h / 1080, slots = [], agentsOut = [], genesOut = [];
   for (let j = 0; j < a.dx.length && slots.length < free.length; j++) {
-    const copies = Math.floor(reps) + (rf() < reps % 1 ? 1 : 0), k = a.kind[j], s0 = sp.g.species[k];
+    const copies = Math.floor(reps) + (rf() < reps % 1 ? 1 : 0), k = a.kind[j], s0 = sp.g?.species[k];
     const m = a.mult ? a.mult.subarray(j * 4, j * 4 + 4) : [1, 1, 1, 1];
     for (let c = 0; c < copies && slots.length < free.length; c++) {
       const jitter = scale > 1 || copies > 1 ? scale : 0;
       const x = clamp(cx + a.dx[j] * scale + (rf() - .5) * jitter, 0, w - .001), y = clamp(cy + a.dy[j] * scale + (rf() - .5) * jitter, 0, h - .001);
       slots.push(free[slots.length]);
       agentsOut.push(x, y, a.angle[j] + (c ? (rf() - .5) * .5 : 0), (a.rng[j] ^ r()) >>> 0);
-      genesOut.push(ARENA.energy, f.lineage, s0.sensorAngle * deg * m[0], s0.sensorDist * unit * m[1], s0.turnSpeed * deg * m[2],
-        s0.moveSpeed * unit * m[3], s0.deposit, 0, ...f.emit[k], ARENA.forage, ...f.resp[k], 0);
+      if (sp.genes) {
+        // A kept particle keeps every gene it evolved, joins this founder's lineage and starts reasonably fed.
+        const gj = Array.from(sp.genes.subarray(j * 16, j * 16 + 16));
+        gj[0] = Math.max(gj[0], ARENA.energy);
+        gj[1] = f.lineage;
+        genesOut.push(...gj);
+      } else {
+        genesOut.push(ARENA.energy, f.lineage, s0.sensorAngle * deg * m[0], s0.sensorDist * unit * m[1], s0.turnSpeed * deg * m[2],
+          s0.moveSpeed * unit * m[3], s0.deposit, 0, ...f.emit[k], ARENA.forage, ...f.resp[k], 0);
+      }
     }
   }
   const n = slots.length;
@@ -4765,7 +4951,7 @@ async function stampFounder(f) {
       return b;
     };
     const temps = [upload(new Uint32Array(slots)), upload(agentData), upload(geneData)];
-    device.queue.writeBuffer(arena.placeJob, 0, new Uint32Array([n, 0, 0, 0]));
+    device.queue.writeBuffer(arena.placeJob, 0, new Uint32Array([n, sp.genes ? 0 : 1, 0, 0]));
     enc = device.createCommandEncoder();
     pass = enc.beginComputePass();
     pass.setPipeline(P.arenaPlace);
@@ -4825,6 +5011,7 @@ async function replayArena() {
 }
 function beginPlacing(specimen) {
   if (!specimen) { flash('NOTHING TO CUT'); return; }
+  arena.keeping = false;
   arena.placing = specimen;
   syncUi();
   renderArenaPanel();
@@ -4914,79 +5101,232 @@ async function arenaUndo() {
   await replayArena();
   flash('REMOVED LAST FOUNDER');
 }
-function arenaEmpty() {
-  if (!arena.emptyArmed) {
-    flash('PRESS AGAIN TO EMPTY');
-    arena.emptyArmed = setTimeout(() => { arena.emptyArmed = 0; }, 2500);
+// Clearing asks twice, from the EMPTY pad or the CLEAR button, because the founders and their history are gone after.
+function arenaClear() {
+  if (arena.busy) return;
+  const button = $('arenaWorld').querySelector('[data-do=clear]');
+  if (!arena.clearArmed) {
+    flash('PRESS AGAIN TO CLEAR');
+    button.textContent = 'SURE?';
+    button.classList.add('armed');
+    arena.clearArmed = setTimeout(() => { arena.clearArmed = 0; button.textContent = 'CLEAR'; button.classList.remove('armed'); }, 2500);
     return;
   }
-  clearTimeout(arena.emptyArmed);
-  arena.emptyArmed = 0;
+  clearTimeout(arena.clearArmed);
+  arena.clearArmed = 0;
+  button.textContent = 'CLEAR';
+  button.classList.remove('armed');
   arena.founders = [];
+  arena.rows = null;
+  arena.open = -1;
+  arena.placing = null;
+  arena.keeping = false;
   arena.seed = newSeed();
   arenaChemistry();
   resetArena();
   syncUi();
   renderArenaPanel();
-  flash('ARENA EMPTIED');
+  flash('ARENA CLEARED');
 }
 
-// Counts each lineage a couple of times a second, for the chart and the founder list.
+/* Bodies. Where a lineage is dense enough on a coarse grid, its connected patches are its bodies. Bodies are followed
+   from one count to the next by how much they overlap. When one body becomes two, that is counted as a division,
+   and a body with no successor has died. This is approximate: a thin bridge that flickers can look like a split. */
+const BODY = { cellMin: 6, minCells: 3, minMass: 150 };
+function labelBodies(grid) {
+  const W = ARENA_GRID.w, H = ARENA_GRID.h, raw = new Int32Array(W * H).fill(-1), stack = new Int32Array(W * H), found = [];
+  for (let start = 0; start < W * H; start++) {
+    if (raw[start] !== -1 || grid[start] < BODY.cellMin) continue;
+    const id = found.length, b = { cells: 0, mass: 0, sx: 0, sy: 0, x0: W, x1: 0, y0: H, y1: 0 };
+    let top = 0;
+    stack[top++] = start;
+    raw[start] = id;
+    while (top) {
+      const p = stack[--top], x = p % W, y = (p - x) / W, m = grid[p];
+      b.cells++; b.mass += m; b.sx += (x + .5) * m; b.sy += (y + .5) * m;
+      b.x0 = Math.min(b.x0, x); b.x1 = Math.max(b.x1, x); b.y0 = Math.min(b.y0, y); b.y1 = Math.max(b.y1, y);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy, q = ny * W + nx;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H || raw[q] !== -1 || grid[q] < BODY.cellMin) continue;
+        raw[q] = id;
+        stack[top++] = q;
+      }
+    }
+    found.push(b);
+  }
+  // Specks too small to count give their cells back.
+  const remap = found.map(() => -1), bodies = [];
+  found.forEach((b, i) => {
+    if (b.cells < BODY.minCells || b.mass < BODY.minMass) return;
+    remap[i] = bodies.length;
+    bodies.push({ mass: b.mass, cx: b.sx / b.mass / W, cy: b.sy / b.mass / H, r: Math.max(b.x1 - b.x0 + 1, (b.y1 - b.y0 + 1) * W / H * (9 / 16)) / 2 / H, id: 0, born: 0 });
+  });
+  const labels = raw.map(v => v < 0 ? -1 : remap[v]);
+  return { labels, bodies };
+}
+function trackBodies(f, grid, step) {
+  const { labels, bodies } = labelBodies(grid);
+  const t = f.track || (f.track = { labels: null, bodies: [], splits: 0, deaths: 0, lives: [], next: 1 });
+  if (!t.labels) bodies.forEach(b => { b.id = t.next++; b.born = step; });
+  else {
+    // Each body now is matched to the earlier body it overlaps most.
+    const overlap = new Map();
+    for (let k = 0; k < labels.length; k++) {
+      const c = labels[k], p = t.labels[k];
+      if (c >= 0 && p >= 0) overlap.set(c * 4096 + p, (overlap.get(c * 4096 + p) || 0) + 1);
+    }
+    const parent = bodies.map(() => -1), best = bodies.map(() => 0), kids = t.bodies.map(() => []);
+    for (const [key, n] of overlap) {
+      const c = Math.floor(key / 4096), p = key % 4096;
+      if (n > best[c]) { best[c] = n; parent[c] = p; }
+    }
+    bodies.forEach((_, c) => { if (parent[c] >= 0) kids[parent[c]].push(c); });
+    // Older bodies claim first. The largest piece of a body keeps its identity, and any further piece is a new body.
+    t.bodies.map((b, p) => p).sort((a, b) => t.bodies[a].born - t.bodies[b].born).forEach(p => {
+      const old = t.bodies[p], list = kids[p].sort((a, b) => bodies[b].mass - bodies[a].mass);
+      if (!list.length) { t.deaths++; t.lives.push(step - old.born); if (t.lives.length > 200) t.lives.shift(); return; }
+      const heir = list.find(c => !bodies[c].id);
+      if (heir === undefined) return; // It merged into an older body.
+      bodies[heir].id = old.id;
+      bodies[heir].born = old.born;
+      for (const c of list) if (!bodies[c].id) { bodies[c].id = t.next++; bodies[c].born = step; t.splits++; }
+    });
+    bodies.forEach(b => { if (!b.id) { b.id = t.next++; b.born = step; } });
+  }
+  t.labels = labels;
+  t.bodies = bodies;
+}
+
+// Counts each lineage a couple of times a second: particles, genes and bodies, for the chart and the founder list.
 function arenaCensus() {
   if (arena.censusPending || !arena.sim || arena.busy) return;
   arena.censusPending = true;
-  const s = arena.sim, step = s.step, enc = device.createCommandEncoder();
+  const s = arena.sim, step = s.step, run = s.run, enc = device.createCommandEncoder();
   enc.clearBuffer(arena.censusBuf);
   const pass = enc.beginComputePass();
   pass.setBindGroup(0, arena.censusBG[arena.fcur]);
   pass.setPipeline(P.arenaPeople); pass.dispatchWorkgroups(Math.ceil(s.q.agents / 256));
   pass.setPipeline(P.arenaPantry); pass.dispatchWorkgroups(Math.ceil(FIELD_W / 8), Math.ceil(FIELD_H / 8));
   pass.end();
-  enc.copyBufferToBuffer(arena.censusBuf, 0, arena.censusRead, 0, 1024);
+  enc.copyBufferToBuffer(arena.censusBuf, 0, arena.censusRead, 0, CENSUS_BYTES);
   device.queue.submit([enc.finish()]);
   arena.censusRead.mapAsync(GPUMapMode.READ).then(() => {
-    const u = new Uint32Array(arena.censusRead.getMappedRange().slice(0)), S = ARENA_SLOTS;
+    const u = new Uint32Array(arena.censusRead.getMappedRange().slice(0)), S = ARENA_SLOTS, cells = ARENA_GRID.w * ARENA_GRID.h;
     arena.censusRead.unmap();
-    const counts = arena.founders.map((_, i) => u[i]);
-    arena.census = {
-      step, counts, total: counts.reduce((a, b) => a + b, 0), food: u[3 * S] / 64 / (FIELD_W * FIELD_H),
-      energy: counts.map((c, i) => c ? u[S + i] / 256 / c : 0), setpoint: counts.map((c, i) => c ? u[2 * S + i] / 256 / c : 0),
-    };
+    if (run !== s.run) return; // The arena was replayed or cleared meanwhile.
+    const lineages = arena.founders.map((f, i) => {
+      const n = u[i], avg = (k, scale) => n ? u[k * S + i] / scale / n : 0;
+      const traits = n ? {
+        setpoint: avg(2, 256), speed: avg(3, 256), angle: avg(4, 256) * 180 / Math.PI, reach: avg(5, 16), deposit: avg(6, 256),
+        forage: avg(7, 256) - 1, emit: [avg(8, 256), avg(9, 256), avg(10, 256)],
+      } : null;
+      if (i < 16) trackBodies(f, u.subarray(CENSUS_GRID + i * cells, CENSUS_GRID + (i + 1) * cells), step);
+      if (traits && !f.start) f.start = traits;
+      return { n, energy: avg(1, 256), traits };
+    });
+    const counts = lineages.map(l => l.n);
+    arena.census = { step, counts, lineages, total: counts.reduce((a, b) => a + b, 0), food: u[CENSUS_FOOD] / 64 / (FIELD_W * FIELD_H) };
     const last = arena.history.at(-1);
     if (!last || step > last.step) {
-      arena.history.push({ step, counts });
+      arena.history.push({ step, counts, bodies: arena.founders.map(f => f.track?.bodies.length || 0) });
       if (arena.history.length > 480) arena.history.shift();
     }
     renderArenaPanel();
   }).catch(() => {}).finally(() => { arena.censusPending = false; });
 }
+
+const kilo = n => n >= 1e4 ? Math.round(n / 1000) + 'K' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(Math.round(n));
+// The founder list is built once and then only its numbers change, so clicks always land.
+const FOUNDER_STATS = [
+  ['particles', 'PARTICLES'], ['bodies', 'BODIES'], ['largest', 'LARGEST BODY'], ['oldest', 'OLDEST BODY'], ['divisions', 'DIVISIONS'],
+  ['deaths', 'BODY DEATHS'], ['life', 'TYPICAL LIFESPAN'], ['energy', 'ENERGY'], ['setpoint', 'SET POINT'], ['speed', 'SPEED'],
+  ['angle', 'SENSOR ANGLE'], ['reach', 'SENSOR REACH'], ['deposit', 'DEPOSIT'], ['forage', 'FORAGING'], ['chem', 'CHEMISTRY'],
+];
+function buildFounderRows() {
+  arena.rows = arena.founders.map((f, i) => {
+    const row = el('div', 'founder'), head = el('button', 'founder-head'), swatch = el('i'), info = el('span'), detail = el('div', 'founder-detail');
+    head.type = 'button';
+    head.dataset.help = 'arena.founders';
+    swatch.style.background = f.color;
+    head.append(swatch, el('b', '', f.specimen.name), info);
+    head.addEventListener('click', e => { arena.open = arena.open === i ? -1 : i; renderArenaPanel(); if (e.detail) head.blur(); });
+    const values = {};
+    for (const [key, label] of FOUNDER_STATS) {
+      const v = el('span');
+      detail.append(el('b', '', label), v);
+      values[key] = v;
+    }
+    const keep = el('button', 'founder-keep', 'KEEP LARGEST BODY');
+    keep.type = 'button';
+    keep.dataset.help = 'arena.keepBody';
+    keep.addEventListener('click', e => { keepBody(f); if (e.detail) keep.blur(); });
+    detail.append(keep);
+    row.append(head, detail);
+    return { row, info, detail, values, keep };
+  });
+  $('arenaFounders').replaceChildren(...arena.rows.map(r => r.row));
+}
+function chemSwatches(start, now) {
+  const span = el('span', 'chem'), a = el('i'), b = el('i');
+  a.style.background = chemColor([start], [1]);
+  b.style.background = chemColor([now], [1]);
+  const drift = (Math.abs(start[0] - now[0]) + Math.abs(start[1] - now[1]) + Math.abs(start[2] - now[2])) / 2;
+  span.append(a, ' → ', b, ' ' + Math.round(drift * 100) + '%');
+  return span;
+}
 function renderArenaPanel() {
   if (mode !== 'arena') return;
-  const c = arena.census, pool = arena.sim?.q.agents || 1;
-  $('arenaFounders').replaceChildren(...arena.founders.map((f, i) => {
-    const row = el('div', 'founder'), swatch = el('i'), n = c?.counts[i] ?? 0;
-    swatch.style.background = f.color;
-    row.append(swatch, el('b', '', f.specimen.name), el('span', '', c ? (n ? (n / pool * 100).toFixed(1) + '%' : 'EXTINCT') : ''));
-    row.classList.toggle('gone', !!c && !n);
-    return row;
-  }));
+  if (!arena.rows || arena.rows.length !== arena.founders.length) buildFounderRows();
+  const c = arena.census, pool = arena.sim?.q.agents || 1, step = c?.step ?? 0;
+  arena.rows.forEach((r, i) => {
+    const f = arena.founders[i], l = c?.lineages[i], n = l?.n ?? 0, bodies = f.track?.bodies || [];
+    r.info.textContent = !c ? '' : !n ? 'EXTINCT' : `${(n / pool * 100).toFixed(1)}% · ${bodies.length} ${bodies.length === 1 ? 'body' : 'bodies'}`;
+    r.row.classList.toggle('gone', !!c && !n);
+    r.row.classList.toggle('open', arena.open === i);
+    r.detail.hidden = arena.open !== i;
+    if (arena.open !== i || !c) return;
+    const t = f.track, s0 = f.start, now = l.traits, set = (k, v) => { r.values[k].replaceChildren(v); };
+    const pair = (k, digits, unit = '') => s0 && now ? `${s0[k].toFixed(digits)}${unit} → ${now[k].toFixed(digits)}${unit}` : '—';
+    const largest = bodies.reduce((m, b) => b.mass > m.mass ? b : m, { mass: 0 });
+    const lives = t?.lives || [];
+    set('particles', n ? `${kilo(n)} · ${(n / pool * 100).toFixed(1)}% of the world` : 'none left');
+    set('bodies', String(bodies.length));
+    set('largest', largest.mass ? kilo(largest.mass) + ' particles' : '—');
+    set('oldest', bodies.length ? kilo(step - Math.min(...bodies.map(b => b.born))) + ' steps' : '—');
+    set('divisions', String(t?.splits ?? 0));
+    set('deaths', String(t?.deaths ?? 0));
+    set('life', lives.length ? kilo([...lives].sort((a, b) => a - b)[lives.length >> 1]) + ' steps' : '—');
+    set('energy', n ? l.energy.toFixed(2) : '—');
+    set('setpoint', pair('setpoint', 2));
+    set('speed', pair('speed', 2));
+    set('angle', pair('angle', 0, '°'));
+    set('reach', pair('reach', 1));
+    set('deposit', pair('deposit', 2));
+    set('forage', pair('forage', 2));
+    set('chem', s0 && now ? chemSwatches(s0.emit, now.emit) : '—');
+    r.keep.disabled = !largest.mass || arena.busy;
+  });
   $('arenaNote').textContent = arena.placing ? `Click the picture to place ${arena.placing.name}. Press ADD again for an open spot, or Esc to cancel.`
-    : !arena.founders.length ? 'Press ADD to cut a living specimen from your SOLO organism, or open the LIBRARY and press ADD on a save. RANDOM grows a wild one.'
-    : 'Each lineage eats, divides and mutates. The chart shows its share of the world over time.';
+    : arena.keeping ? 'Click a living body to keep it as a specimen. The ring shows what will be kept. Esc cancels.'
+    : !arena.founders.length ? 'Choose what to add: your SOLO organism, a save or specimen from the LIBRARY, or a WILD one. Then click the picture to place it.'
+    : 'Click a founder to see its bodies and how its genes have drifted since it was placed.';
+  markSeg($('segChart'), arena.chart);
   drawArenaChart();
 }
 function drawArenaChart() {
   const canvas = $('arenaChart'), dpr = devicePixelRatio || 1, w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
   if (!w || !h) return;
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-  const c = canvas.getContext('2d'), hist = arena.history, pool = arena.sim?.q.agents || 1;
+  const c = canvas.getContext('2d'), hist = arena.history, pool = arena.sim?.q.agents || 1, bodies = arena.chart === 'bodies';
   c.clearRect(0, 0, w, h);
   if (hist.length < 2) return;
-  const top = Math.max(.05, ...hist.map(e => e.counts.reduce((a, b) => a + b, 0) / pool)) * 1.1;
+  const value = (e, k) => bodies ? e.bodies?.[k] || 0 : (e.counts[k] || 0) / pool;
+  const peak = Math.max(...hist.map(e => arena.founders.reduce((s, _, k) => s + value(e, k), 0)));
+  const top = Math.max(bodies ? 3 : .05, peak) * 1.15;
   const X = i => i / (hist.length - 1) * w, Y = v => h - v / top * h;
   let below = hist.map(() => 0);
   arena.founders.forEach((f, k) => {
-    const above = hist.map((e, i) => below[i] + (e.counts[k] || 0) / pool);
+    const above = hist.map((e, i) => below[i] + value(e, k));
     c.beginPath();
     hist.forEach((_, i) => c.lineTo(X(i), Y(above[i])));
     for (let i = hist.length - 1; i >= 0; i--) c.lineTo(X(i), Y(below[i]));
@@ -4997,6 +5337,131 @@ function drawArenaChart() {
     below = above;
   });
   c.globalAlpha = 1;
+  c.fillStyle = '#a9d8cc';
+  c.font = `${10 * dpr}px ui-monospace, monospace`;
+  c.fillText(bodies ? `${Math.round(peak)} BODIES AT MOST` : `${Math.round(peak * 100)}% OF THE WORLD AT MOST`, 6 * dpr, 13 * dpr);
+}
+
+/* ---------- Specimens ---------- */
+// KEEP cuts a living disc out of the arena: every particle in it, of any lineage, with every gene it has evolved, and
+// the trail beneath. It is saved to the saves folder's "specimens" subfolder and appears in the Library's SPECIMENS view.
+const SPECIMEN_MAGIC = 0x50534C44;
+function beginKeeping() {
+  if (!arena.founders.length) { flash('NOTHING TO KEEP YET'); return; }
+  arena.placing = null;
+  arena.keeping = true;
+  syncUi();
+  renderArenaPanel();
+  flash('CLICK A BODY TO KEEP');
+}
+function cancelKeeping() {
+  arena.keeping = false;
+  $('placeRing').hidden = true;
+  syncUi();
+  renderArenaPanel();
+}
+function keepBody(f) {
+  const bodies = f.track?.bodies || [];
+  if (!bodies.length) { flash('NO BODY TO KEEP'); return; }
+  const b = bodies.reduce((m, x) => x.mass > m.mass ? x : m);
+  keepAt(b.cx, b.cy, clamp(b.r * 1.15 + .02, .06, .3), f.specimen.name);
+}
+async function specimenThumb(cx, cy, R) {
+  const s = arena.sim, { w, h } = s.q, pixels = await renderPixels([{ sim: s, genome: arenaGenome, rect: null }], w, h);
+  const full = new OffscreenCanvas(w, h);
+  full.getContext('2d').putImageData(new ImageData(pixels, w, h), 0, 0);
+  const out = new OffscreenCanvas(THUMB.w, THUMB.h), sh = Math.min(h, R * 2.3), sw = sh * THUMB.w / THUMB.h;
+  const ctx2 = out.getContext('2d');
+  ctx2.fillStyle = '#030607';
+  ctx2.fillRect(0, 0, THUMB.w, THUMB.h);
+  ctx2.drawImage(full, cx - sw / 2, cy - sh / 2, sw, sh, 0, 0, THUMB.w, THUMB.h);
+  return out.convertToBlob({ type: 'image/webp', quality: .86 });
+}
+async function keepAt(x, y, radius, from = '') {
+  if (!arena.sim || arena.busy) return;
+  const kept = await arenaWork('KEEPING', async () => {
+    const s = arena.sim, { w, h, agents } = s.q, R = radius * h, cx = clamp(x, 0, 1) * w, cy = clamp(y, 0, 1) * h;
+    const pos = new Float32Array(await readBack(s.agentBuf, agents * 16)), rngs = new Uint32Array(pos.buffer);
+    const genes = new Float32Array(await readBack(arena.genes, agents * 64)), gu = new Uint32Array(genes.buffer), inside = [];
+    for (let i = 0; i < agents; i++) {
+      const px = pos[i * 4], py = pos[i * 4 + 1];
+      if (px >= 0 && (px - cx) ** 2 + (py - cy) ** 2 <= R * R) inside.push(i);
+    }
+    if (inside.length < 50) return null;
+    const size = Math.min(Math.ceil(2 * R) + 4, w, h), x0 = clamp(Math.round(cx - size / 2), 0, w - size), y0 = clamp(Math.round(cy - size / 2), 0, h - size);
+    const crop = { w: size, h: size, cx: cx - x0, cy: cy - y0, data: await readRegion(s.trail[s.cur], x0, y0, size, size) };
+    const n = inside.length, out = { dx: new Float32Array(n), dy: new Float32Array(n), angle: new Float32Array(n), rng: new Uint32Array(n), kind: new Uint8Array(n), mult: null };
+    const keptGenes = new Float32Array(n * 16), byLineage = new Map(), emit = [0, 0, 0], sums = { setpoint: 0, speed: 0, angle: 0, reach: 0 };
+    inside.forEach((i, j) => {
+      out.dx[j] = pos[i * 4] - cx; out.dy[j] = pos[i * 4 + 1] - cy; out.angle[j] = pos[i * 4 + 2]; out.rng[j] = rngs[i * 4 + 3];
+      keptGenes.set(genes.subarray(i * 16, i * 16 + 16), j * 16);
+      const l = gu[i * 16 + 1];
+      byLineage.set(l, (byLineage.get(l) || 0) + 1);
+      for (let c = 0; c < 3; c++) emit[c] += genes[i * 16 + 8 + c] / n;
+      sums.setpoint += genes[i * 16 + 7] / n; sums.speed += genes[i * 16 + 5] / s.q.h * 1080 / n;
+      sums.angle += genes[i * 16 + 2] * 180 / Math.PI / n; sums.reach += genes[i * 16 + 3] / s.q.h * 1080 / n;
+    });
+    const origin = [...byLineage].sort((a, b) => b[1] - a[1]).map(([l, count]) => ({
+      name: arena.founders[l]?.specimen.name || 'Unknown', color: arena.founders[l]?.color || '#888', share: +(count / n).toFixed(3),
+    }));
+    const specimen = {
+      kind: 'kept', name: 'Kept ' + (from || origin[0].name), srcH: h, radius, crop, agents: out, counts: [n], genes: keptGenes,
+      meanEmit: emit, chem: { decay: [...arena.chem.decay], diffuse: [...arena.chem.diffuse] }, origin, keptAt: s.step,
+      traits: Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, +v.toFixed(3)])),
+    };
+    const thumb = await specimenThumb(cx, cy, R);
+    return await saveSpecimen(specimen, thumb) ? specimen : null;
+  });
+  if (kept) flash('KEPT ' + kilo(kept.agents.dx.length) + ' AS A SPECIMEN');
+}
+async function packSpecimen(sp) {
+  const n = sp.agents.dx.length, cropFloats = sp.crop.w * sp.crop.h * 4;
+  const out = new ArrayBuffer(32 + cropFloats * 4 + n * 16 + n * 64), u = new Uint32Array(out), f = new Float32Array(out);
+  u.set([SPECIMEN_MAGIC, 1, n, sp.crop.w, sp.crop.h]);
+  let o = 8;
+  f.set(sp.crop.data, o);
+  // Trail values drop their least visible bits so the file compresses well, as in body files.
+  for (let i = o; i < o + cropFloats; i++) u[i] &= 0xFFFFF800;
+  o += cropFloats;
+  f.set(sp.agents.dx, o); o += n;
+  f.set(sp.agents.dy, o); o += n;
+  f.set(sp.agents.angle, o); o += n;
+  u.set(sp.agents.rng, o); o += n;
+  f.set(sp.genes, o);
+  return new Response(new Blob([out]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
+}
+async function unpackSpecimen(blob, meta) {
+  const raw = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  const u = new Uint32Array(raw), f = new Float32Array(raw), [magic, version, n, cw, ch] = u;
+  if (magic !== SPECIMEN_MAGIC || version !== 1 || !n || raw.byteLength !== 32 + cw * ch * 16 + n * 80) return null;
+  let o = 8;
+  const crop = { w: cw, h: ch, cx: meta.crop.cx, cy: meta.crop.cy, data: f.slice(o, o + cw * ch * 4) };
+  o += cw * ch * 4;
+  const agents = { dx: f.slice(o, o + n), dy: f.slice(o + n, o + 2 * n), angle: f.slice(o + 2 * n, o + 3 * n), rng: u.slice(o + 3 * n, o + 4 * n), kind: new Uint8Array(n), mult: null };
+  o += 4 * n;
+  return {
+    kind: 'kept', name: meta.name, srcH: meta.srcH, radius: meta.radius, crop, agents, counts: [n], genes: f.slice(o, o + n * 16),
+    meanEmit: meta.meanEmit, chem: meta.chem, origin: meta.origin, keptAt: meta.keptAt, traits: meta.traits,
+  };
+}
+async function saveSpecimen(sp, thumb) {
+  const dir = window.showDirectoryPicker ? await savesFolder() : null;
+  if (!dir) { flash('CHOOSE A FOLDER TO KEEP SPECIMENS'); return false; }
+  const store = await dir.getDirectoryHandle('specimens', { create: true });
+  const id = `sp-${timeStamp(new Date())}-${hashText([arena.seed, sp.keptAt, sp.agents.dx.length, sp.agents.dx[0], sp.agents.dy[0]].join()).toLowerCase()}`;
+  const write = async (name, data) => {
+    const w = await (await store.getFileHandle(name, { create: true })).createWritable();
+    await w.write(data);
+    await w.close();
+  };
+  await write(id + '.dlspec', await packSpecimen(sp));
+  await write(id + '.webp', thumb);
+  await write(id + '.json', JSON.stringify({
+    format: 'digital-life-specimen', version: 1, id, name: sp.name, createdAt: new Date().toISOString(), keptAt: sp.keptAt,
+    radius: sp.radius, srcH: sp.srcH, particles: sp.agents.dx.length, crop: { w: sp.crop.w, h: sp.crop.h, cx: sp.crop.cx, cy: sp.crop.cy },
+    chem: sp.chem, meanEmit: sp.meanEmit, origin: sp.origin, traits: sp.traits,
+  }, null, 2));
+  return true;
 }
 
 /* ---------- Image and video export ---------- */
@@ -5681,7 +6146,7 @@ const actions = {
     else if (mode === 'batch') randomBatch(); else randomSolo();
   },
   reroll() {
-    if (mode === 'arena') { arenaEmpty(); return; }
+    if (mode === 'arena') { arenaClear(); return; }
     if (mode === 'batch') {
       cancelScreening();
       pushBatchHistory();
@@ -5819,6 +6284,8 @@ function syncUi() {
   $('tabArena').hidden = !inArena;
   document.querySelectorAll('[data-noarena]').forEach(row => { row.hidden = inArena; });
   markSeg($('segSpecimen'), arena.size);
+  $('arenaWorld').querySelector('[data-do=keep]').setAttribute('aria-pressed', String(arena.keeping));
+  for (const b of [...$('arenaAdd').children, ...$('arenaWorld').children]) b.disabled = arena.busy;
   $('rerollLabel').textContent = inArena ? 'EMPTY' : 'REROLL';
   $('savePad').disabled = inArena;
   markSeg($('segMode'), mode); markSeg($('segStrength'), st.strength); markSeg($('segFilter'), st.filter ? 'on' : 'off');
@@ -5950,23 +6417,42 @@ function initUi() {
     makeSlider($('arenaSliders'), p, () => arena.params);
     $('arenaSliders').lastElementChild.dataset.help = 'arena.' + p.k;
   });
-  // Placing a specimen: a ring the size of the cut follows the pointer, and a click drops it there.
+  // Placing or keeping: a ring the size of the disc follows the pointer, and a click places a specimen there or keeps
+  // what is inside it.
   const simCanvas = $('sim'), placeRing = $('placeRing');
   simCanvas.addEventListener('pointermove', e => {
-    if (mode !== 'arena' || !arena.placing) { placeRing.hidden = true; return; }
-    const r = simCanvas.getBoundingClientRect(), size = r.height * arena.placing.radius * 2;
+    const radius = mode !== 'arena' ? 0 : arena.placing ? arena.placing.radius : arena.keeping ? ARENA.sizes[arena.size] : 0;
+    if (!radius) { placeRing.hidden = true; return; }
+    const r = simCanvas.getBoundingClientRect(), size = r.height * radius * 2;
     placeRing.style.left = (e.clientX - r.left) + 'px';
     placeRing.style.top = (e.clientY - r.top) + 'px';
     placeRing.style.width = placeRing.style.height = size + 'px';
+    placeRing.classList.toggle('keep', arena.keeping);
     placeRing.hidden = false;
   });
   simCanvas.addEventListener('pointerleave', () => { placeRing.hidden = true; });
   simCanvas.addEventListener('click', e => {
-    if (mode !== 'arena' || !arena.placing || arena.busy) return;
-    const r = simCanvas.getBoundingClientRect();
-    placeNow((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+    if (mode !== 'arena' || arena.busy || !(arena.placing || arena.keeping)) return;
+    const r = simCanvas.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    if (arena.placing) placeNow(x, y);
+    else { arena.keeping = false; placeRing.hidden = true; keepAt(x, y, ARENA.sizes[arena.size]); }
   });
   new ResizeObserver(drawArenaChart).observe($('arenaChart'));
+  // The arena page's own buttons: where to add from, and what to do with the world.
+  for (const b of $('arenaAdd').children) b.addEventListener('click', e => {
+    if (e.detail) b.blur();
+    if (arena.busy) return;
+    if (b.dataset.add === 'solo') arenaFromSolo();
+    else if (b.dataset.add === 'library') openLibrary();
+    else arenaRandom();
+  });
+  for (const b of $('arenaWorld').children) b.addEventListener('click', e => {
+    if (e.detail) b.blur();
+    if (b.dataset.do === 'keep') arena.keeping ? cancelKeeping() : beginKeeping();
+    else if (b.dataset.do === 'replay') actions.replay();
+    else arenaClear();
+  });
+  segmented($('segChart'), [['bodies', 'BODIES'], ['particles', 'PARTICLES']], v => { arena.chart = v; renderArenaPanel(); });
   segmented($('segLife'), Object.entries(LIFE_MODES), setLifeMode);
   segmented($('segTab'), Object.entries(TABS).map(([k, [label]]) => [k, label]), v => { activeTab = v; syncUi(); });
   segmented($('segHybrid'), Object.entries(HYBRIDS).map(([k, h]) => [k, h.label]), applyHybrid);
@@ -5992,7 +6478,7 @@ function initUi() {
   $('libFile').addEventListener('click', () => { closeLibrary(); loadSave(); });
   $('libClose').addEventListener('click', closeLibrary);
   $('library').addEventListener('close', libraryClosed);
-  segmented($('libView'), [['grid', 'GRID'], ['tree', 'TREE']], setLibView);
+  segmented($('libView'), [['grid', 'GRID'], ['tree', 'TREE'], ['specimens', 'SPECIMENS']], setLibView);
   const selectedItem = () => { const node = lib.tree?.nodes.get(lib.selected); return node?.state === 'saved' ? node.entry.item : null; };
   $('treeOpen').addEventListener('click', () => { const item = selectedItem(); if (item) useSave(item, false); });
   $('treeBreed').addEventListener('click', () => { const item = selectedItem(); if (item) useSave(item, true); });
@@ -6053,6 +6539,7 @@ function initUi() {
       return;
     }
     if (e.key === 'Escape' && mode === 'arena' && arena.placing) { cancelPlacing(); return; }
+    if (e.key === 'Escape' && mode === 'arena' && arena.keeping) { cancelKeeping(); return; }
     if (e.key === 'Escape' && helpTarget) { hideHelp(); return; }
     if (e.key === 'Enter' && mode === 'arena' && arena.placing && e.target.tagName !== 'BUTTON') { e.preventDefault(); placeNow(); return; }
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'z') { e.preventDefault(); actions.undo(); return; }
@@ -6123,7 +6610,7 @@ window.DL = {
     read.unmap(); read.destroy();
     return out;
   },
-  bodyMeasures, analyze, arena, ARENA, ensureArena, resetArena, cutSpecimen, foundAt, stampFounder, replayArena, arenaFromSolo, arenaFromSave, arenaRandom, arenaCensus, growBody, placeNow, openSpot,
+  bodyMeasures, analyze, arena, ARENA, ensureArena, keepAt, keepBody, labelBodies, beginKeeping, arenaClear, useSpecimen, unpackSpecimen, packSpecimen, resetArena, cutSpecimen, foundAt, stampFounder, replayArena, arenaFromSolo, arenaFromSave, arenaRandom, arenaCensus, growBody, placeNow, openSpot,
   // Steps the arena directly, for testing without the animation loop.
   async arenaAdvance(n) {
     for (let left = n; left > 0;) {
