@@ -5,25 +5,100 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Digital Life Sandbox</title>
 <style>
+/* The look is explained in docs/DESIGN.md: lab hardware in a dark room, with living light leaking out of it. */
 :root{
-  --chassis:#d9d6cf; --chassis-hi:#ece9e2; --chassis-lo:#b9b6ae;
-  --ink:#26292a; --ink-soft:#626466;
-  --teal:#17807f; --seafoam:#86dcc3; --deep:#153f6e; --active:#2ff0c4;
+  --room:#05090b; --room-hi:#0c1517; --room-line:#16262a;
+  --chassis:#0e171a; --chassis-hi:#152326; --chassis-lo:#070d0f;
+  --ink:#cfe9e2; --ink-soft:#7a9993; --ink-dim:#4f6b66;
+  --teal:#17807f; --seafoam:#86dcc3; --deep:#153f6e; --active:#2ff0c4; --lumen:#6ff0cf; --signal:#ff6a3d;
   --screen:#071113;
   --mono:ui-monospace,"Cascadia Mono","Cascadia Code",Consolas,Menlo,monospace;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:var(--chassis);color:var(--ink);font:11px/1.2 var(--mono);letter-spacing:.06em}
+body{color:var(--ink);font:11px/1.2 var(--mono);letter-spacing:.06em;
+  background:radial-gradient(ellipse at 35% 40%,#0b1517 0%,var(--room) 70%) fixed,var(--room);
+  background-color:var(--room)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;
+  background:linear-gradient(var(--room-line) 1px,transparent 1px) 0 0/32px 32px,linear-gradient(90deg,var(--room-line) 1px,transparent 1px) 0 0/32px 32px;
+  opacity:.35;mask-image:radial-gradient(ellipse at 40% 45%,#000 20%,transparent 75%)}
 button{font:inherit;letter-spacing:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--deep);outline-offset:2px}
 
-.unit{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:14px;height:100vh;padding:14px}
+/* Dot-matrix lettering, drawn from the display's own 5x7 font. */
+.dotsvg{display:inline-block;height:1em;vertical-align:-.12em;overflow:visible}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.unit{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 372px;grid-template-rows:auto minmax(0,1fr);gap:12px 14px;height:100vh;padding:10px 14px 14px}
 .stage{position:relative;container-type:size;min-width:0;min-height:0;display:grid;place-items:center;
-  background:#030607;border-radius:14px;overflow:hidden;
-  box-shadow:inset 0 2px 7px #000a,0 1px 0 var(--chassis-hi),0 -1px 0 var(--chassis-lo)}
+  background:#020405;border-radius:16px;overflow:hidden;
+  box-shadow:inset 0 0 0 1px #1a2c2f,inset 0 2px 14px #000c,0 0 0 1px #000,0 18px 50px #000a}
 .stage:fullscreen{border-radius:0}
 .screen{position:relative;width:min(100cqw,calc(100cqh * 16 / 9));height:min(100cqh,calc(100cqw * 9 / 16))}
+
+/* Room bar: the three rooms of the lab. */
+.roombar{grid-column:1 / -1;display:flex;align-items:center;gap:18px;min-height:46px;color:#cfe9e2}
+.roombar .brand{display:flex;align-items:baseline;gap:10px;padding:0}
+.roombar .brand b{font-size:17px;color:#e8f7f2}
+.roombar .brand span{color:#6f8d88;font-size:10px}
+.rooms{display:flex;gap:6px;margin:0 auto}
+.room{position:relative;display:flex;align-items:center;gap:9px;height:40px;padding:0 14px 0 11px;border:0;border-radius:10px;
+  background:transparent;color:#56716d;cursor:pointer;transition:color .25s,background .25s}
+.room:hover{color:#a9d8cc;background:#0b1618}
+.room .ico{font-size:14px}
+.room b{display:flex;flex-direction:column;align-items:flex-start;gap:3px;font-weight:400}
+.room b .dotsvg{font-size:13px}
+.room small{font-size:8.5px;letter-spacing:.14em;color:#3f5754}
+.room[aria-current=true]{color:var(--lumen);background:#0a1a1b;box-shadow:inset 0 0 0 1px #2ff0c433,0 0 22px #2ff0c41a}
+.room[aria-current=true] small{color:#5fae9c}
+.room[aria-current=true]::after{content:"";position:absolute;left:14px;right:14px;bottom:3px;height:2px;border-radius:2px;
+  background:var(--lumen);box-shadow:0 0 8px var(--lumen)}
+.roombar-end{display:flex;align-items:center;gap:10px}
+.lib-head .rooms{margin:0}
+
+/* The microscope slide: corner brackets, a frosted label, the objective and a scale bar. */
+.slide-hud{position:absolute;inset:0;pointer-events:none;color:#bfeee2}
+.slide-hud[hidden],.porthole[hidden],.incubator-hud[hidden]{display:none}
+.corner{position:absolute;width:22px;height:22px;border:1.5px solid #86dcc366}
+.corner.tl{left:10px;top:10px;border-right:0;border-bottom:0}
+.corner.tr{right:10px;top:10px;border-left:0;border-bottom:0}
+.corner.bl{left:10px;bottom:10px;border-right:0;border-top:0}
+.corner.br{right:10px;bottom:10px;border-left:0;border-top:0}
+#slideLabel{position:absolute;left:22px;top:18px;display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;
+  background:#d7f5ec12;border:1px solid #9fe9d62b;backdrop-filter:blur(6px);font-size:10px}
+#slideLabel .dotsvg{font-size:11px;color:#e3fbf4}
+#slideLabel span{color:#8fbfb3;letter-spacing:.08em}
+#slideMag{position:absolute;right:24px;top:20px;font-size:12px;color:#8fd9c6}
+#slideScale{position:absolute;left:24px;bottom:22px;display:flex;align-items:center;gap:8px;font-size:9px;color:#8fd9c6}
+#slideScale i{display:block;width:64px;height:2px;background:#8fd9c6;box-shadow:0 -3px 0 -1px #8fd9c6 inset}
+
+/* The Incubator: a round porthole in dark machinery, with readouts beside it. */
+.porthole{position:absolute;top:0;bottom:0;left:50%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;pointer-events:none;
+  box-shadow:inset 0 0 70px #000b,0 0 0 2px #2a4a4a,0 0 0 11px #0b1416,0 0 0 12px #1f3537,0 0 60px 14px #2ff0c40d,0 0 0 200vmax #04080a}
+.porthole::before{content:"";position:absolute;inset:-26px;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,#6ff0cf66 0 .5deg,transparent .5deg 6deg),repeating-conic-gradient(from 0deg,#6ff0cfaa 0 .7deg,transparent .7deg 30deg);
+  -webkit-mask:radial-gradient(circle closest-side,transparent calc(100% - 12px),#000 calc(100% - 12px),#000 calc(100% - 3px),transparent calc(100% - 3px));
+  mask:radial-gradient(circle closest-side,transparent calc(100% - 12px),#000 calc(100% - 12px),#000 calc(100% - 3px),transparent calc(100% - 3px))}
+.incubator-hud{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;padding:0 2.5%;pointer-events:none;z-index:2}
+.ihud-col{display:flex;flex-direction:column;gap:22px;width:22%}
+.ihud-col.right{align-items:flex-end;text-align:right}
+.ihud{display:flex;flex-direction:column;gap:6px}
+.ihud.right{align-items:flex-end}
+.ihud small{font-size:8.5px;letter-spacing:.18em;color:#4f7a72}
+.ihud b{font-size:clamp(12px,2.1cqh,22px);font-weight:400;color:#9ff5dc;text-shadow:0 0 10px #2ff0c455}
+.ihud i{display:block;height:3px;width:100%;border-radius:2px;background:#13282a;overflow:hidden}
+.ihud i u{display:block;height:100%;background:var(--lumen);box-shadow:0 0 8px var(--lumen)}
+.ihud-title{font-size:clamp(14px,2.6cqh,26px);color:#c9f7ea}
+
+/* Afterglow: a pressed control lights up and fades like a trail does, without anything moving. */
+.glows{position:relative}
+.glows::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;
+  box-shadow:inset 0 0 0 1px #9ff5dc,0 0 14px #2ff0c455,inset 0 0 12px #2ff0c430}
+.glows.afterglow::after{animation:afterglow .9s cubic-bezier(.2,.6,.3,1)}
+@keyframes afterglow{from{opacity:1}to{opacity:0}}
+.stage.afterglow{animation:stageglow 1.1s cubic-bezier(.2,.6,.3,1)}
+@keyframes stageglow{from{box-shadow:inset 0 0 0 1px #6ff0cf99,inset 0 0 40px #2ff0c422,0 0 0 1px #000,0 18px 50px #000a}}
+@media (prefers-reduced-motion:reduce){.glows.afterglow::after{animation-duration:.3s}.stage.afterglow{animation:none}}
 #sim{display:block;width:100%;height:100%}
 #brushLayer{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}
 #brushLayer.applied{opacity:.94}
@@ -33,14 +108,15 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 #brushRing[hidden]{display:none}
 #placeRing{position:absolute;border:1.5px dashed var(--active);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 1px #03060799,0 0 18px #2ff0c433}
 #placeRing[hidden]{display:none}
-#arenaChart{display:block;width:100%;height:72px;margin:6px 0 4px;border-radius:6px;background:#071113;box-shadow:inset 0 1px 2px #0006}
+#arenaChart{display:block;width:100%;height:84px;margin:6px 0 4px;border-radius:8px;background:var(--screen);box-shadow:inset 0 2px 6px #000d,0 1px 0 #ffffff08}
 #placeRing.keep{border-style:solid;border-color:#ffd27a;box-shadow:0 0 0 1px #03060799,0 0 18px #ffd27a33}
 #arenaFounders{display:flex;flex-direction:column;gap:3px}
 .founder{border-radius:6px}
-.founder.open{background:var(--chassis-hi);box-shadow:inset 0 0 0 1px #0001}
-.founder-head{display:flex;align-items:center;gap:7px;width:100%;padding:3px 4px;border:0;border-radius:6px;background:transparent;cursor:pointer;font-size:10px;text-align:left}
-.founder-head:hover{background:var(--chassis-hi)}
-.founder-head i{flex:none;width:10px;height:10px;border-radius:3px}
+.founder.open{background:var(--chassis-hi);box-shadow:inset 0 0 0 1px #ffffff0a}
+.founder-head{display:flex;align-items:center;gap:7px;width:100%;padding:4px 5px;border:0;border-radius:6px;background:transparent;cursor:pointer;font-size:10px;text-align:left}
+.founder-head:hover,.founder-head:focus-visible,.founder.lit .founder-head{background:var(--chassis-hi);box-shadow:inset 0 0 0 1px #6ff0cf33}
+.founder-head i{flex:none;width:10px;height:10px;border-radius:50%;box-shadow:0 0 6px currentColor}
+.founder.lit .founder-head b{color:#f2fffb}
 .founder-head b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}
 .founder-head span{flex:none;color:var(--ink-soft)}
 .founder.gone{opacity:.45}
@@ -49,7 +125,8 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .founder-detail b{font-weight:400;color:var(--ink-soft)}
 .founder-detail span{text-align:right;white-space:nowrap}
 .founder-detail .chem i{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:-1px}
-.founder-keep{grid-column:1/-1;height:22px;margin-top:4px;border:0;border-radius:5px;background:var(--chassis);box-shadow:0 1px 0 #a5a29a;cursor:pointer;font-size:9.5px}
+.founder-keep{grid-column:1/-1;height:24px;margin-top:4px;border:0;border-radius:5px;background:var(--chassis);box-shadow:inset 0 0 0 1px #24383b;cursor:pointer;font-size:9.5px}
+.founder-keep:hover{box-shadow:inset 0 0 0 1px #6ff0cf66}
 .founder-keep:disabled{opacity:.5;cursor:default}
 #arenaWorld .armed{background:#8a3b1e;color:#fff3ec}
 #drawGrow.ready{background:var(--teal);color:#eafff8}
@@ -61,20 +138,33 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .tiles{position:absolute;inset:.8%;display:grid;gap:.8%;
   grid-template:repeat(3,minmax(0,1fr))/repeat(3,minmax(0,1fr))}
 .tiles[hidden]{display:none}
-.tile{position:relative;min-width:0;min-height:0;border-radius:9px;box-shadow:0 0 0 4px #030607}
-.tile-pick{position:absolute;inset:0;width:100%;height:100%;padding:7px;border:0;border-radius:inherit;
+/* Batch is a tray of glass slides: each tile has the slide's corner brackets, a glass edge and a frosted label. */
+.tile{position:relative;min-width:0;min-height:0;border-radius:4px;box-shadow:0 0 0 4px #030607,0 0 0 5px #142326}
+.tile::after{content:"";position:absolute;inset:4px;pointer-events:none;--c:#86dcc366;
+  background:linear-gradient(var(--c),var(--c)) 0 0/10px 1.5px,linear-gradient(var(--c),var(--c)) 0 0/1.5px 10px,
+    linear-gradient(var(--c),var(--c)) 100% 0/10px 1.5px,linear-gradient(var(--c),var(--c)) 100% 0/1.5px 10px,
+    linear-gradient(var(--c),var(--c)) 0 100%/10px 1.5px,linear-gradient(var(--c),var(--c)) 0 100%/1.5px 10px,
+    linear-gradient(var(--c),var(--c)) 100% 100%/10px 1.5px,linear-gradient(var(--c),var(--c)) 100% 100%/1.5px 10px;
+  background-repeat:no-repeat}
+.tile:has(.tile-pick[aria-pressed=true])::after{--c:#9ff5dccc}
+.tile-pick{position:absolute;inset:0;width:100%;height:100%;padding:10px;border:0;border-radius:inherit;
   display:flex;justify-content:space-between;align-items:flex-start;
   background:transparent;color:#d9fff2;cursor:pointer;
-  box-shadow:inset 0 0 0 1px #ffffff17;transition:box-shadow .1s}
-.tile-pick:hover{box-shadow:inset 0 0 0 1px #86dcc3b0}
+  box-shadow:inset 0 0 0 1px #9fe9d61f;transition:box-shadow .2s}
+.tile-pick:hover{box-shadow:inset 0 0 0 1px #86dcc380}
 .tile-pick:focus-visible{outline:2px solid var(--seafoam);outline-offset:-5px}
 .tile-pick[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--active),0 0 13px #2ff0c44d}
 .chip{padding:2px 5px;border-radius:4px;background:#030607c4;font-size:10px}
 .chip[hidden]{display:none}
-.tile-pick[aria-pressed=true] .num{background:var(--active);color:#04201a}
-.chip.life{position:absolute;left:7px;bottom:7px}
+.chip.num{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:3px;background:#d7f5ec12;border:1px solid #9fe9d62b;
+  backdrop-filter:blur(6px);color:#e3fbf4}
+.chip.num small{font-size:8px;letter-spacing:.14em;color:#8fbfb3}
+.chip.num .dotsvg{font-size:10px}
+.tile-pick[aria-pressed=true] .num{background:#2ff0c4d9;border-color:transparent;color:#04201a}
+.tile-pick[aria-pressed=true] .num small{color:#04201a}
+.chip.life{position:absolute;left:10px;bottom:10px}
 .chip.life.bad{color:#ffc79e}
-.chip.got{position:absolute;right:7px;bottom:7px;color:#c9c4b8}
+.chip.got{position:absolute;right:10px;bottom:10px;color:#c9c4b8}
 .chip.got.body,.lib-thumb .chip.keep.body{color:#6ff0cf;box-shadow:inset 0 0 0 1px #6ff0cf66}
 .screen-note{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:9px 14px;border-radius:8px;
   background:#030607e6;color:#6ff0cf;font-size:12px;white-space:nowrap;box-shadow:0 4px 16px #0008;pointer-events:none}
@@ -83,11 +173,13 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
   background:#030607;color:#d9fff2;overflow:hidden;box-shadow:0 12px 40px #000a}
 #library[open]{display:flex;flex-direction:column}
 #library::backdrop{background:#030607d9}
-.lib-head{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;padding:10px 14px;background:var(--chassis);color:var(--ink)}
-.lib-head h2{margin:0;font-size:15px;letter-spacing:.04em}
-#libCount{color:var(--ink-soft);white-space:nowrap}
-#libSearch{flex:1 1 200px;min-width:140px;height:32px;padding:0 10px;border:0;border-radius:7px;background:var(--chassis-hi);color:var(--ink);
-  font:inherit;box-shadow:inset 0 1px 2px #0003}
+.lib-head{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 14px;background:#081012;color:#cfe9e2;
+  box-shadow:inset 0 -1px 0 #16262a}
+.lib-head h2{margin:0;font-size:17px;font-weight:400;color:#e8f7f2}
+#libCount{color:#6f8d88;white-space:nowrap}
+#libSearch{flex:1 1 200px;min-width:140px;height:32px;padding:0 10px;border:0;border-radius:7px;background:#0f1d1f;color:#d9fff2;
+  font:inherit;box-shadow:inset 0 0 0 1px #1f3537}
+#libSearch::placeholder{color:#4f6f69}
 #libSort{flex:none;width:210px}
 /* Rows size to their cards. Without this, cards (which clip their rounded corners) shrink to fit the window and the grid never scrolls. */
 .lib-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));grid-auto-rows:max-content;align-content:start;gap:14px;padding:14px}
@@ -162,14 +254,16 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .taste-note{margin:5px 0 3px;color:var(--ink-soft);line-height:1.5}
 .taste-trait{display:grid;grid-template-columns:96px minmax(0,1fr);gap:7px;padding:3px 0;line-height:1.4}
 .taste-trait b{font-weight:400;color:var(--ink-soft)}
-#tasteReset{height:22px;padding:0 10px;border:0;border-radius:5px;background:var(--chassis-hi);box-shadow:0 1px 0 #a5a29a;cursor:pointer;font-size:10px}
+#tasteReset{height:24px;padding:0 10px;border:0;border-radius:5px;background:var(--chassis-hi);box-shadow:inset 0 0 0 1px #24383b;cursor:pointer;font-size:10px}
+#tasteReset:hover{box-shadow:inset 0 0 0 1px #6ff0cf66}
 #tasteReset:disabled{opacity:.5;cursor:default}
 #tasteReset.armed{background:#8a3b1e;color:#fff3ec}
 
-#helpToggle{flex:none;margin-left:8px;height:22px;padding:0 8px;border:0;border-radius:6px;background:var(--chassis-hi);
-  box-shadow:0 1px 0 #a5a29a;cursor:pointer;font-size:10px}
+#helpToggle{flex:none;margin-left:8px;height:24px;padding:0 9px;border:0;border-radius:6px;background:#0b1719;color:#a9d8cc;
+  box-shadow:inset 0 0 0 1px #86dcc340;cursor:pointer;font-size:10px;transition:color .15s,box-shadow .15s}
+#helpToggle:hover{color:#d9fff2;box-shadow:inset 0 0 0 1px #6ff0cf80}
 #helpToggle kbd{font:inherit;font-size:9px;opacity:.65}
-#helpToggle[aria-pressed=true]{background:var(--teal);color:#eafff8}
+#helpToggle[aria-pressed=true]{background:var(--teal);color:#eafff8;box-shadow:0 0 12px #6ff0cf55}
 .help-on [data-help]:hover{outline:1px dashed var(--teal);outline-offset:1px}
 .help-on #sim:hover{outline:none}
 #helpCard{position:fixed;z-index:30;width:310px;padding:12px 14px;border-radius:10px;background:#0b1719;color:#d9fff2;
@@ -188,53 +282,81 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .help-bar i{display:block;height:5px;border-radius:3px;background:#1d3436;overflow:hidden}
 .help-bar u{display:block;height:100%;background:#6ff0cf}
 @media (max-width:900px){#helpCard{left:16px!important;right:16px;top:auto!important;bottom:16px;width:auto}}
-.tile-open{position:absolute;right:7px;bottom:7px;height:21px;padding:0 8px;border:0;border-radius:4px;
+.tile-open{position:absolute;right:10px;bottom:10px;height:21px;padding:0 8px;border:0;border-radius:4px;
   background:#030607d9;color:#d9fff2;font-size:9px;cursor:pointer;opacity:0;transition:opacity .1s}
 .tile:hover .tile-open,.tile-open:focus-visible{opacity:1}
 .tile-open:hover{background:var(--teal)}
 
-.panel{display:flex;flex-direction:column;gap:9px;min-height:0;overflow-y:auto;padding:2px 4px 6px 2px}
-.brand{display:flex;align-items:baseline;gap:9px;padding:2px 2px 0}
-.brand b{font-size:15px;letter-spacing:.04em}
-.brand span{color:var(--ink-soft)}
-.led{margin-left:auto;align-self:center;width:8px;height:8px;border-radius:50%;background:#8d8a83;box-shadow:inset 0 1px 1px #0005}
-.led.on{background:var(--active);box-shadow:0 0 7px var(--active)}
+/* The control console: dark anodized metal, recessed screens and wells, keys that light from inside. */
+.panel{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;padding:12px 12px 10px;border-radius:16px;
+  background:linear-gradient(#131f22,#0d1618 120px,#0b1315);
+  box-shadow:inset 0 1px 0 #ffffff12,inset 0 0 0 1px #1a2a2d,0 0 0 1px #000,0 18px 50px #000a;
+  scrollbar-width:thin;scrollbar-color:#24383b transparent}
+.led{align-self:center;width:8px;height:8px;border-radius:50%;background:#33403f;box-shadow:inset 0 1px 1px #0008}
+.led.on{background:var(--active);box-shadow:0 0 9px var(--active)}
 
-#lcd{display:block;flex:none;width:100%;height:80px;border-radius:8px;background:var(--screen);
-  box-shadow:inset 0 2px 5px #000c,0 1px 0 var(--chassis-hi)}
+#lcd{display:block;flex:none;width:100%;height:104px;border-radius:9px;background:var(--screen);
+  box-shadow:inset 0 2px 6px #000d,inset 0 0 0 1px #000,0 1px 0 #ffffff0d}
 
+/* Keys are dark caps whose labels are lit from inside. Long labels shrink to fit their key. */
 .pads{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
-.pad{height:52px;min-width:0;border:0;border-radius:11px;padding:7px 6px;cursor:pointer;font-size:10px;letter-spacing:0;
+.pad .dotsvg{font-size:10px;max-width:100%}
+.pad > span{display:block;max-width:100%}
+.pad{height:52px;min-width:0;border:0;border-radius:10px;padding:7px 7px 6px;cursor:pointer;font-size:10px;letter-spacing:0;
   display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;
-  background:linear-gradient(#f3f0e9,#d8d5cd);
-  box-shadow:0 2px 0 #a5a29a,0 3px 5px #0003,inset 0 1px 0 #fffb;
-  transition:transform .05s,box-shadow .05s}
-.pad:active{transform:translateY(2px);box-shadow:0 0 0 #a5a29a,0 1px 2px #0003,inset 0 1px 0 #fff6}
-.pad:disabled{opacity:.5;cursor:default}
-.pad kbd{font:inherit;font-size:9px;opacity:.65}
-.pad.teal{background:linear-gradient(#1f9594,var(--teal));color:#eafff8;box-shadow:0 2px 0 #0d5453,0 3px 5px #0003,inset 0 1px 0 #fff4}
-.pad.deep{grid-column:5;grid-row:1 / span 2;height:auto;background:linear-gradient(#1f5288,var(--deep));color:#e6f2ff;box-shadow:0 2px 0 #0b2645,0 3px 5px #0003,inset 0 1px 0 #fff3}
+  background:linear-gradient(#1c2a2d,#131d20);color:#b6d3cc;
+  box-shadow:0 2px 0 #030708,0 3px 6px #0007,inset 0 1px 0 #ffffff14,inset 0 0 0 1px #ffffff06;
+  transition:transform .05s,box-shadow .2s,color .2s}
+.pad:hover:not(:disabled){color:#eafff9;box-shadow:0 2px 0 #030708,0 3px 6px #0007,inset 0 1px 0 #ffffff14,inset 0 0 0 1px #6ff0cf38}
+.pad:active:not(:disabled){transform:translateY(2px);box-shadow:0 0 0 #030708,0 1px 2px #0007,inset 0 1px 0 #ffffff0a}
+.pad:disabled{opacity:.4;cursor:default}
+.pad kbd{font:inherit;font-size:9px;opacity:.55}
+.pad.teal{background:linear-gradient(#143a3a,#0e2b2c);color:var(--lumen);
+  box-shadow:0 2px 0 #021112,0 3px 6px #0007,inset 0 1px 0 #6ff0cf24,inset 0 0 0 1px #1e5a56}
+.pad.teal .dotsvg{filter:drop-shadow(0 0 3px #2ff0c466)}
+.pad.teal:hover:not(:disabled){color:#c8fff0;box-shadow:0 2px 0 #021112,0 3px 6px #0007,inset 0 1px 0 #6ff0cf24,inset 0 0 0 1px #3fae9f}
+.pad.deep{grid-column:5;grid-row:1 / span 2;height:auto;background:linear-gradient(#152b4d,#0e1d36);color:#a6ceff;
+  box-shadow:0 2px 0 #040b17,0 3px 6px #0007,inset 0 1px 0 #a6ceff22,inset 0 0 0 1px #23467a}
+.pad.deep .dotsvg{filter:drop-shadow(0 0 3px #4d8fff55)}
+.pad.deep:hover:not(:disabled){color:#d6e8ff;box-shadow:0 2px 0 #040b17,0 3px 6px #0007,inset 0 1px 0 #a6ceff22,inset 0 0 0 1px #3d6fb3}
 .pad[aria-pressed=true] span::before{content:"";display:inline-block;width:6px;height:6px;margin-right:5px;border-radius:50%;
-  background:var(--teal);vertical-align:1px}
+  background:var(--lumen);box-shadow:0 0 6px var(--lumen);vertical-align:1px}
 
-.group{display:flex;flex-direction:column;gap:3px;padding-top:7px;border-top:1px solid var(--chassis-lo)}
-.group h2{margin:0 0 2px;font:inherit;font-size:10px;color:var(--ink-soft)}
+/* Sections are separated by engraved lines. */
+.group{display:flex;flex-direction:column;gap:3px;padding-top:8px;border-top:1px solid #04090a;box-shadow:0 -1px 0 #1a2a2d}
+.group h2{display:flex;align-items:baseline;gap:8px;margin:2px 0 5px;font:inherit;font-size:10px;color:var(--ink-soft)}
+.group h2 .dotsvg{font-size:12px;color:#e3fbf4}
+.group h2 small{font-size:9px;color:var(--ink-soft)}
+.panel .row > span:first-child{color:#86a6a0}
+
+/* The instrument pages are a numbered menu on their own small screen, not buttons. The chosen page is lit. */
+.menu{position:relative;flex:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 8px;padding:6px 8px 7px;
+  border-radius:9px;background:var(--screen);box-shadow:inset 0 2px 6px #000d,inset 0 0 0 1px #000,0 1px 0 #ffffff0d}
+.menu[hidden]{display:none}
+.menu button{display:flex;align-items:center;gap:7px;height:28px;padding:0 4px;border:0;border-radius:6px;background:transparent;
+  color:#3d5753;cursor:pointer;transition:color .2s}
+.menu button:hover{color:#a9d8cc}
+.menu button i{font-style:normal;font-size:8.5px;color:#2b403d;letter-spacing:.08em}
+.menu button .dotsvg{font-size:10px}
+.menu button[aria-pressed=true]{color:var(--lumen)}
+.menu button[aria-pressed=true] .dotsvg{filter:drop-shadow(0 0 4px #2ff0c480)}
+.menu button[aria-pressed=true] i{color:#5fae9c}
+.menu-bar{position:absolute;height:2px;border-radius:2px;background:var(--lumen);box-shadow:0 0 8px #2ff0c4aa;pointer-events:none}
 .row{display:grid;grid-template-columns:96px minmax(0,1fr) 50px;align-items:center;gap:7px;min-height:22px}
 .row.wide{grid-template-columns:96px minmax(0,1fr)}
 .row output{text-align:right;font-variant-numeric:tabular-nums}
 .row[hidden]{display:none}
 .group[hidden]{display:none}
-.tabs{flex:none}
-.tabs[hidden]{display:none}
-.tabs button{height:24px;font-size:9.5px;letter-spacing:.01em}
 .saves-row{display:flex;align-items:center;gap:6px;min-width:0}
 #savesName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft)}
 #savesName.set{color:var(--ink)}
-#savesChange{flex:none;height:22px;padding:0 9px;border:0;border-radius:5px;background:var(--chassis-hi);
-  box-shadow:0 1px 0 #a5a29a;cursor:pointer;font-size:10px}
+#savesChange{flex:none;height:24px;padding:0 9px;border:0;border-radius:5px;background:var(--chassis-hi);
+  box-shadow:inset 0 0 0 1px #24383b;cursor:pointer;font-size:10px}
+#savesChange:hover{box-shadow:inset 0 0 0 1px #6ff0cf66}
 
 #savesDialog{width:min(580px,calc(100vw - 32px));border:0;border-radius:14px;padding:20px;
-  background:var(--chassis-hi);color:var(--ink);font:12px/1.55 var(--mono);box-shadow:0 12px 40px #0008}
+  background:linear-gradient(#131f22,#0d1618);color:var(--ink);font:12px/1.55 var(--mono);
+  box-shadow:inset 0 1px 0 #ffffff12,inset 0 0 0 1px #1a2a2d,0 12px 40px #000a}
 #savesDialog::backdrop{background:#030607b8}
 #savesDialog h2{margin:0 0 8px;font-size:14px}
 #savesDialog p{margin:0 0 11px}
@@ -242,31 +364,47 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .path{display:flex;gap:8px;align-items:stretch;margin:0 0 11px}
 .path code{flex:1;min-width:0;padding:8px 10px;border-radius:7px;background:var(--screen);color:#6ff0cf;
   font:11px/1.45 var(--mono);overflow-wrap:anywhere;user-select:all}
-.dlg-btn{min-height:34px;padding:0 14px;border:0;border-radius:8px;background:linear-gradient(#f3f0e9,#d8d5cd);
-  box-shadow:0 2px 0 #a5a29a,inset 0 1px 0 #fffb;cursor:pointer;font-size:11px}
-.dlg-btn.primary{background:linear-gradient(#1f5288,var(--deep));color:#e6f2ff;box-shadow:0 2px 0 #0b2645,inset 0 1px 0 #fff3}
+.dlg-btn{min-height:34px;padding:0 14px;border:0;border-radius:8px;background:linear-gradient(#1c2a2d,#131d20);color:var(--ink);
+  box-shadow:0 2px 0 #030708,inset 0 1px 0 #ffffff12,inset 0 0 0 1px #ffffff08;cursor:pointer;font-size:11px;transition:box-shadow .2s}
+.dlg-btn:hover:not(:disabled){box-shadow:0 2px 0 #030708,inset 0 1px 0 #ffffff12,inset 0 0 0 1px #6ff0cf55}
+.dlg-btn.primary{background:linear-gradient(#152b4d,#0e1d36);color:#cfe3ff;box-shadow:0 2px 0 #040b17,inset 0 1px 0 #a6ceff22,inset 0 0 0 1px #23467a}
+.dlg-btn.primary:hover:not(:disabled){box-shadow:0 2px 0 #040b17,inset 0 1px 0 #a6ceff22,inset 0 0 0 1px #3d6fb3}
 .dlg-btn[hidden]{display:none}
 .dlg-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
-#savesWarn{padding:8px 10px;border-radius:7px;background:#f4dfd4;color:#6e2a14}
+#savesWarn{padding:8px 10px;border-radius:7px;background:#2e150c;color:#ffc79e;box-shadow:inset 0 0 0 1px #8a3b1e}
 
-.seg{display:flex;gap:3px;padding:2px;border-radius:7px;background:var(--chassis-lo)}
-.seg button{flex:1;min-width:0;height:20px;border:0;border-radius:5px;background:var(--chassis-hi);cursor:pointer;font-size:10px;padding:0 2px}
-.seg button[aria-pressed=true]{background:var(--deep);color:#e6f2ff}
-.seg button:disabled{opacity:.5;cursor:default}
+/* Switches sit in a recessed well. The chosen position lights up. */
+.seg{display:flex;gap:3px;padding:2px;border-radius:7px;background:var(--chassis-lo);box-shadow:inset 0 1px 3px #000c,0 1px 0 #ffffff08}
+.seg button{flex:1;min-width:0;height:22px;border:0;border-radius:5px;background:transparent;color:#7f9f99;cursor:pointer;font-size:10px;padding:0 2px;
+  transition:color .15s,background .15s}
+.seg button:hover:not(:disabled){color:#e6fff8;background:#121f22}
+.seg button[aria-pressed=true]{background:#113032;color:var(--lumen);box-shadow:inset 0 0 0 1px #2ff0c440}
+.seg button:disabled{opacity:.4;cursor:default}
+.lib-head .seg button{height:28px;padding:0 8px}
+.roombar :focus-visible,.lib-head :focus-visible,.panel :focus-visible{outline-color:var(--lumen)}
 .seg.swatches{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
 .seg.swatches button{height:16px;padding:0}
-.swatches button[aria-pressed=true]{outline:2px solid var(--deep);outline-offset:1px}
+.swatches button[aria-pressed=true]{outline:2px solid var(--lumen);outline-offset:1px}
 .species button{box-shadow:inset 0 -3px 0 var(--swatch,transparent)}
+.species button[aria-pressed=true]{box-shadow:inset 0 -3px 0 var(--swatch,transparent),inset 0 0 0 1px #2ff0c440}
 
+/* Sliders: a dark slot with a lit fill, and a cap with a light line down its middle. */
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;margin:0;background:transparent;cursor:pointer}
-input[type=range]:disabled{cursor:default;opacity:.72}
-input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;
-  background:linear-gradient(to right,#aeaba3 var(--a,0%),var(--teal) var(--a,0%),var(--teal) var(--b,50%),#aeaba3 var(--b,50%));box-shadow:inset 0 1px 1px #0004}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:20px;margin-top:-7px;border-radius:5px;
-  background:linear-gradient(#fbf9f4,#cfccc4);box-shadow:0 1px 2px #0006,0 0 0 1px #8d8a83}
+input[type=range]:disabled{cursor:default;opacity:.6}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+  background:linear-gradient(to right,#1b292c var(--a,0%),#22a893 var(--a,0%),#3fd3b5 var(--b,50%),#1b292c var(--b,50%));box-shadow:inset 0 1px 2px #000c,0 1px 0 #ffffff08}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:20px;margin-top:-8px;border-radius:4px;
+  background:linear-gradient(90deg,transparent 5.5px,#9ff5dc 5.5px 7.5px,transparent 7.5px),linear-gradient(#2c3d40,#172326);
+  box-shadow:0 1px 3px #000c,inset 0 1px 0 #ffffff1a,0 0 0 1px #3a5154}
+input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3px #000c,inset 0 1px 0 #ffffff1a,0 0 0 1px #6ff0cf88}
 
 @media (max-width:900px){
   .unit{grid-template-columns:minmax(0,1fr);height:auto;padding:16px}
+  .roombar{flex-wrap:wrap;gap:8px}
+  .roombar .brand{flex:1}
+  .rooms{order:3;width:100%;margin:0}
+  .room{flex:1;min-width:0;padding:0 8px;gap:7px}
+  .room b .dotsvg{font-size:11px}
   .stage{aspect-ratio:16/9}
   .panel{overflow:visible}
 }
@@ -274,9 +412,33 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
 </head>
 <body>
 <main class="unit">
+  <header class="roombar">
+    <div class="brand"><b data-dots>DLS-01</b><span>culture lab 7 · digital life sandbox</span></div>
+    <nav class="rooms" aria-label="Rooms"></nav>
+    <div class="roombar-end"><i class="led" id="led"></i><button type="button" id="helpToggle" aria-pressed="false">HELP <kbd>H</kbd></button></div>
+  </header>
   <section class="stage" id="stage" aria-label="Simulation">
-    <div class="screen">
+    <div class="screen" id="screen">
       <canvas id="sim"></canvas>
+      <div class="slide-hud" id="slideHud">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div id="slideLabel"></div>
+        <div id="slideMag"></div>
+        <div id="slideScale"><i></i><span data-dots>0.5 MM</span></div>
+      </div>
+      <div class="porthole" id="porthole" hidden></div>
+      <div class="incubator-hud" id="incubatorHud" hidden>
+        <div class="ihud-col">
+          <div class="ihud-title" data-dots>INCUBATOR</div>
+          <div class="ihud"><small>MOTES</small><b id="ihudPop"></b><i><u id="ihudPopBar"></u></i></div>
+          <div class="ihud"><small>BROTH</small><b id="ihudFood"></b><i><u id="ihudFoodBar"></u></i></div>
+        </div>
+        <div class="ihud-col right">
+          <div class="ihud right"><small>STRAINS</small><b id="ihudStrains"></b></div>
+          <div class="ihud right"><small>BODIES</small><b id="ihudBodies"></b></div>
+          <div class="ihud right"><small>STEP</small><b id="ihudStep"></b></div>
+        </div>
+      </div>
       <canvas id="brushLayer" data-help="draw.canvas" hidden></canvas>
       <div id="brushRing" hidden></div>
       <div id="placeRing" hidden></div>
@@ -287,7 +449,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
   </section>
 
   <aside class="panel" aria-label="Controls">
-    <header class="brand"><b>DLS-01</b><span>digital life sandbox</span><i class="led" id="led"></i><button type="button" id="helpToggle" aria-pressed="false">HELP <kbd>H</kbd></button></header>
     <canvas id="lcd" role="img" aria-label="Simulation status display"></canvas>
 
     <div class="pads">
@@ -303,7 +464,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
     </div>
 
     <section class="group">
-      <div class="row wide"><span>VIEW [B/A]</span><div class="seg" id="segMode"></div></div>
+      <div class="row wide" data-noarena><span>VIEW [B]</span><div class="seg" id="segMode"></div></div>
       <div class="row wide" data-noarena><span>MUTATION</span><div class="seg" id="segStrength"></div></div>
       <div class="row wide" data-noarena><span>PASS ON</span><div class="seg" id="segInherit"></div></div>
       <div class="row wide" data-noarena><span>FILTER</span><div class="seg" id="segFilter"></div></div>
@@ -318,9 +479,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       </div></div>
     </section>
 
-    <div class="seg tabs" id="segTab" role="group" aria-label="Control page"></div>
+    <div class="menu" id="segTab" role="group" aria-label="Instrument pages"></div>
 
-    <section class="group" id="tabArena" hidden><h2>ARENA</h2>
+    <section class="group" id="tabArena" hidden><h2 data-dots>INCUBATOR</h2>
       <div class="row wide"><span>ADD FROM</span><div class="seg" id="arenaAdd">
         <button type="button" data-add="solo" data-help="arena.add.solo">SOLO</button>
         <button type="button" data-add="library" data-help="arena.add.library">LIBRARY</button>
@@ -344,7 +505,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <div class="row wide" id="ecoRow"><span>ECOLOGY</span><div class="seg" id="segEco"></div></div>
       <div id="simSliders"></div>
     </section>
-    <section class="group" id="tabLife" hidden><h2>LIFE</h2>
+    <section class="group" id="tabLife" hidden><h2 data-dots>LIFE</h2>
       <div class="row wide"><span>BIOLOGY</span><div class="seg" id="segLife"></div></div>
       <div id="lifeSliders"></div>
       <p class="taste-note" id="lifeNote"></p>
@@ -354,14 +515,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <div id="fieldSliders"></div>
       <div id="followSliders"></div>
     </section>
-    <section class="group" id="tabLight" hidden><h2>LIGHT</h2>
+    <section class="group" id="tabLight" hidden><h2 data-dots>LIGHT</h2>
       <div class="row wide" id="palRow0"><span>SPECIES A</span><div class="seg swatches" id="segPal0"></div></div>
       <div class="row wide" id="palRow1"><span>SPECIES B</span><div class="seg swatches" id="segPal1"></div></div>
       <div class="row wide" id="palRow2"><span>SPECIES C</span><div class="seg swatches" id="segPal2"></div></div>
       <div class="row wide" id="palRowField"><span>FIELD</span><div class="seg swatches" id="segPalField"></div></div>
       <div id="viewSliders"></div>
     </section>
-    <section class="group" id="tabDraw" hidden><h2>DRAW</h2>
+    <section class="group" id="tabDraw" hidden><h2 data-dots>DRAW</h2>
       <div class="row wide"><span>ORGANISMS</span><div class="seg" id="segSandbox"></div></div>
       <div class="row wide" data-help="draw.tool"><span>BRUSH</span><div class="seg" id="segTool"></div></div>
       <div class="row wide" id="brushSpeciesRow" data-help="draw.species"><span>SPECIES</span><div class="seg species" id="segBrushSpecies"></div></div>
@@ -369,7 +530,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <div class="row wide"><span>BARRIERS</span><div class="seg"><button type="button" id="drawClear" data-help="draw.clear">CLEAR</button><button type="button" id="drawGrow" data-help="draw.grow">GROW</button></div></div>
       <p class="taste-note" id="drawNote"></p>
     </section>
-    <section class="group" id="tabTaste" hidden><h2>TASTE</h2>
+    <section class="group" id="tabTaste" hidden><h2 data-dots>TASTE</h2>
       <div class="row wide"><span>LEARN</span><div class="seg" id="segLearn"></div></div>
       <div class="row wide"><span>RATED</span><span id="tasteCount"></span></div>
       <p class="taste-note" id="tasteNote"></p>
@@ -394,7 +555,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
 </dialog>
 <dialog id="library" aria-labelledby="libraryTitle">
   <header class="lib-head">
-    <h2 id="libraryTitle">LIBRARY</h2>
+    <h2 id="libraryTitle" data-dots>ARCHIVE</h2>
+    <nav class="rooms" aria-label="Rooms"></nav>
     <span id="libCount"></span>
     <input type="search" id="libSearch" placeholder="Search names, tags, colors, hybrid..." aria-label="Search your saves" data-help="lib.search">
     <div class="seg" id="libView" role="group" aria-label="Library view" data-help="lib.view"></div>
@@ -851,6 +1013,11 @@ fn rand(s: ptr<function, u32>) -> f32 {
 fn fieldCell(p: vec2f) -> vec2u {
   return min(vec2u(max(p, vec2f(0.0)) / vec2f(arena.size) * vec2f(FIELD_SIZE)), FIELD_SIZE - vec2u(1u));
 }
+// The Incubator is round: the world is the largest circle that fits the picture, and its glass is the edge.
+fn insideDish(p: vec2f) -> bool {
+  let c = vec2f(arena.size) * 0.5;
+  return length(p - c) < c.y - 3.0;
+}
 // The chemicals a particle is drawn to, on the same log scale the living cells use. Its set point is measured in this.
 fn usable(texel: vec4f, g: Gene) -> f32 {
   return log(1.0 + dot(texel.rgb * arena.trailNorm.xyz, max(g.resp.xyz, vec3f(0.0))));
@@ -905,10 +1072,8 @@ fn wobble(rng: ptr<function, u32>) -> vec3f {
 // Returns the score and how much of its kin the particle senses there.
 fn score(p: vec2f, a: f32, reach: f32, g: Gene) -> vec2f {
   let at = p + vec2f(cos(a), sin(a)) * reach;
-  let q = vec2i(floor(at));
-  let s = vec2i(arena.size);
-  if (q.x < 0 || q.y < 0 || q.x >= s.x || q.y >= s.y) { return vec2f(-1e9, 0.0); }
-  let texel = textureLoad(trail, q, 0);
+  if (!insideDish(at)) { return vec2f(-1e9, 0.0); }
+  let texel = textureLoad(trail, vec2i(floor(at)), 0);
   var v = dot(texel.rgb * arena.trailNorm.xyz, g.resp.xyz);
   if (arena.veins > 0.0 && v > 0.0) { v *= 1.0 + VEIN_PULL * arena.veins * (1.0 - texel.a); }
   let u = usable(texel, g);
@@ -941,7 +1106,8 @@ fn birth(@builtin(global_invocation_id) id: vec3u) {
   var rng = (agents[i].rng ^ parent.rng) * 747796405u + i;
   let th = rand(&rng) * TAU;
   let r = rand(&rng) * 2.5 * arena.scale;
-  let p = clamp(parent.pos + vec2f(cos(th), sin(th)) * r, vec2f(0.0), vec2f(arena.size) - vec2f(0.001));
+  var p = parent.pos + vec2f(cos(th), sin(th)) * r;
+  if (!insideDish(p)) { p = parent.pos; }
   g.energy = (g.energy - BODY) * 0.5;
   g.angle = scaled(g.angle, 0.18, 0.03, 2.1, &rng);
   g.dist = scaled(g.dist, 0.18, arena.scale, 90.0 * arena.scale, &rng);
@@ -1014,9 +1180,9 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   }
 
   var np = a.pos + vec2f(cos(a.angle), sin(a.angle)) * g.speed;
-  let m = vec2f(arena.size) - vec2f(0.001);
-  if (np.x < 0.0 || np.y < 0.0 || np.x >= m.x || np.y >= m.y) {
-    np = clamp(np, vec2f(0.0), m);
+  // A mote that reaches the glass stays put and turns back toward the middle.
+  if (!insideDish(np)) {
+    np = a.pos;
     let inward = vec2f(arena.size) * 0.5 - np;
     a.angle = atan2(inward.y, inward.x) + (rand(&rng) - 0.5) * 2.4;
   }
@@ -1065,21 +1231,29 @@ fn conduct(c: vec2i) -> f32 {
   }
   return clamp(best, 0.0, 1.0);
 }
+fn cellInDish(c: vec2i) -> bool { return insideDish((vec2f(c) + vec2f(0.5)) / vec2f(FIELD_SIZE) * vec2f(arena.size)); }
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= FIELD_SIZE.x || id.y >= FIELD_SIZE.y) { return; }
   let c = vec2i(id.xy);
+  let k = id.y * FIELD_SIZE.x + id.x;
+  // Outside the glass there is no broth.
+  if (!cellInDish(c)) {
+    atomicStore(&crowd[k], 0u);
+    atomicStore(&returned[k], 0u);
+    textureStore(dst, c, vec4f(0.0, 0.0, 0.0, 1.0));
+    return;
+  }
   let hi = vec2i(FIELD_SIZE) - vec2i(1);
   let n = textureLoad(src, c, 0).g;
   let mine = conduct(c);
   // Flow between neighbors uses their average conductance, so food is only moved, never made or lost.
   var lap = 0.0;
-  for (var k = 0; k < 4; k++) {
-    let o = select(select(vec2i(0, -1), vec2i(0, 1), k == 2), select(vec2i(-1, 0), vec2i(1, 0), k == 0), k < 2);
+  for (var j = 0; j < 4; j++) {
+    let o = select(select(vec2i(0, -1), vec2i(0, 1), j == 2), select(vec2i(-1, 0), vec2i(1, 0), j == 0), j < 2);
     let q = clamp(c + o, vec2i(0), hi);
-    lap += (SPREAD + VEIN_FLOW * 0.5 * (mine + conduct(q))) * (textureLoad(src, q, 0).g - n);
+    if (cellInDish(q)) { lap += (SPREAD + VEIN_FLOW * 0.5 * (mine + conduct(q))) * (textureLoad(src, q, 0).g - n); }
   }
-  let k = id.y * FIELD_SIZE.x + id.x;
   let eaters = f32(atomicExchange(&crowd[k], 0u)) / 1024.0;
   let back = f32(atomicExchange(&returned[k], 0u)) / 1024.0;
   let eaten = n * (1.0 - pow(1.0 - arena.eat, eaters));
@@ -1197,7 +1371,29 @@ fn people(@builtin(global_invocation_id) id: vec3u) {
 @compute @workgroup_size(8, 8)
 fn pantry(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= FIELD_SIZE.x || id.y >= FIELD_SIZE.y) { return; }
+  // Food is averaged over the broth inside the glass only.
+  if (!insideDish((vec2f(id.xy) + vec2f(0.5)) / vec2f(FIELD_SIZE) * vec2f(arena.size))) { return; }
   atomicAdd(&census[${CENSUS_FOOD}u], u32(textureLoad(food, vec2i(id.xy), 0).g * 64.0));
+  atomicAdd(&census[${CENSUS_FOOD + 1}u], 1u);
+}`;
+
+// Pointing at a strain in the list lights it up in the dish: this marks where its particles are on a grid of 8-pixel
+// cells, and the dish's color pass brightens those places and dims the rest. It only reads, so runs stay the same.
+const MARK_W = 240, MARK_H = 135;
+const WGSL_ARENA_MARK = WGSL_ARENA_BASE + /* wgsl */`
+@group(0) @binding(0) var<uniform> arena: Arena;
+@group(0) @binding(1) var<uniform> job: vec4u;
+@group(0) @binding(2) var<storage, read> agents: array<Agent>;
+@group(0) @binding(3) var<storage, read> genes: array<Gene>;
+@group(0) @binding(4) var<storage, read_write> mark: array<atomic<u32>>;
+const MARK = vec2u(${MARK_W}u, ${MARK_H}u);
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= arena.agents) { return; }
+  let a = agents[id.x];
+  if (a.pos.x < 0.0 || genes[id.x].lineage != job.x) { return; }
+  let c = min(vec2u(a.pos / vec2f(arena.size) * vec2f(MARK)), MARK - vec2u(1u));
+  atomicAdd(&mark[c.y * MARK.x + c.x], 1u);
 }`;
 
 // Moves a body between simulations of any size. Each new agent copies one from the same species' share of the source.
@@ -1420,7 +1616,7 @@ struct VOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f }
   o.uv = vec2f(p[i].x, -p[i].y) * 0.5 + 0.5;
   return o;
 }
-struct View { exposure: vec3f, glow: f32, rows: vec3f, time: f32, count: u32, fieldLight: f32, fieldRow: f32, pad0: f32 }
+struct View { exposure: vec3f, glow: f32, rows: vec3f, time: f32, count: u32, fieldLight: f32, fieldRow: f32, lit: f32 }
 `;
 
 const WGSL_COLOR = WGSL_FS_VERT + /* wgsl */`
@@ -1468,7 +1664,31 @@ fn chemAt(uv: vec2f) -> f32 {
   return vec4f(light, 1.0);
 }`;
 
-const WGSL_DOWN = WGSL_FS_VERT + /* wgsl */`
+// The Incubator's color pass also reads where a highlighted strain is, from the mark grid.
+const WGSL_COLOR_ARENA = WGSL_COLOR.replace('@fragment fn fs', /* wgsl */`
+@group(0) @binding(5) var<storage, read> mark: array<u32>;
+const MARK = vec2i(${MARK_W}, ${MARK_H});
+fn markCell(c: vec2i) -> f32 {
+  let k = clamp(c, vec2i(0), MARK - vec2i(1));
+  return f32(mark[k.y * MARK.x + k.x]);
+}
+fn markAt(uv: vec2f) -> f32 {
+  let p = uv * vec2f(MARK) - vec2f(0.5);
+  let base = vec2i(floor(p));
+  let s = p - floor(p);
+  let upper = mix(markCell(base), markCell(base + vec2i(1, 0)), s.x);
+  let lower = mix(markCell(base + vec2i(0, 1)), markCell(base + vec2i(1, 1)), s.x);
+  return mix(upper, lower, s.y);
+}
+@fragment fn fs`).replace('// The chemical field glows softly', /* wgsl */`// The highlighted strain's trails brighten, so the bloom makes them glow, and every other strain's trails dim.
+  // The broth is left alone, and a cell needs a few of the strain's particles, so lone wanderers don't speckle it.
+  if (view.lit > 0.0) {
+    let k = smoothstep(1.0, 7.0, markAt(io.uv));
+    light *= mix(1.0 - 0.88 * view.lit, 1.0 + 0.7 * view.lit, k);
+  }
+  // The chemical field glows softly`);
+
+const WGSL_DOWN =WGSL_FS_VERT + /* wgsl */`
 @group(0) @binding(0) var tex: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
 fn s(uv: vec2f) -> vec3f { return textureSampleLevel(tex, samp, uv, 0.0).rgb; }
@@ -1563,7 +1783,12 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const snapTo = (v, p) => clamp(+(Math.round(v / p.step) * p.step).toFixed(4), p.min, p.max);
 const hex8 = n => (n >>> 0).toString(16).toUpperCase().padStart(8, '0');
 function fault(msg) { const f = $('fault'); f.textContent = msg; f.hidden = false; }
-function flash(msg) { flashText = msg; flashUntil = performance.now() + 2600; drawLcd(); }
+function flash(msg) {
+  flashText = msg;
+  flashUntil = performance.now() + 2600;
+  if (/FAIL|MISSING|CANCEL|COULD NOT|NOTHING|NO ROOM|FULL|STILL DOWNLOADING/.test(msg)) iconFlash.alert = performance.now() + 1600;
+  drawLcd();
+}
 
 function mulberry(seed) {
   let a = seed >>> 0;
@@ -1619,6 +1844,8 @@ async function initGpu() {
     arenaStamp: bgl([uni(C), raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }]),
     arenaPlace: bgl([uni(C), uni(C), ro, ro, ro, sto, sto, raw(C)]),
     arenaCensus: bgl([uni(C), ro, ro, sto, raw(C)]),
+    arenaMark: bgl([uni(C), uni(C), ro, ro, sto]),
+    colorArena: bgl([uni(F), raw(F), tex, smp, raw(F), { visibility: F, buffer: { type: 'read-only-storage' } }]),
   };
   const comp = (layout, code, entryPoint = 'main') => device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
@@ -1650,6 +1877,8 @@ async function initGpu() {
     arenaPlace: comp(L.arenaPlace, WGSL_ARENA_PLACE),
     arenaPeople: comp(L.arenaCensus, WGSL_ARENA_CENSUS, 'people'),
     arenaPantry: comp(L.arenaCensus, WGSL_ARENA_CENSUS, 'pantry'),
+    arenaMark: comp(L.arenaMark, WGSL_ARENA_MARK),
+    colorArena: draw(L.colorArena, WGSL_COLOR_ARENA, 'rgba16float'),
     resample: comp(L.resample, WGSL_RESAMPLE),
     resampleGenes: comp(L.resampleGenes, WGSL_RESAMPLE_GENES),
     resampleJob: device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }),
@@ -2150,7 +2379,7 @@ function fullscreenPass(enc, view, pipeline, bindGroup, loadOp = 'clear') {
 }
 
 function prepareImage(enc, s) {
-  fullscreenPass(enc, s.sceneView, P.color, s.colorBG[s.cur]);
+  fullscreenPass(enc, s.sceneView, s.arena ? P.colorArena : P.color, s.colorBG[s.cur]);
   for (let i = 0; i < s.levels; i++) {
     fullscreenPass(enc, s.bloomViews[i], P.down, i === 0 ? s.sceneBlurBG : s.bloomBG[i - 1]);
   }
@@ -2216,12 +2445,15 @@ function frame(now) {
     items.forEach((it, i) => simulate(pass, it.sim, counts[i]));
     pass.end();
   }
+  if (mode === 'arena' && arena.sim) markStrain(enc, dt);
   for (const it of items) prepareImage(enc, it.sim);
   compositeTo(enc, items);
   device.queue.submit([enc.finish()]);
   const submitted = performance.now();
   device.queue.onSubmittedWorkDone().then(() => { gpuMs += (performance.now() - submitted - gpuMs) * .1; });
   sampleLive(now);
+  // The display's icons animate while one is flashing or a recording runs.
+  if (lcdAnimating(now)) drawLcd();
 
   stepsWindow += n;
   if (now - windowStart >= 400) {
@@ -2276,18 +2508,66 @@ function lcdLines() {
   ];
 }
 
+/* Pixel icons, 7x7 dots like the display font. Along the display's bottom row they light while their state is on and
+   flash through the rainbow when something happens, like the icons on a Teenage Engineering EP-133. */
+const ICONS = {
+  run:    ['.#.....', '.##....', '.###...', '.####..', '.###...', '.##....', '.#.....'],
+  gpu:    ['.#.#.#.', '#######', '.#...#.', '##.#.##', '.#...#.', '#######', '.#.#.#.'],
+  spark:  ['...#...', '.#.#.#.', '..###..', '#######', '..###..', '.#.#.#.', '...#...'],
+  helix:  ['##...##', '.#...#.', '..###..', '...#...', '..###..', '.#...#.', '##...##'],
+  dish:   ['..###..', '.#...#.', '#..#..#', '#.###.#', '#..#..#', '.#...#.', '..###..'],
+  book:   ['######.', '#....##', '#.##.##', '#....##', '#.##.##', '#....##', '######.'],
+  save:   ['######.', '#.##.##', '#.##..#', '#.....#', '#.###.#', '#.###.#', '#######'],
+  folder: ['###....', '#..####', '#.....#', '#######', '#.....#', '#.....#', '#######'],
+  rec:    ['..###..', '.#####.', '#######', '#######', '#######', '.#####.', '..###..'],
+  alert:  ['...#...', '..#.#..', '..#.#..', '.#.#.#.', '.#...#.', '#..#..#', '#######'],
+  scope:  ['..##...', '..##...', '...##..', '..###.#', '.#..###', '.....#.', '#######'],
+};
+const LCD_ICONS = ['run', 'gpu', 'spark', 'helix', 'dish', 'book', 'save', 'folder', 'rec', 'alert'];
+const iconFlash = {};
+function flashIcon(name, ms = 1600) { iconFlash[name] = performance.now() + ms; drawLcd(); }
+const lcdAnimating = now => !!capture?.live || LCD_ICONS.some(n => iconFlash[n] > now);
+function iconState(name) {
+  switch (name) {
+    case 'run': return running;
+    case 'gpu': return !!device && !gpuInfo.fallback;
+    case 'spark': return mode === 'solo';
+    case 'helix': return mode === 'batch';
+    case 'dish': return mode === 'arena';
+    case 'book': return lib.open;
+    case 'folder': return !!(workFolder || folder);
+    case 'rec': return !!capture?.live;
+    default: return false;
+  }
+}
+function iconColor(name, k, now) {
+  if (iconFlash[name] > now) return `hsl(${(now * .45 + k * 41) % 360} 95% 63%)`;
+  if (name === 'rec' && capture?.live) return Math.floor(now / 500) % 2 ? '#ff6a3d' : '#5a2416';
+  return iconState(name) ? '#6ff0cf' : '#173a3b';
+}
+
+// The display's dot grid is drawn once per size, and only lit dots are painted over it each time.
+let lcdGrid = null, lcdGridKey = '';
+const LCD_DOT_ROWS = LCD_ROWS * 9 + 10;
 function drawLcd() {
   const bw = lcd.clientWidth, bh = lcd.clientHeight;
   if (!bw) return;
-  const dpr = devicePixelRatio || 1;
-  if (lcd.width !== Math.round(bw * dpr)) { lcd.width = Math.round(bw * dpr); lcd.height = Math.round(bh * dpr); }
+  const dpr = devicePixelRatio || 1, now = performance.now();
+  if (lcd.width !== Math.round(bw * dpr) || lcd.height !== Math.round(bh * dpr)) { lcd.width = Math.round(bw * dpr); lcd.height = Math.round(bh * dpr); }
   const lines = lcdLines();
-  const pitch = Math.floor(Math.min((lcd.width - 12 * dpr) / (LCD_COLS * 6), (lcd.height - 8 * dpr) / (LCD_ROWS * 9)) * 4) / 4;
-  const rowH = 9 * pitch, dot = Math.max(1, pitch * .78);
-  const ox = (lcd.width - LCD_COLS * 6 * pitch) / 2, oy = (lcd.height - LCD_ROWS * rowH) / 2;
-  lcdCtx.fillStyle = '#071113'; lcdCtx.fillRect(0, 0, lcd.width, lcd.height);
-  lcdCtx.fillStyle = '#10282a';
-  for (let y = 0; y < LCD_ROWS * 9; y++) for (let x = 0; x < LCD_COLS * 6; x++) lcdCtx.fillRect(ox + x * pitch, oy + y * pitch, dot, dot);
+  const pitch = Math.floor(Math.min((lcd.width - 12 * dpr) / (LCD_COLS * 6), (lcd.height - 8 * dpr) / LCD_DOT_ROWS) * 4) / 4;
+  const dot = Math.max(1, pitch * .78);
+  const ox = (lcd.width - LCD_COLS * 6 * pitch) / 2, oy = (lcd.height - LCD_DOT_ROWS * pitch) / 2;
+  const key = lcd.width + 'x' + lcd.height;
+  if (lcdGridKey !== key) {
+    lcdGrid = new OffscreenCanvas(lcd.width, lcd.height);
+    const g = lcdGrid.getContext('2d');
+    g.fillStyle = '#071113'; g.fillRect(0, 0, lcd.width, lcd.height);
+    g.fillStyle = '#10282a';
+    for (let y = 0; y < LCD_DOT_ROWS; y++) for (let x = 0; x < LCD_COLS * 6; x++) g.fillRect(ox + x * pitch, oy + y * pitch, dot, dot);
+    lcdGridKey = key;
+  }
+  lcdCtx.drawImage(lcdGrid, 0, 0);
   lcdCtx.fillStyle = '#6ff0cf';
   lines.forEach((text, row) => {
     const s = text.toUpperCase().slice(0, LCD_COLS);
@@ -2302,8 +2582,152 @@ function drawLcd() {
       }
     }
   });
+  const iconTop = oy + (LCD_ROWS * 9 + 2) * pitch, spacing = (LCD_COLS * 6 - 7) / (LCD_ICONS.length - 1);
+  LCD_ICONS.forEach((name, k) => {
+    const x0 = ox + Math.round(k * spacing) * pitch;
+    lcdCtx.fillStyle = iconColor(name, k, now);
+    ICONS[name].forEach((rowBits, y) => {
+      for (let x = 0; x < 7; x++) if (rowBits[x] === '#') lcdCtx.fillRect(x0 + x * pitch, iconTop + y * pitch, dot, dot);
+    });
+  });
 }
 
+/* ---------- Lab look: dot lettering, rooms, the menu, slides and the incubator ---------- */
+// Lumen Dot: the display's 5x7 font drawn as round dots, for short uppercase labels.
+const dotCache = new Map();
+function dotSvg(text) {
+  const t = String(text).toUpperCase().replace(/·/g, '.');
+  if (dotCache.has(t)) return dotCache.get(t);
+  let dots = '';
+  for (let i = 0; i < t.length; i++) {
+    const g = t.charCodeAt(i) - 32;
+    if (g < 0 || g > 58) continue;
+    for (let c = 0; c < 5; c++) {
+      const bits = parseInt(FONT.substr(g * 10 + c * 2, 2), 16);
+      for (let b = 0; b < 7; b++) if (bits >> b & 1) dots += `<circle cx="${i * 6 + c + .5}" cy="${b + .5}" r=".43"/>`;
+    }
+  }
+  const w = Math.max(1, t.length * 6 - 1);
+  const svg = `<svg class="dotsvg" viewBox="0 0 ${w} 7" style="width:${(w / 7).toFixed(3)}em" fill="currentColor" aria-hidden="true">${dots}</svg>`;
+  dotCache.set(t, svg);
+  return svg;
+}
+function setDots(el, text) {
+  if (el.dataset.dotText === text) return;
+  el.dataset.dotText = text;
+  el.innerHTML = dotSvg(text) + `<span class="sr-only">${text}</span>`;
+}
+function iconSvg(name) {
+  let dots = '';
+  ICONS[name].forEach((row, y) => { for (let x = 0; x < 7; x++) if (row[x] === '#') dots += `<circle cx="${x + .5}" cy="${y + .5}" r=".43"/>`; });
+  return `<svg class="dotsvg ico" viewBox="0 0 7 7" style="width:1em" fill="currentColor" aria-hidden="true">${dots}</svg>`;
+}
+// A title in dot lettering with an optional plain-text tail, such as "ORGANISM · TILE 3 · OPEN TO EDIT".
+function setTitle(el, main, tail = '') {
+  const key = main + '|' + tail;
+  if (el.dataset.dotText === key) return;
+  el.dataset.dotText = key;
+  el.innerHTML = dotSvg(main) + `<span class="sr-only">${main}</span>` + (tail ? `<small>${tail}</small>` : '');
+}
+
+// The three rooms. The Microscope holds SOLO and BATCH, the Incubator is the Arena, and the Archive is the Library.
+const ROOMS = [
+  { id: 'lab', name: 'MICROSCOPE', sub: 'SLIDES', icon: 'scope', help: 'room.lab' },
+  { id: 'incubator', name: 'INCUBATOR', sub: 'ARENA', icon: 'dish', help: 'room.incubator' },
+  { id: 'archive', name: 'ARCHIVE', sub: 'LIBRARY', icon: 'book', help: 'room.archive' },
+];
+const currentRoom = () => lib.open ? 'archive' : mode === 'arena' ? 'incubator' : 'lab';
+function buildRooms() {
+  for (const nav of document.querySelectorAll('.rooms')) {
+    nav.replaceChildren(...ROOMS.map(r => {
+      const b = el('button', 'room');
+      b.type = 'button';
+      b.dataset.room = r.id;
+      b.dataset.help = r.help;
+      b.innerHTML = iconSvg(r.icon) + `<b>${dotSvg(r.name)}<small>${r.sub}</small></b><span class="sr-only">${r.name}</span>`;
+      b.addEventListener('click', e => { goRoom(r.id); if (e.detail) b.blur(); });
+      return b;
+    }));
+  }
+}
+function syncRooms() {
+  const room = currentRoom();
+  for (const b of document.querySelectorAll('.room')) b.setAttribute('aria-current', String(b.dataset.room === room));
+}
+function goRoom(id) {
+  if (id === currentRoom()) return;
+  if (id === 'archive') { openLibrary(); return; }
+  if (lib.open) closeLibrary();
+  if (id === 'incubator') setMode('arena');
+  else if (mode === 'arena') setMode('solo');
+  syncRooms();
+  afterglow($('stage'));
+}
+
+// The instrument pages become a numbered menu with a lit bar under the chosen page.
+function buildMenu() {
+  const menu = $('segTab');
+  [...menu.children].forEach((b, i) => {
+    const label = b.textContent;
+    b.innerHTML = `<i>${String(i + 1).padStart(2, '0')}</i>${dotSvg(label)}<span class="sr-only">${label}</span>`;
+  });
+  menu.append(el('span', 'menu-bar'));
+}
+function syncMenuBar() {
+  const menu = $('segTab'), bar = menu.querySelector('.menu-bar'), on = menu.querySelector('button[aria-pressed=true]');
+  if (!bar || !on || menu.hidden) return;
+  const left = on.offsetLeft + 4, top = on.offsetTop + on.offsetHeight - 2, width = on.offsetWidth - 8;
+  bar.dataset.at = on.dataset.value;
+  Object.assign(bar.style, { left: left + 'px', top: top + 'px', width: width + 'px' });
+}
+
+// The Microscope's slide label names the culture, and the objective follows the quality setting.
+const OBJECTIVES = { low: '10X', med: '40X', high: '100X' };
+function syncSlide() {
+  const inLab = mode === 'solo';
+  $('slideHud').hidden = !inLab;
+  $('porthole').hidden = $('incubatorHud').hidden = mode !== 'arena';
+  if (!inLab) return;
+  const number = 'SLIDE ' + hex8(st.seed).slice(0, 4);
+  const tail = [st.count > 1 ? st.count + ' strains' : '1 strain', st.generation ? 'gen ' + st.generation : 'founder', lifeOf(st).mode !== 'off' ? lifeOf(st).mode : ''].filter(Boolean).join(' · ');
+  const label = $('slideLabel');
+  if (label.dataset.key !== number + tail) {
+    label.dataset.key = number + tail;
+    label.innerHTML = dotSvg(number) + `<span>${tail}</span>`;
+  }
+  setDots($('slideMag'), OBJECTIVES[st.quality] || '40X');
+}
+// Readouts beside the Incubator porthole, refreshed with each census.
+function syncIncubatorHud() {
+  if (mode !== 'arena' || !arena.sim) return;
+  const c = arena.census, pool = arena.sim.q.agents;
+  const alive = c ? c.counts.filter(Boolean).length : 0, bodies = arena.founders.reduce((s, f) => s + (f.track?.bodies.length || 0), 0);
+  setDots($('ihudPop'), c ? kilo(c.total) : '0');
+  $('ihudPopBar').style.width = (c ? Math.min(100, c.total / pool * 100) : 0) + '%';
+  setDots($('ihudFood'), Math.round((c?.food ?? 1) * 100) + '%');
+  $('ihudFoodBar').style.width = Math.round((c?.food ?? 1) * 100) + '%';
+  setDots($('ihudStrains'), alive + '/' + arena.founders.length);
+  setDots($('ihudBodies'), String(bodies));
+  setDots($('ihudStep'), kilo(arena.sim.step));
+}
+
+/* Afterglow: a pressed control lights up and the light fades the way trail does. Nothing moves, so the eye stays on
+   the simulation. Changing rooms lights the edge of the stage the same way. */
+const GLOW_TARGETS = '.pad, .seg button, .room, .menu button, .lib-actions button, .dlg-btn, #savesChange, #helpToggle, .founder-head, .founder-keep, #tasteReset';
+function afterglow(target) {
+  if (!target) return;
+  if (!target.classList.contains('stage')) target.classList.add('glows');
+  target.classList.remove('afterglow');
+  void target.offsetWidth; // Restarts the fade when pressed again quickly.
+  target.classList.add('afterglow');
+}
+function initAfterglow() {
+  document.addEventListener('pointerdown', e => {
+    const t = e.target.closest?.(GLOW_TARGETS);
+    if (t && !t.disabled) afterglow(t);
+  });
+  document.addEventListener('animationend', e => { if (e.animationName === 'afterglow' || e.animationName === 'stageglow') e.target.classList.remove('afterglow'); });
+}
 /* ---------- Metrics ---------- */
 // Reads one summary at a time, because all simulations share the same readback buffer.
 let probeChain = Promise.resolve();
@@ -3000,6 +3424,7 @@ async function breed() {
   // Says what the children actually received, including when there was no grown body to give.
   const got = st.inherit !== 'body' ? 'RULES ONLY' : batch.tiles.some(t => t.sim.fromBody) ? 'BODY + RULES' : 'NO BODY TO PASS';
   flash(picked.length ? 'GEN ' + batch.gen + ' ' + got : 'NEW VARIANTS' + (steered ? ' +TASTE' : ''));
+  flashIcon('helix');
 }
 function undoBatch() {
   if (batch.screening) { cancelScreening(); flash('CANCELLED'); return; }
@@ -3332,6 +3757,9 @@ const HELP = {
   'pad.full': { t: 'FULLSCREEN', d: 'Hides the controls so only the simulation shows. Press F or Esc to come back.' },
 
   view: { t: 'VIEW', d: 'SOLO shows one organism large. BATCH shows nine variants to choose from. ARENA is a shared world where specimens of your organisms compete. B switches SOLO and BATCH, and A opens or leaves ARENA.' },
+  'room.lab': { t: 'MICROSCOPE', d: 'Where cultures grow on slides. SOLO shows one slide large, and BATCH a tray of nine to compare and breed.' },
+  'room.incubator': { t: 'INCUBATOR', d: 'The Arena: a round chamber of broth where living specimens cut from your cultures eat, divide, mutate and compete.', tip: 'Press A to come and go.' },
+  'room.archive': { t: 'ARCHIVE', d: 'The Library: every saved culture, the family tree, and the specimens kept from the Incubator.', tip: 'Press L to open it.' },
   'view.arena': { t: 'ARENA', d: 'A shared world where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to place your SOLO organism, or ADD on a save in the LIBRARY.' },
   'lib.add': { t: 'ADD TO ARENA', d: 'Cuts a living disc from this save, at the SPECIMEN size, and lets you place it in the arena.', tip: 'A save with only its rules is regrown out of sight first.' },
   'arena.specimen': { t: 'SPECIMEN', d: 'How large a disc is cut from a body when you add it. Bodies keep their own scale, so a small cut holds a small piece of the structure.' },
@@ -3340,7 +3768,7 @@ const HELP = {
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together. A particle that wanders away from its kin turns back, crowding past its imprinted density pushes it out, and it digests best near that density.', lo: 'Classic slime: wanderers lay trails others follow, and bodies fray into spreading networks', hi: 'Bodies stay separate individuals: rings, ribbons and cells that move and compete' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful lineages', hi: 'Fast evolution and more failed offspring' },
   'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each lineage has, stacked in its chemical color. PARTICLES charts each lineage's share of the world.", tip: 'For life-like behavior, bodies matter more: they show whether a lineage stays as individuals, divides, or spreads into one sprawl.' },
-  'arena.founders': { t: 'FOUNDERS', d: 'Every specimen placed in this arena, with its share of the world and its number of bodies. Click one for its full stats.', tip: 'A founder’s color shows its chemical identity. Similar colors can smell each other.' },
+  'arena.founders': { t: 'STRAINS', d: 'Each specimen placed in the Incubator founds a strain: the specimen and all its descendants. Each row shows the strain’s share of the world and its number of bodies. Point at one to light it up in the dish. Click it for its full stats.', tip: 'A strain’s color shows its chemical identity. Similar colors can smell each other.' },
   'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Cuts a living disc from the organism you last had in SOLO, then lets you place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
   'arena.add.library': { t: 'ADD FROM LIBRARY', d: 'Opens the Library. Press ADD on any save, or switch to SPECIMENS and press ADD TO ARENA on a kept body.' },
   'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight and places a specimen of it in the most open spot.' },
@@ -3673,6 +4101,7 @@ async function grantFolder(onAsk = () => flash('ALLOW FOLDER ACCESS')) {
   try {
     if (await withTimeout(target.queryPermission(opts), 5000) === 'granted') return true;
     onAsk('ALLOW ACCESS IN BROWSER');
+    flashIcon('folder', 4000);
     return await withTimeout(target.requestPermission(opts), PERMISSION_WAIT_MS) === 'granted';
   } catch (e) {
     console.warn('Folder access was not granted, so the folder will be chosen again.', e);
@@ -3897,6 +4326,7 @@ async function save() {
     }
     const kept = dir ? 'BODY + RULES' : 'RULES ONLY';
     flash(targets.length > 1 ? 'SAVED ' + targets.length + ' ' + kept : (updated ? 'UPDATED ' : 'SAVED ') + kept);
+    flashIcon('save');
     syncTasteFile();
   } catch (e) {
     if (e.name === 'AbortError') flash('SAVE CANCELLED');
@@ -4590,6 +5020,8 @@ async function openLibrary() {
     $('library').showModal();
     renderLibrary();
     if (late) flash(late + ' FILES STILL DOWNLOADING');
+    flashIcon('book');
+    syncRooms();
     lib.growth = lib.growth.then(() => nameSaves(run)).then(() => growMissingThumbs(run));
   } catch (e) {
     lib.open = $('library').open;
@@ -4695,6 +5127,7 @@ function libraryClosed() {
   (lib.specimens || []).forEach(x => { if (x.url) URL.revokeObjectURL(x.url); });
   lib.specimens = [];
   lib.open = false;
+  syncRooms();
   lib.run++;
   lib.items = [];
   lib.removed = [];
@@ -4731,7 +5164,31 @@ const arena = {
   sim: null, seed: newSeed(), founders: [], params: defaults(ARENA_PARAMS), size: 'm', fcur: 0, busy: false,
   placing: null, keeping: false, history: [], census: null, censusPending: false, nextCensusAt: 0, chem: null, task: '',
   clearArmed: 0, chart: 'bodies', open: -1, rows: null,
+  lit: -1, glow: 0, glowLineage: -1, // The strain pointed at in the list, and how far its highlight has faded in.
 };
+// Fades the highlight in and out, and marks where the highlighted strain's particles are for this frame.
+function markStrain(enc, dt) {
+  const target = arena.lit >= 0 ? 1 : 0;
+  if (arena.lit >= 0 && arena.lit !== arena.glowLineage) {
+    arena.glowLineage = arena.lit;
+    device.queue.writeBuffer(arena.markJob, 0, new Uint32Array([arena.lit, 0, 0, 0]));
+  }
+  arena.glow += (target - arena.glow) * (1 - Math.exp(-dt / 120));
+  if (arena.glow < .005 && !target) arena.glow = 0;
+  if (!arena.glow || !arena.sim) return;
+  enc.clearBuffer(arena.mark);
+  const pass = enc.beginComputePass();
+  pass.setPipeline(P.arenaMark);
+  pass.setBindGroup(0, arena.markBG);
+  pass.dispatchWorkgroups(Math.ceil(arena.sim.q.agents / 256));
+  pass.end();
+}
+function lightStrain(i) {
+  if (arena.lit === i) return;
+  arena.lit = i;
+  arena.rows?.forEach((r, k) => r.row.classList.toggle('lit', k === i));
+  drawArenaChart();
+}
 // The shared probe and judge only need to know there is no reaction field.
 const arenaGenome = { field: { on: false } };
 const GOLDEN = 137.508 * Math.PI / 180;
@@ -4752,13 +5209,22 @@ function ensureArena() {
     censusRead: buf(CENSUS_BYTES, B.MAP_READ | B.COPY_DST),
     placeJob: buf(16, B.UNIFORM | B.COPY_DST),
     stampJob: buf(96, B.UNIFORM | B.COPY_DST),
+    mark: buf(MARK_W * MARK_H * 4, B.STORAGE | B.COPY_DST),
+    markJob: buf(16, B.UNIFORM | B.COPY_DST),
   });
   const group = (layout, res) => device.createBindGroup({ layout, entries: res.map((r, binding) => ({ binding, resource: r.usage !== undefined ? { buffer: r } : r })) });
   arena.liveBG = [0, 1].map(t => [0, 1].map(f => group(P.L.arena,
     [arena.uniform, s.agentBuf, arena.genes, arena.claims, s.depositBuf, arena.crowd, arena.returned, s.trailViews[t], s.fieldViews[f]])));
   arena.foodBG = [0, 1].map(f => [0, 1].map(t => group(P.L.arenaFood, [arena.uniform, s.fieldViews[f], s.fieldViews[1 - f], arena.crowd, arena.returned, s.trailViews[t]])));
-  arena.colorBG = [0, 1].map(f => [0, 1].map(t => group(P.L.color, [s.viewBuf, s.trailViews[t], P.lutView, P.sampler, s.fieldViews[f]])));
+  arena.colorBG = [0, 1].map(f => [0, 1].map(t => group(P.L.colorArena, [s.viewBuf, s.trailViews[t], P.lutView, P.sampler, s.fieldViews[f], arena.mark])));
+  arena.markBG = group(P.L.arenaMark, [arena.uniform, arena.markJob, s.agentBuf, arena.genes, arena.mark]);
   arena.censusBG = [0, 1].map(f => group(P.L.arenaCensus, [arena.uniform, s.agentBuf, arena.genes, arena.censusBuf, s.fieldViews[f]]));
+  // Outside the round glass is wall, so trail and chemical never spread there.
+  const mask = new Uint8Array(WALL_W * WALL_H), R = dishRadius(s.q) / s.q.h * WALL_H;
+  for (let y = 0; y < WALL_H; y++) for (let x = 0; x < WALL_W; x++) {
+    if (Math.hypot((x + .5 - WALL_W / 2) * (s.q.w / WALL_W) / (s.q.h / WALL_H), y + .5 - WALL_H / 2) > R) mask[y * WALL_W + x] = 255;
+  }
+  device.queue.writeTexture({ texture: s.wall }, mask, { bytesPerRow: WALL_W }, [WALL_W, WALL_H]);
   resetArena();
 }
 // An empty world full of food. Every particle place starts parked, with its own random stream from the arena's seed.
@@ -4800,7 +5266,7 @@ function arenaChemistry() {
 }
 function writeArenaUniforms(s, now, view = st.view) {
   const { w, h, agents } = s.q, p = arena.params, chem = arena.chem || { decay: [.95, .95, .95], diffuse: [.4, .4, .4] };
-  simU[0] = w; simU[1] = h; simU[2] = agents; simU[3] = 3; simU[4] = agents; simU[5] = agents; simU[6] = 0; simU[7] = 0;
+  simU[0] = w; simU[1] = h; simU[2] = agents; simU[3] = 3; simU[4] = agents; simU[5] = agents; simU[6] = 0; simU[7] = 1;
   for (let c = 0; c < 3; c++) {
     simF[8 + c] = Math.min(1, chem.diffuse[c]);
     simF[12 + c] = chem.decay[c];
@@ -4829,6 +5295,7 @@ function writeArenaUniforms(s, now, view = st.view) {
   viewU[8] = 3;
   viewF[9] = .025;
   viewF[10] = (PALETTE_NAMES.indexOf(ARENA.foodPalette) + .5) / PALETTE_NAMES.length;
+  viewF[11] = now ? arena.glow : 0; // Exports and pictures never carry the highlight.
   device.queue.writeBuffer(s.viewBuf, 0, viewData);
   s.fieldOn = false;
   s.cells = false;
@@ -5002,7 +5469,7 @@ async function stampFounder(f) {
     const m = a.mult ? a.mult.subarray(j * 4, j * 4 + 4) : [1, 1, 1, 1];
     for (let c = 0; c < copies && slots.length < free.length; c++) {
       const jitter = scale > 1 || copies > 1 ? scale : 0;
-      const x = clamp(cx + a.dx[j] * scale + (rf() - .5) * jitter, 0, w - .001), y = clamp(cy + a.dy[j] * scale + (rf() - .5) * jitter, 0, h - .001);
+      const [x, y] = intoDish(s.q, cx + a.dx[j] * scale + (rf() - .5) * jitter, cy + a.dy[j] * scale + (rf() - .5) * jitter);
       slots.push(free[slots.length]);
       agentsOut.push(x, y, a.angle[j] + (c ? (rf() - .5) * .5 : 0), (a.rng[j] ^ r()) >>> 0);
       if (sp.genes) {
@@ -5046,18 +5513,30 @@ async function stampFounder(f) {
   return n;
 }
 
-// The open spot farthest from every other founder, kept clear of the edges.
+// The Incubator's glass: the largest circle that fits the picture, matching the shaders.
+const dishRadius = q => q.h / 2 - 3;
+function intoDish(q, x, y, margin = 2) {
+  const cx = q.w / 2, cy = q.h / 2, R = dishRadius(q) - margin, d = Math.hypot(x - cx, y - cy);
+  return d <= R ? [x, y] : [cx + (x - cx) / d * R, cy + (y - cy) / d * R];
+}
+// Keeps a whole specimen disc inside the glass. Positions are fractions of the picture.
+function discInDish(x, y, radius) {
+  const { w, h } = arena.sim.q, [px, py] = intoDish(arena.sim.q, x * w, y * h, radius * h + 4);
+  return { x: px / w, y: py / h };
+}
+// The open spot farthest from every other founder, with the whole disc inside the glass.
 function openSpot(radius) {
-  const { w, h } = arena.sim.q, mx = radius * h / w, my = radius;
-  let best = null, bestScore = -1;
-  for (let j = 0; j < 9; j++) for (let i = 0; i < 16; i++) {
-    const x = mx + (1 - 2 * mx) * i / 15, y = my + (1 - 2 * my) * j / 8;
+  const { w, h } = arena.sim.q, R = dishRadius(arena.sim.q) / h;
+  let best = null, bestScore = -Infinity;
+  for (let j = 0; j < 13; j++) for (let i = 0; i < 13; i++) {
+    const x = .5 + (i / 12 - .5) * 2 * R * h / w, y = .5 + (j / 12 - .5) * 2 * R;
+    if (Math.hypot((x - .5) * w / h, y - .5) > R - radius - .01) continue;
     let near = Infinity;
     for (const f of arena.founders) near = Math.min(near, Math.hypot((x - f.x) * w / h, y - f.y) - f.specimen.radius);
     const score = (near === Infinity ? 1 : near) - Math.hypot((x - .5) * w / h, y - .5) * .01;
     if (score > bestScore) { bestScore = score; best = { x, y }; }
   }
-  return best;
+  return best || { x: .5, y: .5 };
 }
 async function arenaWork(label, job) {
   if (arena.busy) return null;
@@ -5070,13 +5549,12 @@ async function arenaWork(label, job) {
 }
 async function foundAt(specimen, x, y) {
   if (arena.founders.length >= ARENA.maxFounders) { flash('ARENA IS FULL'); return; }
-  const { w, h } = arena.sim.q, mx = specimen.radius * h / w;
-  const f = { specimen, x: clamp(x, mx, 1 - mx), y: clamp(y, specimen.radius, 1 - specimen.radius), lineage: arena.founders.length };
+  const f = { specimen, ...discInDish(x, y, specimen.radius), lineage: arena.founders.length };
   founderChemistry(f);
   arena.founders.push(f);
   arenaChemistry();
   const n = await arenaWork('PLACING', () => stampFounder(f));
-  if (n) flash('ADDED ' + Math.round(n / 1000) + 'K PARTICLES');
+  if (n) { flash('ADDED ' + Math.round(n / 1000) + 'K PARTICLES'); flashIcon('dish'); }
   else if (n === 0) flash('NO ROOM LEFT');
 }
 // Replays the arena from its founders, which gives exactly the same run again.
@@ -5303,7 +5781,8 @@ function arenaCensus() {
       return { n, energy: avg(1, 256), traits };
     });
     const counts = lineages.map(l => l.n);
-    arena.census = { step, counts, lineages, total: counts.reduce((a, b) => a + b, 0), food: u[CENSUS_FOOD] / 64 / (FIELD_W * FIELD_H) };
+    arena.census = { step, counts, lineages, total: counts.reduce((a, b) => a + b, 0), food: u[CENSUS_FOOD] / 64 / Math.max(1, u[CENSUS_FOOD + 1]) };
+    syncIncubatorHud();
     const last = arena.history.at(-1);
     if (!last || step > last.step) {
       arena.history.push({ step, counts, bodies: arena.founders.map(f => f.track?.bodies.length || 0) });
@@ -5321,13 +5800,19 @@ const FOUNDER_STATS = [
   ['angle', 'SENSOR ANGLE'], ['reach', 'SENSOR REACH'], ['deposit', 'DEPOSIT'], ['forage', 'FORAGING'], ['chem', 'CHEMISTRY'],
 ];
 function buildFounderRows() {
+  arena.lit = -1; // The rows are replaced, so the pointer is no longer over one.
   arena.rows = arena.founders.map((f, i) => {
     const row = el('div', 'founder'), head = el('button', 'founder-head'), swatch = el('i'), info = el('span'), detail = el('div', 'founder-detail');
     head.type = 'button';
     head.dataset.help = 'arena.founders';
-    swatch.style.background = f.color;
+    swatch.style.background = swatch.style.color = f.color;
     head.append(swatch, el('b', '', f.specimen.name), info);
     head.addEventListener('click', e => { arena.open = arena.open === i ? -1 : i; renderArenaPanel(); if (e.detail) head.blur(); });
+    // Pointing at a strain lights it up in the dish.
+    row.addEventListener('pointerenter', () => lightStrain(i));
+    row.addEventListener('pointerleave', () => lightStrain(-1));
+    head.addEventListener('focus', () => lightStrain(i));
+    head.addEventListener('blur', () => lightStrain(-1));
     const values = {};
     for (const [key, label] of FOUNDER_STATS) {
       const v = el('span');
@@ -5361,6 +5846,7 @@ function renderArenaPanel() {
     r.info.textContent = !c ? '' : !n ? 'EXTINCT' : `${(n / pool * 100).toFixed(1)}% · ${bodies.length} ${bodies.length === 1 ? 'body' : 'bodies'}`;
     r.row.classList.toggle('gone', !!c && !n);
     r.row.classList.toggle('open', arena.open === i);
+    r.row.classList.toggle('lit', arena.lit === i);
     r.detail.hidden = arena.open !== i;
     if (arena.open !== i || !c) return;
     const t = f.track, s0 = f.start, now = l.traits, set = (k, v) => { r.values[k].replaceChildren(v); };
@@ -5387,39 +5873,69 @@ function renderArenaPanel() {
   $('arenaNote').textContent = arena.placing ? `Click the picture to place ${arena.placing.name}. Press ADD again for an open spot, or Esc to cancel.`
     : arena.keeping ? 'Click a living body to keep it as a specimen. The ring shows what will be kept. Esc cancels.'
     : !arena.founders.length ? 'Choose what to add: your SOLO organism, a save or specimen from the LIBRARY, or a WILD one. Then click the picture to place it.'
-    : 'Click a founder to see its bodies and how its genes have drifted since it was placed.';
+    : 'Each row is a strain: a placed specimen and all its descendants. Point at one to light it up in the dish, or click it to see its bodies and how its genes have drifted.';
   markSeg($('segChart'), arena.chart);
   drawArenaChart();
 }
+// Dot-matrix lettering on a canvas, from the display's 5x7 font. Returns the width drawn.
+function dotText(c, text, x, y, pitch) {
+  const t = String(text).toUpperCase(), r = pitch * .42;
+  c.beginPath();
+  for (let i = 0; i < t.length; i++) {
+    const g = t.charCodeAt(i) - 32;
+    if (g < 0 || g > 58) continue;
+    for (let col = 0; col < 5; col++) {
+      const bits = parseInt(FONT.substr(g * 10 + col * 2, 2), 16);
+      for (let b = 0; b < 7; b++) if (bits >> b & 1) {
+        const cx = x + (i * 6 + col + .5) * pitch, cy = y + (b + .5) * pitch;
+        c.moveTo(cx + r, cy); c.arc(cx, cy, r, 0, Math.PI * 2);
+      }
+    }
+  }
+  c.fill();
+  return (t.length * 6 - 1) * pitch;
+}
+// The history as an LED bar display: one column of dots per moment, stacked in each strain's color. Dots that are off
+// stay faintly visible, like an unlit display. A strain pointed at in the list stays bright while the others dim.
 function drawArenaChart() {
   const canvas = $('arenaChart'), dpr = devicePixelRatio || 1, w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
   if (!w || !h) return;
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   const c = canvas.getContext('2d'), hist = arena.history, pool = arena.sim?.q.agents || 1, bodies = arena.chart === 'bodies';
   c.clearRect(0, 0, w, h);
-  if (hist.length < 2) return;
+  const pad = 8 * dpr, textPitch = 1.35 * dpr, head = pad + 7 * textPitch + 6 * dpr, pitch = 4 * dpr;
+  const cols = Math.max(1, Math.floor((w - 2 * pad) / pitch)), rows = Math.max(1, Math.floor((h - head - pad * .75) / pitch));
+  const x0 = (w - cols * pitch) / 2, y0 = h - pad * .75 - rows * pitch;
   const value = (e, k) => bodies ? e.bodies?.[k] || 0 : (e.counts[k] || 0) / pool;
-  const peak = Math.max(...hist.map(e => arena.founders.reduce((s, _, k) => s + value(e, k), 0)));
-  const top = Math.max(bodies ? 3 : .05, peak) * 1.15;
-  const X = i => i / (hist.length - 1) * w, Y = v => h - v / top * h;
-  let below = hist.map(() => 0);
+  const n = hist.length, samples = n <= cols ? hist : Array.from({ length: cols }, (_, i) => hist[Math.round(i / (cols - 1) * (n - 1))]);
+  const peak = n ? Math.max(...hist.map(e => arena.founders.reduce((s, _, k) => s + value(e, k), 0))) : 0;
+  const top = Math.max(bodies ? 4 : .05, peak) * 1.1;
+  const off = new Path2D(), lit = arena.founders.map(() => new Path2D()), r = pitch * .36;
+  const dot = (path, col, row) => { const cx = x0 + (col + .5) * pitch, cy = y0 + (rows - row - .5) * pitch; path.moveTo(cx + r, cy); path.arc(cx, cy, r, 0, Math.PI * 2); };
+  for (let col = 0; col < cols; col++) {
+    const e = samples[col];
+    let sum = 0, row = 0;
+    if (e) arena.founders.forEach((_, k) => {
+      sum += value(e, k);
+      const upto = Math.min(rows, Math.round(sum / top * rows));
+      for (; row < upto; row++) dot(lit[k], col, row);
+    });
+    for (; row < rows; row++) dot(off, col, row);
+  }
+  c.fillStyle = '#10272a';
+  c.fill(off);
   arena.founders.forEach((f, k) => {
-    const above = hist.map((e, i) => below[i] + value(e, k));
-    c.beginPath();
-    hist.forEach((_, i) => c.lineTo(X(i), Y(above[i])));
-    for (let i = hist.length - 1; i >= 0; i--) c.lineTo(X(i), Y(below[i]));
-    c.closePath();
+    c.globalAlpha = arena.lit < 0 ? .9 : k === arena.lit ? 1 : .22;
     c.fillStyle = f.color;
-    c.globalAlpha = .75;
-    c.fill();
-    below = above;
+    c.fill(lit[k]);
   });
   c.globalAlpha = 1;
-  c.fillStyle = '#a9d8cc';
-  c.font = `${10 * dpr}px ui-monospace, monospace`;
-  c.fillText(bodies ? `${Math.round(peak)} BODIES AT MOST` : `${Math.round(peak * 100)}% OF THE WORLD AT MOST`, 6 * dpr, 13 * dpr);
+  c.fillStyle = '#5fae9c';
+  dotText(c, bodies ? 'BODIES' : 'PARTICLES', x0, pad, textPitch);
+  const most = !n ? '' : 'MAX ' + (bodies ? Math.round(peak) : Math.round(peak * 100) + '%');
+  c.fillStyle = '#9ff5dc';
+  if (most) dotText(c, most, x0 + cols * pitch - (most.length * 6 - 1) * textPitch, pad, textPitch);
 }
-
 /* ---------- Specimens ---------- */
 // KEEP cuts a living disc out of the arena: every particle in it, of any lineage, with every gene it has evolved, and
 // the trail beneath. It is saved to the saves folder's "specimens" subfolder and appears in the Library's SPECIMENS view.
@@ -5490,7 +6006,7 @@ async function keepAt(x, y, radius, from = '') {
     const thumb = await specimenThumb(cx, cy, R);
     return await saveSpecimen(specimen, thumb) ? specimen : null;
   });
-  if (kept) flash('KEPT ' + kilo(kept.agents.dx.length) + ' AS A SPECIMEN');
+  if (kept) { flash('KEPT ' + kilo(kept.agents.dx.length) + ' AS A SPECIMEN'); flashIcon('dish'); }
 }
 async function packSpecimen(sp) {
   const n = sp.agents.dx.length, cropFloats = sp.crop.w * sp.crop.h * 4;
@@ -6217,6 +6733,7 @@ const actions = {
     st.body = body;
     mutateGenome(st, STRENGTHS[st.strength][1]);
     restart(); commit(); syncUi(); flash(body ? 'MUTATED, BODY KEPT' : 'MUTATED, REGROWING');
+    flashIcon('spark');
   },
   random() {
     if (capture || imageBusy) return;
@@ -6254,7 +6771,7 @@ const actions = {
   },
   draw() { if (mode === 'arena') return; activeTab = activeTab === 'draw' ? 'organism' : 'draw'; syncUi(); },
   save() { if (mode === 'arena') flash('USE IMAGE OR CLIP HERE'); else save(); },
-  toggle() { running = !running; syncUi(); drawLcd(); },
+  toggle() { running = !running; syncUi(); flashIcon('run', 700); },
   undo() { if (mode === 'arena') arenaUndo(); else undo(); },
   arena() { setMode(mode === 'arena' ? 'solo' : 'arena'); },
   load: openLibrary,
@@ -6364,7 +6881,7 @@ function syncUi() {
   markSeg($('segSpecimen'), arena.size);
   $('arenaWorld').querySelector('[data-do=keep]').setAttribute('aria-pressed', String(arena.keeping));
   for (const b of [...$('arenaAdd').children, ...$('arenaWorld').children]) b.disabled = arena.busy;
-  $('rerollLabel').textContent = inArena ? 'EMPTY' : 'REROLL';
+  setDots($('rerollLabel'), inArena ? 'EMPTY' : 'REROLL');
   $('savePad').disabled = inArena;
   markSeg($('segMode'), mode); markSeg($('segStrength'), st.strength); markSeg($('segFilter'), st.filter ? 'on' : 'off');
   markSeg($('segLearn'), taste.on ? 'on' : 'off');
@@ -6376,7 +6893,7 @@ function syncUi() {
   for (let i = 0; i < 3; i++) { markSeg($('segPal' + i), st.view.palettes[i]); $('palRow' + i).hidden = i >= g.count; }
   markSeg($('segPalField'), st.view.fieldPalette);
   $('palRowField').hidden = !g.field.on;
-  $('fieldTitle').textContent = inBatch ? 'FIELD · TILE ' + (displayedTile() + 1) + ' · OPEN TO EDIT' : 'REACTION FIELD';
+  setTitle($('fieldTitle'), 'REACTION FIELD', inBatch ? 'tile ' + (displayedTile() + 1) + ' · open to edit' : '');
   markSeg($('segCount'), g.count); markSeg($('segEdit'), shown); markSeg($('segEco'), ecologyOf(g));
   $('editRow').hidden = $('ecoRow').hidden = g.count === 1;
   for (const b of $('segEdit').children) {
@@ -6384,7 +6901,7 @@ function syncUi() {
     b.style.setProperty('--swatch', PALETTES[st.view.palettes[+b.dataset.value]][3]);
   }
   $('playPad').setAttribute('aria-pressed', String(running));
-  $('playLabel').textContent = running ? 'PAUSE' : 'PLAY';
+  setDots($('playLabel'), running ? 'PAUSE' : 'PLAY');
   $('led').classList.toggle('on', running);
   $('undoPad').disabled = inArena ? !arena.founders.length || arena.busy : inBatch ? !batch.history.length : !history.length && !brush.added;
   const life = lifeOf(g);
@@ -6395,15 +6912,19 @@ function syncUi() {
     : life.mode === 'veins' ? 'Busy paths thicken and last. Unused paths wither.'
     : 'Classic slime mold. VEINS and CELLS add early-life behavior.';
   syncBrush();
-  $('mutateLabel').textContent = inArena ? 'ADD' : inBatch ? 'BREED' : 'MUTATE';
+  setDots($('mutateLabel'), inArena ? 'ADD' : inBatch ? 'BREED' : 'MUTATE');
   $('mutateKey').textContent = inBatch ? 'ENTER' : 'M';
   $('tiles').hidden = !inBatch;
-  $('organismTitle').textContent = inBatch ? 'ORGANISM · TILE ' + (displayedTile() + 1) + ' · OPEN TO EDIT' : 'ORGANISM';
+  setTitle($('organismTitle'), 'ORGANISM', inBatch ? 'tile ' + (displayedTile() + 1) + ' · open to edit' : '');
   for (const id of ['segQuality', 'segInit', 'segCount', 'segEco', 'segHybrid', 'segLife']) for (const b of $(id).children) b.disabled = inBatch;
   // A cycle needs three species to close the loop.
   if (g.count < 3) $('segEco').querySelector('[data-value=cycle]').disabled = true;
   for (const input of document.querySelectorAll('#simSliders input, #fieldSliders input, #followSliders input, #lifeSliders input')) input.disabled = inBatch;
   syncTiles();
+  syncRooms();
+  syncSlide();
+  syncIncubatorHud();
+  syncMenuBar();
 }
 function setQuality(q) {
   if (q === st.quality) return;
@@ -6463,7 +6984,7 @@ function buildTiles() {
   for (let i = 0; i < BATCH_SIZE; i++) {
     const el = document.createElement('div');
     el.className = 'tile';
-    el.innerHTML = `<button type="button" class="tile-pick" aria-pressed="false" aria-label="Pick variant ${i + 1}"><span class="chip num">${i + 1}</span><span class="chip tag" hidden></span><span class="chip life" data-help="life" hidden></span><span class="chip got" hidden></span></button><button type="button" class="tile-open" aria-label="Open variant ${i + 1}" title="Open (Shift+${i + 1})">OPEN</button>`;
+    el.innerHTML = `<button type="button" class="tile-pick" aria-pressed="false" aria-label="Pick variant ${i + 1}"><span class="chip num"><small>SLIDE</small>${dotSvg(String(i + 1).padStart(2, '0'))}</span><span class="chip tag" hidden></span><span class="chip life" data-help="life" hidden></span><span class="chip got" hidden></span></button><button type="button" class="tile-open" aria-label="Open variant ${i + 1}" title="Open (Shift+${i + 1})">OPEN</button>`;
     const pick = el.querySelector('.tile-pick'), open = el.querySelector('.tile-open');
     pick.dataset.help = 'tile';
     open.dataset.help = 'open';
@@ -6533,6 +7054,13 @@ function initUi() {
   segmented($('segChart'), [['bodies', 'BODIES'], ['particles', 'PARTICLES']], v => { arena.chart = v; renderArenaPanel(); });
   segmented($('segLife'), Object.entries(LIFE_MODES), setLifeMode);
   segmented($('segTab'), Object.entries(TABS).map(([k, [label]]) => [k, label]), v => { activeTab = v; syncUi(); });
+  buildMenu();
+  new ResizeObserver(syncMenuBar).observe($('segTab'));
+  // Lab lettering: static labels marked in the page, and the pads' names.
+  for (const node of document.querySelectorAll('[data-dots]')) setDots(node, node.textContent.trim());
+  for (const span of document.querySelectorAll('.pad > span:first-child')) setDots(span, span.textContent.trim());
+  buildRooms();
+  initAfterglow();
   segmented($('segHybrid'), Object.entries(HYBRIDS).map(([k, h]) => [k, h.label]), applyHybrid);
   initBrush();
   $('savesPath').textContent = workPath();
@@ -6547,7 +7075,8 @@ function initUi() {
     catch { getSelection().selectAllChildren($('savesPath')); button.textContent = 'CTRL+C'; }
     setTimeout(() => { button.textContent = 'COPY'; }, 1800);
   });
-  segmented($('segMode'), Object.entries(MODES), setMode);
+  // The Incubator is its own room, so the Microscope's view switch only holds SOLO and BATCH.
+  segmented($('segMode'), [['solo', 'SOLO'], ['batch', 'BATCH']], setMode);
   segmented($('segStrength'), Object.entries(STRENGTHS).map(([k, [label]]) => [k, label]), v => { st.strength = v; syncUi(); drawLcd(); });
   segmented($('segFilter'), [['on', 'ON'], ['off', 'OFF']], v => { st.filter = v === 'on'; syncUi(); });
   segmented($('segLearn'), [['on', 'ON'], ['off', 'OFF']], setLearn);
@@ -6665,6 +7194,7 @@ window.DL = {
   RANDOM, randomFounder, rollFounders, restartSim, actions, brush, wallMask, buildSave, parseSave, commitDraft,
   wallsOpened, setSandbox, captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, organismKey, mergeDuplicates, autoName, colorWords, readSaves, setInit, lifeOf, bodies, liveBody, wallArt,
   get R() { return R; },
+  goRoom, flashIcon, iconFlash, afterglow,
   // Reads every agent's inherited genes back, eight numbers each, starting with energy.
   async genes(sim = R) {
     if (!sim.geneBuf) return null;
@@ -6776,7 +7306,7 @@ window.DL = {
     drawLcd();
     // A software adapter means the browser isn't using the graphics card at all, which is far too slow to run this.
     if (gpuInfo.fallback) fault('The browser is running WebGPU in software, not on your graphics card. Turn on hardware acceleration in the browser settings, then reload.');
-    else flash(('GPU ' + gpuInfo.vendor + ' ' + gpuInfo.architecture).trim().toUpperCase());
+    else { flash(('GPU ' + gpuInfo.vendor + ' ' + gpuInfo.architecture).trim().toUpperCase()); flashIcon('gpu', 2600); }
     console.info('Digital Life Sandbox is running on', gpuInfo);
     lastT = windowStart = performance.now();
     requestAnimationFrame(frame);

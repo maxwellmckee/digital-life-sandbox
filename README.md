@@ -24,7 +24,7 @@ The goal is **art through emergence**: organic, soft, luminous forms that are di
 
 <p align="center"><em>Organisms grown and bred in the sandbox.</em></p>
 
-> **New here, or a new Claude session?** Read this file first, then skim [Build Update 2](Digital%20Life%20Sandbox%20Build%20Update%202.md), the [Project Notes](Digital%20Life%20Sandbox%20Project%20Notes.md) and the [Research Notes](docs/RESEARCH.md). This README says what exists today. The first two hold the vision and plan, and the last explains the science behind the LIFE systems.
+> **New here, or a new Claude session?** Read this file first, then skim [Build Update 2](Digital%20Life%20Sandbox%20Build%20Update%202.md), the [Project Notes](Digital%20Life%20Sandbox%20Project%20Notes.md) and the [Research Notes](docs/RESEARCH.md). This README says what exists today. The first two hold the vision and plan, and the last explains the science behind the LIFE systems. For the look and the story behind it, read [Design](docs/DESIGN.md) and [World](docs/WORLD.md).
 
 ## Run it
 
@@ -48,17 +48,27 @@ There is nothing to install and no build step. The project was built for a deskt
 | `saves/removed/` | Saves and specimens removed in the Library. Nothing is permanently deleted there |
 | `images/`, `videos/` | PNG and MP4 exports |
 | `docs/RESEARCH.md` | Papers behind the LIFE systems, how they were adapted, and test results |
+| `docs/DESIGN.md` | The design system: dot-matrix lettering, colors, lumen motion, rooms and icons |
+| `docs/WORLD.md` | The story of the lab, its rooms and vocabulary, and the ideas it suggests |
 | `docs/screenshots/` | Pictures used in this README |
 
 `saves/`, `images/` and `videos/` are personal working folders. They stay on your computer and are not uploaded to GitHub. The app creates what it needs when you choose a folder.
 
 ## How to use it
 
-### The three views
+### The three rooms
 
-- **SOLO** shows one organism large. Adjust its sliders live and draw on it.
-- **BATCH** shows nine variants. Click the ones you like, press **BREED**, and repeat. Double-click a tile to open it in Solo from where it currently is.
-- **ARENA** is a shared world. Living specimens cut from your organisms eat, divide, mutate and compete there. See [The Arena](#the-arena).
+<p align="center"><img src="docs/screenshots/incubator-room.webp" alt="The Incubator room: a round dish of green broth inside a ringed porthole, with one strain lit up white while two others are dimmed, dot-matrix readouts on both sides, and the dark control console on the right with an LED history display" width="80%"></p>
+
+You work the night shift in a culture lab (the story is in [docs/WORLD.md](docs/WORLD.md)). The room bar at the top of the screen moves between three rooms:
+
+- **MICROSCOPE** holds your slides. **VIEW** switches between them (`B`):
+  - **SOLO** shows one organism large. Adjust its sliders live and draw on it.
+  - **BATCH** is a tray of nine variants. Click the ones you like, press **BREED**, and repeat. Double-click a tile to open it in Solo from where it currently is.
+- **INCUBATOR** (`A`) is the Arena: a round dish of broth where living specimens cut from your organisms eat, divide, mutate and compete. See [The Arena](#the-arena).
+- **ARCHIVE** (`L`) is the Library of saves, the family tree and specimens.
+
+The display shows a row of small icons. They light up while something is on and flash in color when it happens, such as breeding, mutating, saving or placing a specimen. A pressed control glows briefly and the glow fades the way the organisms' trails do. Outside the simulation, nothing moves.
 
 Each Batch generation holds your kept picks, guided children, one plain child and one **WILD** child. With **FILTER** on, dead variants are replaced before you see them.
 
@@ -83,6 +93,8 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 | Tiles | `1`-`9`, `Shift`+`1`-`9` | Pick a tile, or open it |
 
 ### Control pages
+
+The numbered menu under the settings opens one page at a time.
 
 - **ORGANISM:** species count, ecology and movement sliders.
 - **LIFE:** optional veins and living cells.
@@ -131,7 +143,7 @@ Breeding never changes a save file. Children are new organisms until you save th
 
 The two pages are two levels of selection. In Solo and Batch you choose bodies for their structure. In the Arena, specimens of those bodies compete for food, and only the ones that can sustain themselves last.
 
-1. Press **A**, or click **ARENA** under VIEW. The ARENA page replaces the organism pages.
+1. Press **A**, or click **INCUBATOR** in the room bar. The INCUBATOR page replaces the organism pages.
 2. Choose what to add on the **ADD FROM** row:
    - **SOLO** cuts the organism you last had in Solo. To use a different organism, open it in Solo first.
    - **LIBRARY** opens the Library. Press **ADD** on any save, or switch to **SPECIMENS** and press **ADD TO ARENA**. A save without a body is regrown out of sight first.
@@ -160,8 +172,8 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 
 **What you can see:**
 
-- **CHART: BODIES** stacks how many separate bodies each lineage has over time, in its chemical color. For life-like behavior, this matters more than size: it shows whether a lineage stays as individuals, divides, or merges into one sprawl. **PARTICLES** stacks each lineage's share of the world instead.
-- **Founders:** each row shows its share of the world and its number of bodies. Click one to see:
+- **CHART: BODIES** is an LED display that stacks how many separate bodies each strain has over time, in its chemical color. For life-like behavior, this matters more than size: it shows whether a strain stays as individuals, divides, or merges into one sprawl. **PARTICLES** stacks each strain's share of the world instead.
+- **Strains:** each placed specimen founds a strain, which is the specimen and all its descendants. Each row shows the strain's share of the world and its number of bodies. Point at a row to light that strain up in the dish while the others dim. Click one to see:
   - its particles and bodies;
   - its largest and oldest body;
   - divisions, body deaths and typical body lifespan;
@@ -172,6 +184,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - Colors show chemical identity. Similar colors can smell each other.
 
 **Specimens.** A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. It is saved in `saves/specimens/` and listed in the Library under **SPECIMENS**. Each card shows when it was kept, its average set point, speed and sensors, and which founders its particles came from. Added back to an Arena, its particles keep their own genes and set points.
+- The world is round: the largest circle that fits the 1920x1080 picture. Particles, food, trail and placed specimens all stay inside the glass.
 - The arena always runs at MED: 1920x1080 and 500,000 particle places. A step costs about 1 ms on the RTX 4070. Up to 16 founders, each thinned to at most 60,000 particles.
 - **REPLAY** places the same founders again and reproduces the same history exactly.
 
@@ -227,7 +240,7 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 1. **Protect determinism.** A seed and settings must reproduce a run exactly. Deposits use atomic fixed-point math and each agent has its own random stream. New features must have no effect when unused.
 2. **Never test against real saves.** Use copies or browser-private storage (OPFS). Do not modify `saves/`, `images/` or `videos/`.
 3. **Keep it one self-contained HTML file** unless there is a deliberate decision to change that.
-4. **Keep the interface simple.** It follows a tactile, EP-133-inspired hardware style with a calm blue-green palette. Too many options is a known concern, so explain new controls in the Help system.
+4. **Keep the interface simple.** It pairs a dot-matrix lab instrument with light that fades like the organisms' trails. Follow [docs/DESIGN.md](docs/DESIGN.md). Too many options is a known concern, so explain new controls in the Help system.
 5. **Change one thing at a time** and test it on the GPU.
 
 ### Regression check
@@ -263,7 +276,7 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 
 ## Status and roadmap
 
-**Built:** WebGPU simulation, Solo and Batch, breeding, 3 species, ecologies, reaction-diffusion hybrids, 12 color gradients, metrics and dead-variant filter, Help mode, taste learning, PNG and MP4 export, visual Library, family tree, RANDOM, barrier brush, organism brush, BLANK start, inherited bodies, full-body saves with automatic names and no duplicates, veins, living cells with energy, division, death and per-cell inherited rules, the Arena, and LIFE score version 2.
+**Built:** WebGPU simulation, Solo and Batch, breeding, 3 species, ecologies, reaction-diffusion hybrids, 12 color gradients, metrics and dead-variant filter, Help mode, taste learning, PNG and MP4 export, visual Library, family tree, RANDOM, barrier brush, organism brush, BLANK start, inherited bodies, full-body saves with automatic names and no duplicates, veins, living cells with energy, division, death and per-cell inherited rules, the Arena, LIFE score version 2, and the lab look with three rooms, a round Incubator and flashing display icons.
 
 **Build Update 2 progress:**
 
