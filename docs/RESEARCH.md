@@ -161,6 +161,108 @@ A specimen from the drawer can be placed many times. The copies placed while one
 
 In a test, a cut of Feathered Silver Honeycomb was placed at ×0.6, ×1 and ×1.35. The ×0.6 copy kept its membrane-bound shape for 2,500 steps. The ×1 and ×1.35 copies were placed overlapping and fused into one body, which is what kin are expected to do.
 
+### Why cut bodies change in the Incubator
+
+**The question.** A body cut on the bench often loosens or changes shape once it is placed. Is that because it was cut away from the rest of its organism, because the Incubator has no reaction field, or because the Incubator's own rules differ from the Microscope's?
+
+**How it was tested.** Twelve saves were each cut along their best body. Each body was then followed for 2,000 steps, from the same starting moment, in seven ways:
+
+| Run | What is different |
+|---|---|
+| Whole world | Nothing. The organism keeps running as saved. This is the reference. |
+| Alone | Everything outside the cut is removed: the other particles and the trail around. Same rules, same world. |
+| Alone, field cut too | As above, and the reaction field outside the cut is cleared, as if the field were carried with the specimen. |
+| Alone, no field | As above with the field switched off, which is what the Incubator does today. |
+| Dish now | The cut placed in the Incubator as it works today. |
+| Dish, no life or death | The Incubator with eating, dividing and dying switched off. |
+| Dish, solo moves | The Incubator with only the Microscope's movement rules left: no crowding, homing or pull toward food. |
+
+Each run was compared with the whole-world run at the same step: how much of the body stayed within the natural body's reach, and how alike the two bodies were from middle to edge, where 1 means the same and 0 means nothing alike. The contact sheets show every run after 2,000 steps: [saves with a field](research/hold-field-saves.webp) and [saves without one](research/hold-plain-saves.webp).
+
+**What was found.**
+
+1. **Cutting a body away from its organism is not the problem.** Alone in its own world, 9 of 12 bodies stayed 89 to 100% alike to the whole-world run. A body does not need the rest of its organism around it.
+2. **Some saved bodies change even at home.** In its own whole world, Bold Cyan Islands' ring pulls into a tight knot within 600 steps, and Sparse Silver Islands' bright blob grows by three quarters. A save is one moment, and some moments are passing. No change to the Incubator can keep a shape that the organism does not keep itself.
+3. **The reaction field shapes some bodies from the inside.** Without the field, Bold Blue-Teal Branches keeps its outer wall but loses the honeycomb inside it, and Bold Cyan Islands becomes a plain blob. With the field cut along with the body, both keep their inner structure. The other five field saves kept their shape without the field, but lost its glow, which is part of how they look.
+4. **Three shared chemicals blur bodies made of several species.** The Incubator mixes every species into three shared chemicals, and each chemical fades at the average rate of the species using it. In Sparse Azure Islands, one species' trail lasts about 7 steps and the other's about 500. Averaged, the long-lasting species loses the trail it follows and breaks into loose worms. Giving each species its own chemical, fading at its own rate, brought the body back: 98% alike instead of 81%. See [own chemicals, first four](research/own-channels-a.webp) and [last four](research/own-channels-b.webp).
+5. **The food economy starves some bodies.** At the default settings, 4 of 8 bodies lost 25 to 52% of their particles within 2,000 steps, and their structure wore away with them. Bold Azure Islands' dots melted into a dark smear. With FOOD at 1 and METABOLISM at 0.5 none died off, but most then grew by 10 to 50%.
+6. **The Incubator's extra steering matters less.** Removing crowding, homing and the pull toward food helped some bodies and hurt others. Switching off the vein growth that the dish's trail always has did the same. Neither is a main cause.
+
+Two results are left open. Sparse Silver Islands' bright blob turned into a ring in the dish in every version tested, even with matching rules, and the cause was not found. Dense Azure Honeycomb had no separate body, so the bench fell back to a circle on the corner of a frame line, and its result says nothing about bodies.
+
+**What this points to**, in order of payoff:
+
+1. Give every species its own chemical in the dish, so its trail fades and spreads as it did at home.
+2. Carry the reaction field into the dish with the specimen.
+3. Balance the food economy, so a newly placed body neither starves nor balloons.
+4. On the bench, check whether a body holds its shape at home before it is cut, and say so.
+
+### Acting on it: six chemicals, food that reaches bodies, strains that keep their size
+
+**Six chemicals.** The dish now has six chemicals in two trail maps, each with its own fade and spread. Each species placed gets one of its own while any are free, so its trail behaves exactly as at home. Once all six are taken, a new species shares the chemical whose trail lasts and spreads most like its own. A founder keeps the chemicals it was given, so placing a new one never changes those already in the dish, and replays stay exact. Each species shows in its organism's own colors. Toward a chemical that is not its own organism's, a species behaves as toward a stranger: with half the attitude it had toward its partners at home, or a slight wariness (−0.25) if it had none. Rivals at home avoid strangers, and allies are drawn to them.
+
+**Keeping bodies fed.** With the six chemicals in place, the same eight bodies were placed alone and run for 3,000 steps under several food economies. The table gives the range across the eight of particles alive relative to placed (1 means the same number), and the contact sheet shows the final versions ([sheet](research/keeping-fed.webp)):
+
+| Setting | Particles alive after 3,000 steps |
+|---|---|
+| Before: the economy as it was | 0.27 to 1.29. Four bodies starved below 0.7, two grew |
+| FOOD at 1 | 0.63 to 2.36: fewer starve, the rest balloon |
+| Easier shared digestion, a wider band of digestible density, or faster settling of the set density | No real change |
+| Dividing only where kin are thinner than the set density, or than where the particle was placed | Barely limits growth. Slime particles travel along their paths, so a density one particle remembers does not belong to a place |
+| Food flowing 2.5 times more freely across the broth | Every body survives, and grows until the dish is full |
+| That, and a size each strain may grow to | Exactly at the limit for all eight, at 1,000 and at 3,000 steps |
+
+Two findings made the difference. First, **the starving bodies were not short of food overall**: 80 to 95% of the dish's food was left uneaten. A dense body eats out its own patch faster than food spreads back in, so it starved with food all around it. Letting food flow more freely into bodies ended that. Second, **once fed, bodies grew without limit**. A size limit counted on the GPU each step, summed per workgroup so the result doesn't depend on thread order, stops that. The first version still overshot to 1.5 to 1.8 times, because a whole well-fed body divided in the same step. Now each fed particle near the limit divides only by a draw weighted by the room left.
+
+The limit comes from HOMEOSTASIS: a strain may grow a tenth past its placed size at 0.5, holds exactly at 1, and has no limit at 0, which stays classic slime.
+
+By the shape measure used above, the eight bodies' average likeness to themselves at home did not change: 0.70 now against 0.71 before. What changed is that none starve or balloon, and in the pictures several hold better. Bold Azure Islands keeps its separate dots instead of melting into a smear, and Bold Cyan Web loses the dark tangles of a dying species. The measure only compares how particles are spread from the middle outward, so it misses details like these.
+
+**Steady at home.** While the bench opens, a copy of the source runs on out of sight for 900 steps, and each body found is compared with itself. It counts as steady if its particles are spread the same way from middle to edge (at least 80% alike) and about as far (within 0.8 to 1.25 times). This adds 0.3 to 0.8 seconds. It agrees with what the bodies did at home in the study above:
+
+| Body | At home in the study | The bench says |
+|---|---|---|
+| Bold Cyan Islands, A | Its ring pulls into a knot | Changes (alike 23%, size ×0.72) |
+| Bold Blue-Teal Branches, A | Grows by a third or more | Changes (alike 64%, size ×1.33) |
+| Silver Web V, A | Holds | Steady (alike 98%) |
+| Silver Web IV, A | Holds | Steady (alike 98%) |
+| Flowing Blue Islands II, A | Holds | Steady (alike 94%) |
+| Bold Cyan Web, A | Holds | Steady (alike 95%) |
+| Bold Azure Islands, A | Holds | Steady (alike 88%) |
+| Sparse Silver Islands, A | Holds at 600 steps, grows by 2,000 | Steady (alike 86%, size ×1.06): too slow a change to catch in 900 steps |
+
+### Room for more: the size of the dish
+
+**How big specimens are.** Bodies cut so far have radii from 9% to 42% of the picture height. At ×0.5, the smallest size allowed now, one copy covers 1 to 18% of the dish, typically about 7%. That leaves room for a handful of copies, not many.
+
+**Placing smaller.** Five bodies were placed at ×1, ×½, ×⅓ and ×¼ with life and death switched off, and each was compared with its full-size copy ([sheet](research/smaller-copies.webp)):
+
+| Body | ×½ | ×⅓ | ×¼ |
+|---|---|---|---|
+| Silver Web V | 98% | 93% | 88% |
+| Sparse Silver Branches | 92% | 89% | 85% |
+| Bold Azure Islands | 90% | 88% | 75% |
+| Sparse Azure Islands | 85% | 76% | 62% |
+| Flowing Blue Islands II | 82% | 59% | 40% |
+
+Bold, simple bodies hold down to about ⅓. Thin rings and fine lace fade and blur. Trail spreads and fades by a fixed number of pixels each step at any size, so in a smaller copy its features blur relative to its size, and a line one or two pixels wide cannot shrink at all.
+
+**A bigger dish.** The faithful way to fit more is to keep each specimen at its true size and give the dish more pixels. Measured on this computer's NVIDIA graphics card (an RTX 40-series, Lovelace generation), with about a third of the dish filled:
+
+| Dish height | Particles | GPU memory | Time per step | At 1× | At 8× |
+|---|---|---|---|---|---|
+| 1080 (now) | 500,000 | about 155 MB | 0.7 ms | 60 fps | full speed |
+| 1620 | 1,125,000 | about 350 MB | 1.3 ms | 60 fps | full speed |
+| 2160 | 2,000,000 | about 620 MB | 2.4 ms | 60 fps | about 70% of full speed |
+
+These were measured with three chemicals. With six, a step at 1080 costs 1.35 ms instead of 0.7, and the dish uses about 90 MB more, so the bigger dishes will cost about twice what the table shows. At 1080 it still runs at 60 frames a second and full speed at 8×.
+
+A 1620 dish holds 2.25 times as many copies, and a 2160 dish four times as many. Three things come with it:
+
+- **Seeing it.** In a 1600×1000 window the dish is drawn about 650 pixels high, so a 2160 dish is shown at 30% of its size and lines one or two pixels wide shimmer. A bigger dish needs a way to zoom in and move around.
+- **Graphics card limits.** Without asking the card for more, one buffer holds at most 128 MiB, which caps the dish at about 2 million particles.
+- **The field grid.** A carried reaction field needs its grid to grow with the dish, so its patterns keep their size.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.

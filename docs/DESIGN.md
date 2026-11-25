@@ -68,9 +68,10 @@ Rooms are chosen from the room bar at the top of the screen. Each room shows onl
 - **Sliders:** a dark slot with a lit fill, and a cap with a light line down its middle.
 - **Display:** the dot-matrix status screen with a row of pixel icons along its bottom. Icons light when their state is on and flash through rainbow colors when something happens.
 - **Slide label:** frosted glass strip with the slide number and name.
-- **Incubator rim:** a bezel with tick marks and readouts for population, broth, strains and step.
+- **Incubator rim:** a bezel with tick marks, and readouts for population, broth, strains and step down its left side.
+- **Specimen deck:** a card file standing to the right of the dish. The card in front is full size and the rest stand behind it above and below, smaller and tilted back, with a gap between each. Scrolling flips one card per notch. The cards move only while you scroll, and only briefly, so the rule below still holds.
 - **History display:** the Incubator's chart is an LED bar display. Each column of dots is a moment, stacked in each strain's color, and unlit dots stay faintly visible.
-- **Strain highlight:** pointing at a strain in the list brightens its trails in the dish and dims the others, and its dots stay bright on the history display.
+- **Strain highlight:** the dish rests calmly, with a soft bloom. Pointing at a strain in the list lifts its trails to full glow and dims the others, and its dots stay bright on the history display. Moving away returns the dish to rest.
 
 ## Pixel icons
 

@@ -45,7 +45,7 @@ There is nothing to install and no build step. The project was built for a deskt
 | `saves/` | Saved organisms (`dl-*.json`) and `taste.json` |
 | `saves/bodies/` | The grown body of each save (`.dlbody`): every agent, trail, vein and chemical |
 | `saves/thumbs/` | Library pictures. They can be regrown if missing |
-| `saves/specimens/` | Specimens cut from slides or kept from the Incubator: a description (`.json`), a picture (`.webp`) and their particles and trail (`.dlspec`, gzip) |
+| `saves/specimens/` | Specimens cut from slides or kept from the Incubator: a description (`.json`), a picture (`.webp`) and their particles and trail (`.dlspec`, gzip). Version 3 files hold all six of the dish's chemicals and a cut's own colors; older files still open |
 | `saves/removed/` | Saves and specimens removed in the Library. Nothing is permanently deleted there |
 | `images/`, `videos/` | PNG and MP4 exports |
 | `docs/RESEARCH.md` | Papers behind the LIFE systems, how they were adapted, and test results |
@@ -59,13 +59,14 @@ There is nothing to install and no build step. The project was built for a deskt
 
 ### The three rooms
 
-<p align="center"><img src="docs/screenshots/incubator-room.webp" alt="The Incubator room: a round dish of green broth inside a ringed porthole, with one strain lit up white while two others are dimmed, dot-matrix readouts on both sides, and the dark control console on the right with an LED history display" width="80%"></p>
+<p align="center"><img src="docs/screenshots/incubator-room.webp" alt="The Incubator room: a round dish of green broth inside a ringed porthole holding three strains, dot-matrix readouts on the left, a deck of specimen cards standing beside the dish with the front card full size and the others tilted back above and below, and the dark control console on the right" width="80%"></p>
 
 You work the night shift in a culture lab (the story is in [docs/WORLD.md](docs/WORLD.md)). The room bar at the top of the screen moves between three rooms:
 
 - **MICROSCOPE** holds your slides. **VIEW** switches between them (`B`):
   - **SOLO** shows one organism large. Adjust its sliders live and draw on it.
   - **BATCH** is a tray of nine variants. Click the ones you like, press **BREED**, and repeat. Double-click a tile to open it in Solo from where it currently is.
+  - **CUT** (`X`) puts whatever is on screen on the cutting bench in the Incubator, however it got there: the Solo organism, or in Batch the slide under the pointer or the last one picked. Each slide also shows **CUT** and **OPEN** buttons when you point at it. Going back to the Microscope returns you to the view you left.
 - **INCUBATOR** (`A`) is the Arena: a round dish of broth where living specimens cut from your organisms eat, divide, mutate and compete. See [The Arena](#the-arena).
 - **ARCHIVE** (`L`) is the Library of saves, the family tree and specimens.
 
@@ -86,6 +87,7 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 | UNDO | `U`, `Ctrl+Z` | Reverses the last change, brush stroke or generation. In Arena, removes the last founder |
 | LIBRARY | `L` | Browse saves as a grid or family tree |
 | FULL | `F` | Fullscreen |
+| CUT / KEEP | `X` | Puts the organism on screen, or a Batch slide, on the cutting bench. In Arena it is KEEP: click a living body to save it as a specimen |
 | View | `B`, `A` | `B` switches Solo and Batch. `A` opens or leaves the Arena |
 | Help | `H` | Hover over anything for an explanation |
 | Draw page | `D` | Opens the brushes |
@@ -134,7 +136,7 @@ Every organism has two parts. The **rules** are its settings. The **body** is th
 - **Automatic names.** A new save is named from its picture's main colors and its measured shape, such as "Dense Amber-Azure Lace". Repeats get II, III and so on. Unnamed older saves are named when the Library opens. Typing a name replaces it.
 - Each Library card shows **BODY + RULES** or **RULES ONLY**. RULES ONLY marks an older save that regrows from settings. Open it and SAVE again to store its body.
 - Library **BREED** passes on whatever PASS ON says, so with BODY + RULES the children start inside the saved body.
-- Library **CUT** puts a save on the Incubator's cutting bench, so a body cut from it goes into the specimen drawer. See [The Arena](#the-arena). The save itself is never changed.
+- Library **CUT** puts a save on the Incubator's cutting bench, so a body cut from it goes into the specimen deck. Every card shows OPEN, BREED and CUT, whichever room you came from. See [The Arena](#the-arena). The save itself is never changed.
 - In the TREE view, a label like **+2 GEN** on a line is not a copy. It means two generations were bred in between without being saved.
 - Removed saves don't appear in the TREE. Their children connect straight to the removed save's own parents, and the +GEN label counts the removed generation.
 
@@ -147,22 +149,23 @@ Breeding never changes a save file. Children are new organisms until you save th
 The two pages are two levels of selection. In Solo and Batch you choose bodies for their structure. In the Arena, specimens of those bodies compete for food, and only the ones that can sustain themselves last.
 
 1. Press **A**, or click **INCUBATOR** in the room bar. The INCUBATOR page replaces the organism pages.
-2. Choose what to add on the **ADD FROM** row:
+2. Choose what to cut. **CUT** (`X`) in the Microscope sends the organism on screen, or a Batch slide, straight to the cutting bench. In the Incubator, the **ADD FROM** row does the same:
    - **SOLO** puts the organism you last had in Solo on the cutting bench. To use a different organism, open it in Solo first.
-   - **LIBRARY** opens the Library. Press **ADD** on any save to put it on the cutting bench. A save without a body is regrown out of sight first.
+   - **LIBRARY** opens the Library. Press **CUT** on any save to put it on the cutting bench. A save without a body is regrown out of sight first.
    - **WILD** grows a random organism, cuts its best body (or its densest part if it has none) and places it in the most open spot.
 3. **The cutting bench** shows the organism with the bodies found in it outlined, best first, labeled A, B, C. Everything outside the chosen cut is dimmed.
    - Click an outlined body to choose it. A body inside another can be clicked directly.
    - Click anywhere else for a round cut, and scroll to size it. **CIRCLE** sets its starting size.
+   - **Steady at home.** While the bench opens, the organism runs on out of sight for 900 more steps, and each body is checked: did it keep its shape and size? The info bar says **STEADY AT HOME** or **CHANGES AT HOME**, and a changing body's letter is amber. A save is one moment, and some bodies change on their own even at home, such as a ring that pulls into a knot. Those will keep changing in the dish too. The cut's card in the deck says STEADY or CHANGES.
    - **CUT** (`Enter`, or the ADD pad) takes it. Esc cancels. The Incubator holds still while the bench is open.
-   - The cut is filed in the **DRAWER**, named after its save and body, such as "Silver Web V (A)", and placing begins. One save can give several specimens.
-4. **The DRAWER** holds every specimen you have cut or kept, as cards with a picture, newest first. They are saved in `saves/specimens/`, so they are there next session. Without a folder, cuts stay for the session and their count shows in orange.
-5. **Placing.** Pick a card, then click the dish. Placing stays on, so each click adds another copy. Press **ADD** (`M`) for the most open spot. Esc, or picking the card again, stops.
+   - The cut goes to the front of the **specimen deck**, named after its save and body, such as "Silver Web V (A)", and placing begins. One save can give several specimens.
+4. **The specimen deck** stands beside the dish. It holds every specimen you have cut or kept, as cards with a picture, newest in front. The card in front is full size, and the others stand behind it above and below, smaller and tilted back, with a gap between each. **Scroll over the deck** to flip through it, one card per notch; the arrow keys work too. The counter shows which card is in front. Specimens are saved in `saves/specimens/`, so they are there next session. Without a folder, cuts stay for the session and their count shows in orange.
+5. **Placing.** Click a card to pick it (a card behind comes to the front), then click the dish. Placing stays on, so each click adds another copy. Press **ADD** (`M`) for the most open spot. Esc, or clicking the card again, stops.
    - **Scroll over the dish** to size the next copy, from ×0.5 up to what fits the dish. A copy's sensing reach and speed are scaled with it, so a larger copy behaves as a true larger version of the organism.
    - **The copies placed while one card is picked form one strain**, with one chemical identity, so they recognize each other as kin. Copies placed touching can fuse into one body. Picking the card again later starts a new strain.
    - **UNDO** removes the last copy.
 6. The **WORLD** row:
-   - **KEEP** saves a living body as a specimen. Click it, then click a body; everything inside the ring is kept.
+   - **KEEP** saves a living body as a specimen. Click it, or press the KEEP pad (`X`), then click a body; everything inside the ring is kept.
    - **REPLAY** places the same founders again and replays the same history.
    - **CLEAR** removes every founder. Press it twice. The EMPTY pad does the same.
 
@@ -174,15 +177,16 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 
 - **Movement rules** from its species, as in Solo.
 - **A target density**, imprinted from the density it actually lived at when cut. Vein particles want vein density, and rim particles want rim density. It drifts slowly toward its new surroundings, so a transplanted body can adjust instead of starving.
-- **A chemical identity:** how much of each of three shared chemicals it gives off, and how strongly it is drawn to or repelled by each. A founder's responses are solved so its own species still follow and flee each other exactly as in their home world. How it reacts to other founders follows from how alike their chemicals are, and that identity can evolve.
+- **A chemical of its own.** The dish has six chemicals. Each species placed gets one of its own while any are free, and its trail fades and spreads at exactly its home rate. That matters: when species share a chemical, its fade is an average, and a species whose trail used to last 500 steps loses the trail it follows. Each species also follows and flees the others of its organism exactly as it did at home, and shows in its organism's own colors. Toward a chemical that isn't its own organism's, a species behaves as toward a stranger: with half the attitude it had toward its partners at home, or a slight wariness if it had none. Once all six chemicals are taken, a new species shares the one whose trail behaves most like its own, and species sharing a chemical smell alike. A strain keeps the chemicals it was given, and its chemistry can still evolve.
 - **Energy.** Particles digest food best near their target density and with kin around, so a loner can barely eat. They divide when full, pass slightly mutated genes to their daughters, and die when starved.
 
 **The world:**
 
 - **Food** regrows like sunlight, and dead particles return to it.
-- **Food flows through veins** about five times faster than across open ground, the way *Physarum* streams nutrients through its tubes. A body's vein network drains its territory and feeds its middle.
+- **Food flows** across the broth into bodies, and faster still along veins, the way *Physarum* streams nutrients through its tubes. A dense body eats out its own patch quickly, so without this flow it starved with food all around it.
+- **A strain keeps its size.** It may grow a little past the number of particles it was placed with, then a birth only replaces a loss, like an organism that stops growing when it is grown. Near that size each fed particle divides only by a draw weighted by the room left, so a whole well-fed body can't overshoot at once.
 - **Homing.** A particle that has wandered away, sensing little of its kin where it stands or where its sensors reach, turns back. Swarming bacteria such as *Myxococcus* reverse direction in a similar way to stay with their swarm. Without homing, a wanderer has nothing to steer by, lays a trail others follow, and the body frays into a spreading network.
-- **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. HOMEOSTASIS sets how reliably lost particles turn back, how hard crowding pushes out, and how narrowly they digest around their target density. At 0 the Arena behaves like classic slime. From about 0.5, bodies stay separate individuals.
+- **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. HOMEOSTASIS sets how reliably lost particles turn back, how hard crowding pushes out, how narrowly they digest around their target density, and how closely a strain keeps its size: a tenth more than it was placed with at 0.5, exactly its size at 1. At 0 the Arena behaves like classic slime and strains grow as far as food allows. From about 0.5, bodies stay separate individuals.
 
 **What you can see:**
 
@@ -195,11 +199,11 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
   - how each gene has drifted since it was placed: set point, speed, sensor angle and reach, deposit, foraging, and chemistry shown as a color swatch.
   - **KEEP LARGEST BODY** saves that body as a specimen.
 - **How bodies are found:** where a lineage is dense on a 96x54 grid, each connected patch is a body. Bodies are followed by overlap between counts, twice a second. One body becoming two counts as a division. The counts are approximate, since a thin bridge that flickers can look like a split.
-- Colors show chemical identity. Similar colors can smell each other.
+- Each species shows in its organism's own colors, unless another species already shows in them, in which case it borrows a free gradient. A strain's swatch blends the colors of the chemicals it gives off.
 
-**Specimens.** A cut specimen holds the particles inside its outline with their species' rules, and the trail beneath. A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. Both are saved in `saves/specimens/`, appear as cards in the drawer, and are listed in the Archive under **SPECIMENS**, where each card shows where it came from. Specimens can be removed there. Added back to an Incubator, a kept specimen's particles keep their own genes and set points.
+**Specimens.** A cut specimen holds the particles inside its outline with their species' rules, and the trail beneath. A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. Both are saved in `saves/specimens/`, appear as cards in the specimen deck, and are listed in the Archive under **SPECIMENS**, where each card shows where it came from. Specimens can be removed there. Added back to an Incubator, a kept specimen's particles keep their own genes and set points.
 - The world is round: the largest circle that fits the 1920x1080 picture. Particles, food, trail and placed specimens all stay inside the glass.
-- The arena always runs at MED: 1920x1080 and 500,000 particle places. A step costs about 1 ms on the RTX 4070. Up to 16 founders, each thinned to at most 200,000 particles.
+- The arena always runs at MED: 1920x1080 and 500,000 particle places. A step costs about 1.4 ms on the RTX 4070, so it runs at 60 frames a second even at 8x. Up to 16 founders, each thinned to at most 200,000 particles.
 - **REPLAY** places the same founders again and reproduces the same history exactly.
 
 The design reasoning, the research behind it and what was measured are in [docs/RESEARCH.md](docs/RESEARCH.md#the-arena).
@@ -237,7 +241,7 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 - **Living cells:** a four-stage compute step of claim, birth, live and clear, with a separate 32-byte gene record per agent. Atomic claims keep runs repeatable.
 - **Rendering:** per-species gradient lookup, bloom, ACES tone mapping and fine grain.
 - **Metrics:** a GPU probe produces the LIFE score and verdicts ALIVE, NOISE, GRID, BLOB, FLAT or EMPTY. New variants get four checkpoints because good organisms can start slowly. Version 2 adds coarse-scale bodies, block variety, border share and edge direction.
-- **Arena:** its own claim, birth, live and clear stages over a 64-byte gene per particle. Steering adds a crowding penalty to slime sensing, which is Particle Lenia's energy. Food is a mass-balanced field that flows faster along veins, and three shared chemical channels carry each lineage's identity. Specimens are held in memory, so REPLAY is exact.
+- **Arena:** its own count, claim, birth, live and clear stages over a 64-byte gene per particle, whose six emissions and six responses are packed as half floats. Steering adds a crowding penalty to slime sensing, which is Particle Lenia's energy. Six chemicals live in two trail maps, each with its own fade and spread. Food is a mass-balanced field that flows faster along veins. Each strain is counted every step, summed per workgroup so the totals don't depend on thread order, and holds its size from that count. Specimens are held in memory, so REPLAY is exact.
 - **Taste learning:** momentum from recent pick direction plus memory of favorites. One plain child and the WILD child are never steered.
 - **Family records:** an in-memory graph connects unsaved generations, so a save links to its nearest saved ancestors.
 - **Export:** a custom PNG writer, plus WebCodecs H.264 with a custom MP4 muxer.
@@ -288,8 +292,10 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 - An Arena's founders and history are lost when the page closes. KEEP saves living bodies as specimens, and images and clips keep the look.
 - Body counts, divisions and deaths in the Arena are measured on a coarse grid, so they are approximate.
 - The cutting bench finds bodies from particle density on a grid of 8-pixel cells (4 pixels on a Batch tile), so outlines are stepped, and a faint body in a dense network can be missed. A round cut is always available.
-- WILD specimens are placed but not filed in the drawer. KEEP a wild body you like to save it.
+- WILD specimens are placed but not filed in the specimen deck. KEEP a wild body you like to save it.
 - A body shaped by a reaction-diffusion field loses that field in the Arena, so it reorganizes after placing.
+- The dish has six chemicals. Past six species, a new species shares the chemical whose trail behaves most like its own, so it fades at an average rate and smells like the species it shares with.
+- A strain's size limit counts the whole strain, so in a strain of several species one species can fill the room left by another that dies out.
 - There is no WebGL2 fallback.
 - A hidden browser tab or preview pane throttles animation, so frame-rate measurements there are not meaningful.
 
@@ -306,13 +312,17 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 5. Done in the Arena: a finite food source with recycled matter. Solo CELLS still feed on trail.
 6. Not started: endosymbiosis-inspired dependence. The Arena's shared chemistry is where it could grow.
 
-**Arena next steps:**
+**Arena next steps.** These follow from the measurements in [docs/RESEARCH.md](docs/RESEARCH.md#why-cut-bodies-change-in-the-incubator):
 
-1. Carry a body's reaction field into the Incubator. Bodies shaped by a field, 17 of 31 saves tested, fall apart without it.
-2. Save and reopen a whole Arena, with its founders and history.
-3. Membrane material made by the particles themselves.
-4. Score lineages by their bodies: how long they last and how often they divide.
+1. Done: every species gets its own chemical in the dish, and the dish has six.
+2. Done: food flows into bodies and strains keep their size, so a placed body neither starves nor balloons. The bench marks whether a body holds its shape at home.
+3. Carry a body's reaction field into the Incubator. Some field bodies lose their inner structure without it.
+4. A bigger dish, with specimens kept at their true size and a way to zoom in, and saving and reopening a whole dish in the Archive.
+5. Membrane material made by the particles themselves.
+6. Score lineages by their bodies: how long they last and how often they divide.
 
 **Notes 3 progress:** done: body-aware cutting with a preview, the specimen drawer with MAKE SPECIMEN (the Archive's CUT), colors per organism rolled by RANDOM, and the SHAPE start.
+
+**Latest changes:** CUT works from anywhere in the Microscope and from every Archive card, and the specimen drawer became a deck of cards beside the dish that you flip through with the scroll wheel. The Incubator now rests calmly, and a strain glows only while you point at it. In the dish, each species has a chemical of its own and shows in its own colors, food reaches dense bodies, strains keep their size, and the bench says whether a body is steady at home.
 
 **Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, mutating only part of a body, and small evolvable brains.
