@@ -45,7 +45,7 @@ There is nothing to install and no build step. The project was built for a deskt
 | `saves/` | Saved organisms (`dl-*.json`) and `taste.json` |
 | `saves/bodies/` | The grown body of each save (`.dlbody`): every agent, trail, vein and chemical |
 | `saves/thumbs/` | Library pictures. They can be regrown if missing |
-| `saves/specimens/` | Living bodies kept from the Arena: a description (`.json`), a picture (`.webp`) and their particles and trail (`.dlspec`, gzip) |
+| `saves/specimens/` | Specimens cut from slides or kept from the Incubator: a description (`.json`), a picture (`.webp`) and their particles and trail (`.dlspec`, gzip) |
 | `saves/removed/` | Saves and specimens removed in the Library. Nothing is permanently deleted there |
 | `images/`, `videos/` | PNG and MP4 exports |
 | `docs/RESEARCH.md` | Papers behind the LIFE systems, how they were adapted, and test results |
@@ -133,6 +133,7 @@ Every organism has two parts. The **rules** are its settings. The **body** is th
 - **Automatic names.** A new save is named from its picture's main colors and its measured shape, such as "Dense Amber-Azure Lace". Repeats get II, III and so on. Unnamed older saves are named when the Library opens. Typing a name replaces it.
 - Each Library card shows **BODY + RULES** or **RULES ONLY**. RULES ONLY marks an older save that regrows from settings. Open it and SAVE again to store its body.
 - Library **BREED** passes on whatever PASS ON says, so with BODY + RULES the children start inside the saved body.
+- Library **CUT** puts a save on the Incubator's cutting bench, so a body cut from it goes into the specimen drawer. See [The Arena](#the-arena). The save itself is never changed.
 - In the TREE view, a label like **+2 GEN** on a line is not a copy. It means two generations were bred in between without being saved.
 - Removed saves don't appear in the TREE. Their children connect straight to the removed save's own parents, and the +GEN label counts the removed generation.
 
@@ -147,14 +148,19 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 1. Press **A**, or click **INCUBATOR** in the room bar. The INCUBATOR page replaces the organism pages.
 2. Choose what to add on the **ADD FROM** row:
    - **SOLO** puts the organism you last had in Solo on the cutting bench. To use a different organism, open it in Solo first.
-   - **LIBRARY** opens the Library. Press **ADD** on any save to put it on the cutting bench, or switch to **SPECIMENS** and press **ADD TO ARENA** to place a kept body directly. A save without a body is regrown out of sight first.
+   - **LIBRARY** opens the Library. Press **ADD** on any save to put it on the cutting bench. A save without a body is regrown out of sight first.
    - **WILD** grows a random organism, cuts its best body (or its densest part if it has none) and places it in the most open spot.
 3. **The cutting bench** shows the organism with the bodies found in it outlined, best first, labeled A, B, C. Everything outside the chosen cut is dimmed.
    - Click an outlined body to choose it. A body inside another can be clicked directly.
    - Click anywhere else for a round cut, and scroll to size it. **CIRCLE** sets its starting size.
    - **CUT** (`Enter`, or the ADD pad) takes it. Esc cancels. The Incubator holds still while the bench is open.
-4. A ring the size of the cut follows the pointer. Click to place it. Press **ADD** (`M`) for the most open spot, or Esc to cancel.
-5. The **WORLD** row:
+   - The cut is filed in the **DRAWER**, named after its save and body, such as "Silver Web V (A)", and placing begins. One save can give several specimens.
+4. **The DRAWER** holds every specimen you have cut or kept, as cards with a picture, newest first. They are saved in `saves/specimens/`, so they are there next session. Without a folder, cuts stay for the session and their count shows in orange.
+5. **Placing.** Pick a card, then click the dish. Placing stays on, so each click adds another copy. Press **ADD** (`M`) for the most open spot. Esc, or picking the card again, stops.
+   - **Scroll over the dish** to size the next copy, from ×0.5 up to what fits the dish. A copy's sensing reach and speed are scaled with it, so a larger copy behaves as a true larger version of the organism.
+   - **The copies placed while one card is picked form one strain**, with one chemical identity, so they recognize each other as kin. Copies placed touching can fuse into one body. Picking the card again later starts a new strain.
+   - **UNDO** removes the last copy.
+6. The **WORLD** row:
    - **KEEP** saves a living body as a specimen. Click it, then click a body; everything inside the ring is kept.
    - **REPLAY** places the same founders again and replays the same history.
    - **CLEAR** removes every founder. Press it twice. The EMPTY pad does the same.
@@ -190,7 +196,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - **How bodies are found:** where a lineage is dense on a 96x54 grid, each connected patch is a body. Bodies are followed by overlap between counts, twice a second. One body becoming two counts as a division. The counts are approximate, since a thin bridge that flickers can look like a split.
 - Colors show chemical identity. Similar colors can smell each other.
 
-**Specimens.** A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. It is saved in `saves/specimens/` and listed in the Library under **SPECIMENS**. Each card shows when it was kept, its average set point, speed and sensors, and which founders its particles came from. Added back to an Arena, its particles keep their own genes and set points.
+**Specimens.** A cut specimen holds the particles inside its outline with their species' rules, and the trail beneath. A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. Both are saved in `saves/specimens/`, appear as cards in the drawer, and are listed in the Archive under **SPECIMENS**, where each card shows where it came from. Specimens can be removed there. Added back to an Incubator, a kept specimen's particles keep their own genes and set points.
 - The world is round: the largest circle that fits the 1920x1080 picture. Particles, food, trail and placed specimens all stay inside the glass.
 - The arena always runs at MED: 1920x1080 and 500,000 particle places. A step costs about 1 ms on the RTX 4070. Up to 16 founders, each thinned to at most 200,000 particles.
 - **REPLAY** places the same founders again and reproduces the same history exactly.
@@ -278,7 +284,7 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 - An Arena's founders and history are lost when the page closes. KEEP saves living bodies as specimens, and images and clips keep the look.
 - Body counts, divisions and deaths in the Arena are measured on a coarse grid, so they are approximate.
 - The cutting bench finds bodies from particle density on a grid of 8-pixel cells (4 pixels on a Batch tile), so outlines are stepped, and a faint body in a dense network can be missed. A round cut is always available.
-- Cuts from the cutting bench are not saved yet. KEEP in the Incubator still saves living bodies as specimens.
+- WILD specimens are placed but not filed in the drawer. KEEP a wild body you like to save it.
 - A body shaped by a reaction-diffusion field loses that field in the Arena, so it reorganizes after placing.
 - There is no WebGL2 fallback.
 - A hidden browser tab or preview pane throttles animation, so frame-rate measurements there are not meaningful.
@@ -298,8 +304,11 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 
 **Arena next steps:**
 
-1. Save and reopen a whole Arena, with its founders and history.
-2. Membrane material made by the particles themselves.
-3. Score lineages by their bodies: how long they last and how often they divide.
+1. Carry a body's reaction field into the Incubator. Bodies shaped by a field, 17 of 31 saves tested, fall apart without it.
+2. Save and reopen a whole Arena, with its founders and history.
+3. Membrane material made by the particles themselves.
+4. Score lineages by their bodies: how long they last and how often they divide.
+
+**Notes 3 progress:** done: body-aware cutting with a preview, and the specimen drawer with MAKE SPECIMEN (the Archive's CUT). Not started: RANDOM colors per slide and the random START structure.
 
 **Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, mutating only part of a body, and small evolvable brains.

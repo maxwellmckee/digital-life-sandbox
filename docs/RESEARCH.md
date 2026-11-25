@@ -155,6 +155,12 @@ The particles inside the outline are cut, and the trail is masked with a soft ed
 
 **Thinning.** Every cut had been thinned to 60,000 particles. A body cut from a Batch tile is enlarged four times in particle count, so thinning left as little as 22% of its density. Raising the limit to 200,000 kept bodies brighter and closer to their original from the first step. Bodies still thinned are ones that would take over 40% of the world.
 
+### Copies and sizes
+
+A specimen from the drawer can be placed many times. The copies placed while one card is picked form one strain, with one chemical identity, so they treat each other as kin instead of as rivals. A copy's size can be changed from ×0.5 to what fits the dish. A body's size comes from its rules, mostly how far its particles sense and how far they move each step, so a plain enlargement would shrink back. Each copy therefore has its sensing reach and speed scaled with it, and its particle count scaled with its area, so its density stays the same. This is close to a true scaled copy but not exact, because trail spreads and fades by the same amount per step at any size.
+
+In a test, a cut of Feathered Silver Honeycomb was placed at ×0.6, ×1 and ×1.35. The ×0.6 copy kept its membrane-bound shape for 2,500 steps. The ×1 and ×1.35 copies were placed overlapping and fused into one body, which is what kin are expected to do.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
