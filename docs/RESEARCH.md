@@ -231,6 +231,33 @@ By the shape measure used above, the eight bodies' average likeness to themselve
 | Bold Azure Islands, A | Holds | Steady (alike 88%) |
 | Sparse Silver Islands, A | Holds at 600 steps, grows by 2,000 | Steady (alike 86%, size ×1.06): too slow a change to catch in 900 steps |
 
+### Carrying the reaction field
+
+**How it works.** A cut from an organism with a reaction field takes the field from under the body, with the same soft edge as its trail. It also takes the field's recipe: the feed and kill rates of its Gray-Scott reaction, and how strongly its trails seed it. Each species records how strongly it followed or fled the field, on the dish's trail scale. The dish runs its own Gray-Scott field on the food grid, 480×270 like the Microscope's. A specimen placed at its true size lands with its field cells exactly on the dish's. A copy placed smaller has its field spread less, so the pattern shrinks with the body.
+
+The dish has no single recipe. Each particle carries its strain's recipe as a number into a small table and gives the recipe off where it lives, into maps that blur and fade like a trail. Each cell runs the recipe given off there, so a strain's field runs where the strain is, follows it as it moves, and fades back to plain broth where no strain keeps it. Strains with different fields can share the dish. Each species' trail seeds the field scaled by a third of its typical level at home, as the Microscope scales it, so a long-lasting trail doesn't seed more than a fleeting one.
+
+**Result.** Eight bodies from organisms with a field were run for 2,500 steps and compared with the same body alone at home, its field cut along with it ([sheet](research/field-carried.webp)):
+
+| Body | Dish without the field | Dish with the field |
+|---|---|---|
+| Flowing Blue Islands | 0.56 | 0.77 |
+| Bold Cyan Islands | 0.55 | 0.63 |
+| Flowing Blue Islands II | 0.71 | 0.76 |
+| Bold Blue-Teal Branches | 0.52 | 0.56 |
+| Silver Web IV | 0.89 | 0.92 |
+| Silver Branches | 0.33 | 0.34 |
+| Bold Cyan Web | 0.92 | 0.87 |
+| Bold Azure Islands | 0.78 | 0.73 |
+
+Five improve and two drop a little by this measure, which only compares how particles spread from the middle outward. The pictures show more. Flowing Blue Islands keeps its ring of field dots, Bold Cyan Islands keeps its knot inside rings of field, Flowing Blue Islands II keeps its dotted halo, and Bold Blue-Teal Branches has the field's dots inside its cell again. Its honeycomb of inner walls comes back only in part.
+
+The field in the dish runs at about the strength it had at home. Around Silver Web IV, the field's living chemical averaged 0.14 in the dish against 0.10 at home. Silver Branches' field runs about three times stronger than at home, and the cause was not found. A field now glows in its organism's own field colors and glow.
+
+**A sparse body starving with food around it.** Flowing Blue Islands died out in the dish, field or not, with 95% of the food left. It is a thin ring with a low set density (0.24). Shared digestion was measured against a fixed amount of kin, so a body that is sparse by nature could never eat enough. It now asks for kin at a share of the particle's own set density (half point 0.7). With that, all ten bodies tested held at 1.1 times their placed size over 3,000 steps, Flowing Blue Islands included, and the field cut keeps 77% of its likeness.
+
+**Cost.** The recipe maps and four field steps per dish step add 0.04 ms, for 1.39 ms per step at 1080.
+
 ### Room for more: the size of the dish
 
 **How big specimens are.** Bodies cut so far have radii from 9% to 42% of the picture height. At ×0.5, the smallest size allowed now, one copy covers 1 to 18% of the dish, typically about 7%. That leaves room for a handful of copies, not many.

@@ -671,6 +671,11 @@ const BATCH_SIZE = 9;
 // The chemical field runs on one fixed grid at every quality level, so previews and full-size runs match.
 // The iteration count must stay even: agents and the renderer always read the first field texture.
 const FIELD_W = 480, FIELD_H = 270, FIELD_ITERS = 4;
+// Where each kind of counter sits in the Incubator's one counter buffer, in 32-bit words. See ECON_* in the shaders.
+const ECON = (() => {
+  const cells = FIELD_W * FIELD_H;
+  return { crowd: 0, returned: cells, strain: 2 * cells, recipe: 2 * cells + 128, words: 7 * cells + 128 };
+})();
 // Barriers are brush strokes rasterized onto one fixed grid, so a drawing means the same thing at every quality level.
 const WALL_W = 1920, WALL_H = 1080, WALL_MAX_COVER = .92;
 // The organism brush moves a small share of a species to the cursor on each tick. The agent count never changes.
@@ -1063,12 +1068,13 @@ const WGSL_ARENA_BASE = /* wgsl */`
 struct Agent { pos: vec2f, angle: f32, rng: u32 }
 // The dish has six chemicals: the first three in one trail map, the last three in a second. emit: the share of deposit
 // given to each chemical, and resp: the response to each, are six half floats packed two to a word. forage: the pull
-// toward food.
+// toward food. field: the reaction field recipe the particle carries, as a number into the recipe table (0 for none),
+// in the low half, and how strongly it is drawn to the field's living chemical, as a half float, in the high half.
 struct Gene {
   energy: f32, lineage: u32, angle: f32, dist: f32,
   turn: f32, speed: f32, deposit: f32, setpoint: f32,
   emit: vec3u, forage: f32,
-  resp: vec3u, spare: f32,
+  resp: vec3u, field: u32,
 }
 struct Arena {
   size: vec2u, agents: u32, step: u32,
@@ -1078,6 +1084,12 @@ struct Arena {
   scale: f32, homing: f32, spread: f32, veinFlow: f32,
 }
 const FIELD_SIZE = vec2u(${FIELD_W}u, ${FIELD_H}u);
+// One buffer of counters, so the dish stays within the GPU's eight storage buffers per pass: per food cell, the
+// digestion and returned matter of the step; each strain's size and its limit; and per food cell, the five sums of
+// the field recipes given off there.
+const ECON_RETURNED = ${ECON.returned}u;
+const ECON_STRAIN = ${ECON.strain}u;
+const ECON_RECIPE = ${ECON.recipe}u;
 const TAU = 6.283185307;
 
 fn rand(s: ptr<function, u32>) -> f32 {
@@ -1110,15 +1122,17 @@ const WGSL_ARENA = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(2) var<storage, read_write> genes: array<Gene>;
 @group(0) @binding(3) var<storage, read_write> claims: array<atomic<u32>>;
 @group(0) @binding(4) var<storage, read_write> deposits: array<atomic<u32>>;
-@group(0) @binding(5) var<storage, read_write> crowd: array<atomic<u32>>;
-@group(0) @binding(6) var<storage, read_write> returned: array<atomic<u32>>;
+// The counters: see ECON. A strain's size sits at ECON_STRAIN: how many particles of each lineage are alive this step,
+// then the most each may have, set from how many were placed (0 means no limit).
+@group(0) @binding(5) var<storage, read_write> econ: array<atomic<u32>>;
+// The field recipes in use: feed, kill, seeding and how far the field spreads, by recipe number. 0 is unused.
+@group(0) @binding(6) var<uniform> recipes: array<vec4f, 66>;
 @group(0) @binding(7) var trail: texture_2d<f32>;
 @group(0) @binding(8) var food: texture_2d<f32>;
 @group(0) @binding(9) var<storage, read_write> depositsB: array<atomic<u32>>;
 @group(0) @binding(10) var trailB: texture_2d<f32>;
-// Each strain's size: [0, 64) how many particles of each lineage are alive this step, and [64, 128) the most it may
-// have, set from how many were placed. 0 means no limit.
-@group(0) @binding(11) var<storage, read_write> strain: array<atomic<u32>>;
+// The reaction field: U in red, the living chemical V in green.
+@group(0) @binding(11) var field: texture_2d<f32>;
 var<workgroup> tally: array<atomic<u32>, 64>;
 // Energy and matter: a particle is BODY units of matter plus its stored energy. Dividing splits both, and dying
 // returns both to the food field. Living costs energy that is not returned, so sunlight-like regrowth keeps it going.
@@ -1155,7 +1169,7 @@ fn wobble(rng: ptr<function, u32>) -> vec3f {
 // How good a spot looks: Particle Lenia's energy with the trail as its field. Chemicals pull or push by the
 // particle's responses, food pulls by its forage gene, and crowding past its set point pushes back.
 // Returns the score and how much of its kin the particle senses there.
-fn score(p: vec2f, a: f32, reach: f32, g: Gene, rl: vec3f, rh: vec3f) -> vec2f {
+fn score(p: vec2f, a: f32, reach: f32, g: Gene, rl: vec3f, rh: vec3f, pull: f32) -> vec2f {
   let at = p + vec2f(cos(a), sin(a)) * reach;
   if (!insideDish(at)) { return vec2f(-1e9, 0.0); }
   let q = vec2i(floor(at));
@@ -1163,14 +1177,21 @@ fn score(p: vec2f, a: f32, reach: f32, g: Gene, rl: vec3f, rh: vec3f) -> vec2f {
   let tb = textureLoad(trailB, q, 0);
   var v = (dot(ta.rgb, rl) + dot(tb.rgb, rh)) * arena.norm;
   if (arena.veins > 0.0 && v > 0.0) { v *= 1.0 + VEIN_PULL * arena.veins * (1.0 - ta.a); }
+  // A species that followed or fled its organism's reaction field at home still does, as in the Microscope.
+  if (pull != 0.0) { v += pull * textureLoad(field, vec2i(fieldCell(at)), 0).g; }
   let u = sensed(ta, tb, rl, rh);
   // Food pulls only where kin are too, so a body crawls toward food together instead of shedding scouts.
-  v += g.forage * textureLoad(food, vec2i(fieldCell(at)), 0).g * together(u);
+  v += g.forage * textureLoad(food, vec2i(fieldCell(at)), 0).g * together(u, g.setpoint);
   let over = max(u - g.setpoint, 0.0);
   return vec2f(v - arena.crowd * over * over, u);
 }
 // Cooperative digestion: shared enzymes only pay off where enough kin are around (a Hill curve, as in cooperative binding).
-fn together(u: f32) -> f32 { return u * u / (u * u + arena.coop * arena.coop); }
+// Enough is measured against the density the particle is set to live at, so a body that is sparse by nature eats well
+// at its own density, while a loner of any body still can't.
+fn together(u: f32, setpoint: f32) -> f32 {
+  let r = u / max(setpoint, 0.05);
+  return r * r / (r * r + arena.coop * arena.coop);
+}
 // How much of its kin a particle senses where it stands.
 fn senseHere(p: vec2f, rl: vec3f, rh: vec3f) -> f32 {
   let q = vec2i(p);
@@ -1187,7 +1208,7 @@ fn count(@builtin(global_invocation_id) id: vec3u, @builtin(local_invocation_ind
   workgroupBarrier();
   if (li < 64u) {
     let n = atomicLoad(&tally[li]);
-    if (n > 0u) { atomicAdd(&strain[li], n); }
+    if (n > 0u) { atomicAdd(&econ[ECON_STRAIN + li], n); }
   }
 }
 
@@ -1201,9 +1222,9 @@ fn claim(@builtin(global_invocation_id) id: vec3u) {
   // A strain holds its size: once it has as many particles as it may, a birth only replaces a loss. Near the limit each
   // fed particle divides by a draw weighted by the room left, so a whole well-fed body can't overshoot in one step.
   let l = min(g.lineage, 63u);
-  let most = atomicLoad(&strain[64u + l]);
+  let most = atomicLoad(&econ[ECON_STRAIN + 64u + l]);
   if (most > 0u) {
-    let now = f32(atomicLoad(&strain[l]));
+    let now = f32(atomicLoad(&econ[ECON_STRAIN + l]));
     let room = f32(most) - now;
     let h = (a.rng ^ (arena.step * 2654435761u)) * 747796405u;
     let draw = f32((h >> 8u) ^ (h >> 20u)) / 16777216.0 % 1.0;
@@ -1259,9 +1280,10 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   var rng = a.rng;
   let rl = lo3(g.resp);
   let rh = hi3(g.resp);
-  let sf = score(a.pos, a.angle, g.dist, g, rl, rh);
-  let sl = score(a.pos, a.angle + g.angle, g.dist, g, rl, rh);
-  let sr = score(a.pos, a.angle - g.angle, g.dist, g, rl, rh);
+  let pull = unpack2x16float(g.field).y;
+  let sf = score(a.pos, a.angle, g.dist, g, rl, rh, pull);
+  let sl = score(a.pos, a.angle + g.angle, g.dist, g, rl, rh, pull);
+  let sr = score(a.pos, a.angle - g.angle, g.dist, g, rl, rh, pull);
   let f = sf.x;
   let l = sl.x;
   let r = sr.x;
@@ -1283,7 +1305,7 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   // barely eat whatever its set point, and past its set point it chokes. Together these give a body one shared fate.
   let cell = fieldCell(a.pos);
   let x = u - g.setpoint;
-  let digest = together(u) * exp(-x * x / (2.0 * arena.sigma * arena.sigma));
+  let digest = together(u, g.setpoint) * exp(-x * x / (2.0 * arena.sigma * arena.sigma));
   // Acclimation: the inherited set point drifts slowly toward the density a particle actually lives at, so a body
   // moved into a world unlike its own can adjust instead of starving. The inherited value is where it starts.
   g.setpoint += arena.settle * x;
@@ -1292,14 +1314,25 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   let cost = arena.hunger * (BASAL + MOVE_COST * g.speed / arena.scale + DEPOSIT_COST * g.deposit);
   g.energy = min(g.energy + ration * digest - cost, MAX_ENERGY);
   let k = cell.y * FIELD_SIZE.x + cell.x;
-  atomicAdd(&crowd[k], u32(digest * 1024.0 + 0.5));
+  atomicAdd(&econ[k], u32(digest * 1024.0 + 0.5));
   if (g.energy <= 0.0 || rand(&rng) < arena.wear) {
-    atomicAdd(&returned[k], u32((BODY + max(g.energy, 0.0)) * 1024.0));
+    atomicAdd(&econ[ECON_RETURNED + k], u32((BODY + max(g.energy, 0.0)) * 1024.0));
     a.pos = vec2f(-1.0);
     a.rng = rng;
     agents[i] = a;
     genes[i] = g;
     return;
+  }
+  // A particle that carries a field recipe gives it off where it lives, so its strain's field follows the strain.
+  let recipe = g.field & 0xFFFFu;
+  if (recipe != 0u) {
+    let rc = recipes[min(recipe, 63u)];
+    let o = ECON_RECIPE + k * 5u;
+    atomicAdd(&econ[o], 256u);
+    atomicAdd(&econ[o + 1u], u32(rc.x * 65536.0 + 0.5));
+    atomicAdd(&econ[o + 2u], u32(rc.y * 65536.0 + 0.5));
+    atomicAdd(&econ[o + 3u], u32(rc.z * 65536.0 + 0.5));
+    atomicAdd(&econ[o + 4u], u32(rc.w * 65536.0 + 0.5));
   }
 
   var np = a.pos + vec2f(cos(a.angle), sin(a.angle)) * g.speed;
@@ -1330,7 +1363,7 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
 @compute @workgroup_size(256)
 fn clear(@builtin(global_invocation_id) id: vec3u) {
   if (id.x < arena.agents) { atomicStore(&claims[id.x], 0u); }
-  if (id.x < 64u) { atomicStore(&strain[id.x], 0u); }
+  if (id.x < 64u) { atomicStore(&econ[ECON_STRAIN + id.x], 0u); }
 }`;
 
 // Food regrows toward one unit per cell, spreads slightly, and is shared among the particles eating in each cell by how
@@ -1340,10 +1373,9 @@ const WGSL_ARENA_FOOD = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(0) var<uniform> arena: Arena;
 @group(0) @binding(1) var src: texture_2d<f32>;
 @group(0) @binding(2) var dst: texture_storage_2d<rgba32float, write>;
-@group(0) @binding(3) var<storage, read_write> crowd: array<atomic<u32>>;
-@group(0) @binding(4) var<storage, read_write> returned: array<atomic<u32>>;
-@group(0) @binding(5) var trail: texture_2d<f32>;
-@group(0) @binding(6) var trailB: texture_2d<f32>;
+@group(0) @binding(3) var<storage, read_write> econ: array<atomic<u32>>;
+@group(0) @binding(4) var trail: texture_2d<f32>;
+@group(0) @binding(5) var trailB: texture_2d<f32>;
 // How well food flows through a cell: veins conduct best, plain trail a little, open ground barely.
 // Like cytoplasmic streaming in Physarum's tubes, this carries food from a body's feeding edges to its middle.
 fn conduct(c: vec2i) -> f32 {
@@ -1367,8 +1399,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let k = id.y * FIELD_SIZE.x + id.x;
   // Outside the glass there is no broth.
   if (!cellInDish(c)) {
-    atomicStore(&crowd[k], 0u);
-    atomicStore(&returned[k], 0u);
+    atomicStore(&econ[k], 0u);
+    atomicStore(&econ[ECON_RETURNED + k], 0u);
     textureStore(dst, c, vec4f(0.0, 0.0, 0.0, 1.0));
     return;
   }
@@ -1382,12 +1414,119 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     let q = clamp(c + o, vec2i(0), hi);
     if (cellInDish(q)) { lap += (arena.spread + arena.veinFlow * 0.5 * (mine + conduct(q))) * (textureLoad(src, q, 0).g - n); }
   }
-  let eaters = f32(atomicExchange(&crowd[k], 0u)) / 1024.0;
-  let back = f32(atomicExchange(&returned[k], 0u)) / 1024.0;
+  let eaters = f32(atomicExchange(&econ[k], 0u)) / 1024.0;
+  let back = f32(atomicExchange(&econ[ECON_RETURNED + k], 0u)) / 1024.0;
   let eaten = n * (1.0 - pow(1.0 - arena.eat, eaters));
   let ration = select(0.0, eaten / eaters, eaters > 0.001);
   let next = n + lap - eaten + arena.regrow * (1.0 - n) + back;
   textureStore(dst, c, vec4f(ration, clamp(next, 0.0, 4.0), 0.0, 1.0));
+}`;
+
+/* The reaction field in the dish. Each organism with a field brings its own recipe: the feed and kill rates of its
+   Gray-Scott reaction, how strongly its trails seed it, and how far it spreads for the size the copy was placed at.
+   Its particles give the recipe off where they live, into a map that blurs and fades like a trail, so the field runs
+   where the strain is and follows it, and strains with different fields can share the dish. The map holds weighted
+   sums: how much recipe, then feed, kill and seeding times that, and in a second map the spread times that. */
+const WGSL_ARENA_RECIPE = WGSL_ARENA_BASE + /* wgsl */`
+@group(0) @binding(0) var<uniform> arena: Arena;
+@group(0) @binding(1) var<storage, read_write> econ: array<atomic<u32>>;
+@group(0) @binding(2) var srcA: texture_2d<f32>;
+@group(0) @binding(3) var srcB: texture_2d<f32>;
+@group(0) @binding(4) var dstA: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(5) var dstB: texture_storage_2d<rgba32float, write>;
+const KEEP = 0.97;
+fn cellInDish(c: vec2i) -> bool { return insideDish((vec2f(c) + vec2f(0.5)) / vec2f(FIELD_SIZE) * vec2f(arena.size)); }
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= FIELD_SIZE.x || id.y >= FIELD_SIZE.y) { return; }
+  let c = vec2i(id.xy);
+  let o = ECON_RECIPE + (id.y * FIELD_SIZE.x + id.x) * 5u;
+  let given = vec4f(f32(atomicExchange(&econ[o], 0u)) / 256.0, f32(atomicExchange(&econ[o + 1u], 0u)) / 65536.0,
+    f32(atomicExchange(&econ[o + 2u], 0u)) / 65536.0, f32(atomicExchange(&econ[o + 3u], 0u)) / 65536.0);
+  let givenSpread = f32(atomicExchange(&econ[o + 4u], 0u)) / 65536.0;
+  if (!cellInDish(c)) {
+    textureStore(dstA, c, vec4f(0.0));
+    textureStore(dstB, c, vec4f(0.0));
+    return;
+  }
+  let hi = vec2i(FIELD_SIZE) - vec2i(1);
+  let ca = textureLoad(srcA, c, 0);
+  let cb = textureLoad(srcB, c, 0).r;
+  var sa = vec4f(0.0);
+  var sb = 0.0;
+  for (var y = -1; y <= 1; y++) {
+    for (var x = -1; x <= 1; x++) {
+      let w = f32((2 - abs(x)) * (2 - abs(y)));
+      let n = clamp(c + vec2i(x, y), vec2i(0), hi);
+      let inside = cellInDish(n);
+      sa += w * select(ca, textureLoad(srcA, n, 0), inside);
+      sb += w * select(cb, textureLoad(srcB, n, 0).r, inside);
+    }
+  }
+  textureStore(dstA, c, sa / 16.0 * KEEP + given);
+  textureStore(dstB, c, vec4f(sb / 16.0 * KEEP + givenSpread, 0.0, 0.0, 0.0));
+}`;
+
+// Gray-Scott reaction-diffusion, as in the Microscope, with each cell running the recipe given off there. Away from
+// every strain, the field fades back to plain broth.
+const WGSL_ARENA_FIELD = WGSL_ARENA_BASE + /* wgsl */`
+@group(0) @binding(0) var<uniform> arena: Arena;
+@group(0) @binding(1) var src: texture_2d<f32>;
+@group(0) @binding(2) var dst: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var recA: texture_2d<f32>;
+@group(0) @binding(4) var recB: texture_2d<f32>;
+@group(0) @binding(5) var trail: texture_2d<f32>;
+@group(0) @binding(6) var trailB: texture_2d<f32>;
+// The recipe table; its last two rows hold how strongly each chemical's trail seeds a field (see writeArenaUniforms).
+@group(0) @binding(7) var<uniform> recipes: array<vec4f, 66>;
+const DU = 0.42;
+const DV = 0.21;
+fn cellInDish(c: vec2i) -> bool { return insideDish((vec2f(c) + vec2f(0.5)) / vec2f(FIELD_SIZE) * vec2f(arena.size)); }
+fn trailLevel(cell: vec2i) -> f32 {
+  let scale = vec2f(arena.size) / vec2f(FIELD_SIZE);
+  let mid = (vec2f(cell) + vec2f(0.5)) * scale;
+  let r = scale * 0.25;
+  var sum = 0.0;
+  for (var k = 0; k < 4; k++) {
+    let p = vec2i(mid + vec2f(select(-r.x, r.x, (k & 1) == 1), select(-r.y, r.y, k >= 2)));
+    sum += dot(textureLoad(trail, p, 0).rgb, recipes[64].xyz) + dot(textureLoad(trailB, p, 0).rgb, recipes[65].xyz);
+  }
+  return 1.0 - exp(-sum * 0.25);
+}
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= FIELD_SIZE.x || id.y >= FIELD_SIZE.y) { return; }
+  let c = vec2i(id.xy);
+  if (!cellInDish(c)) { textureStore(dst, c, vec4f(1.0, 0.0, 0.0, 1.0)); return; }
+  let hi = vec2i(FIELD_SIZE) - vec2i(1);
+  let here = textureLoad(src, c, 0).rg;
+  var lap = here * -1.0;
+  for (var y = -1; y <= 1; y++) {
+    for (var x = -1; x <= 1; x++) {
+      if (x == 0 && y == 0) { continue; }
+      let w = select(0.05, 0.2, x == 0 || y == 0);
+      let n = clamp(c + vec2i(x, y), vec2i(0), hi);
+      lap += w * select(here, textureLoad(src, n, 0).rg, cellInDish(n));
+    }
+  }
+  let ra = textureLoad(recA, c, 0);
+  let w = ra.r;
+  let inv = 1.0 / max(w, 1e-4);
+  let present = smoothstep(0.5, 3.0, w);
+  let feed = ra.g * inv * present;
+  let kill = select(0.065, ra.b * inv, w > 0.01);
+  let seeding = ra.a * inv * present;
+  let spread = select(1.0, clamp(textureLoad(recB, c, 0).r * inv, 0.1, 1.0), w > 0.01);
+  let u = here.x;
+  let v = here.y;
+  let react = u * v * v;
+  let seed = seeding * 0.04 * trailLevel(c) * u;
+  var nu = u + DU * spread * lap.x - react + feed * (1.0 - u) - seed;
+  var nv = v + DV * spread * lap.y + react - (feed + kill) * v + seed;
+  let away = 1.0 - present;
+  nu = mix(nu, 1.0, 0.05 * away);
+  nv = nv * (1.0 - 0.05 * away);
+  textureStore(dst, c, vec4f(clamp(nu, 0.0, 1.0), clamp(nv, 0.0, 1.0), 0.0, 1.0));
 }`;
 
 // Places a specimen's trail into one of the dish's two trail maps. The mix rows move the crop's channels into the
@@ -1458,7 +1597,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   g.emit = pack6(vec3f(n[8], n[9], n[10]), vec3f(n[11], n[12], n[13]));
   g.forage = n[14];
   g.resp = pack6(rl, rh);
-  g.spare = 0.0;
+  g.field = (u32(n[22] + 0.5) & 0xFFFFu) | (pack2x16float(vec2f(0.0, n[21])) & 0xFFFF0000u);
   if (job.imprint != 0u) {
     let here = sensedAt(a.pos, rl, rh);
     let f = sensedAt(a.pos + vec2f(cos(a.angle), sin(a.angle)) * g.dist, rl, rh);
@@ -1881,7 +2020,7 @@ fn chemAt(uv: vec2f) -> f32 {
 // rest fade back.
 const ARENA_LOOK = { rest: '0.8', others: '0.12', lit: '1.3', restBloom: .4 };
 const WGSL_COLOR_ARENA = WGSL_FS_VERT + /* wgsl */`
-struct DishView { exposureLo: vec4f, exposureHi: vec4f, rowsLo: vec4f, rowsHi: vec4f, foodLight: f32, foodRow: f32, lit: f32, pad: f32 }
+struct DishView { exposureLo: vec4f, exposureHi: vec4f, rowsLo: vec4f, rowsHi: vec4f, foodLight: f32, foodRow: f32, lit: f32, fieldLight: f32, fieldRow: f32, pad1: f32, pad2: f32, pad3: f32 }
 @group(0) @binding(0) var<uniform> view: DishView;
 @group(0) @binding(1) var trail: texture_2d<f32>;
 @group(0) @binding(2) var trailB: texture_2d<f32>;
@@ -1889,18 +2028,20 @@ struct DishView { exposureLo: vec4f, exposureHi: vec4f, rowsLo: vec4f, rowsHi: v
 @group(0) @binding(4) var samp: sampler;
 @group(0) @binding(5) var food: texture_2d<f32>;
 @group(0) @binding(6) var<storage, read> mark: array<u32>;
+@group(0) @binding(7) var field: texture_2d<f32>;
 const MARK = vec2i(${MARK_W}, ${MARK_H});
-// Smooth upscaling of the food grid, done by hand because 32-bit float textures can't be filtered.
-fn foodAt(uv: vec2f) -> f32 {
-  let size = vec2f(textureDimensions(food, 0));
+// Smooth upscaling of a grid's green channel (the food, or the field's living chemical), done by hand because 32-bit
+// float textures can't be filtered.
+fn gridAt(grid: texture_2d<f32>, uv: vec2f) -> f32 {
+  let size = vec2f(textureDimensions(grid, 0));
   let p = uv * size - vec2f(0.5);
   let base = floor(p);
   let s = p - base;
   let hi = vec2i(size) - vec2i(1);
   let a = clamp(vec2i(base), vec2i(0), hi);
   let b = clamp(vec2i(base) + vec2i(1), vec2i(0), hi);
-  let upper = mix(textureLoad(food, a, 0).g, textureLoad(food, vec2i(b.x, a.y), 0).g, s.x);
-  let lower = mix(textureLoad(food, vec2i(a.x, b.y), 0).g, textureLoad(food, b, 0).g, s.x);
+  let upper = mix(textureLoad(grid, a, 0).g, textureLoad(grid, vec2i(b.x, a.y), 0).g, s.x);
+  let lower = mix(textureLoad(grid, vec2i(a.x, b.y), 0).g, textureLoad(grid, b, 0).g, s.x);
   return mix(upper, lower, s.y);
 }
 fn markCell(c: vec2i) -> f32 {
@@ -1945,9 +2086,15 @@ fn markAt(uv: vec2f) -> f32 {
     lit = mix(${ARENA_LOOK.rest}, mix(${ARENA_LOOK.others}, ${ARENA_LOOK.lit}, k), view.lit);
   }
   light *= lit;
-  // The broth glows softly underneath the living trails.
+  // A reaction field glows softly underneath the living trails, as in the Microscope.
+  if (view.fieldLight > 0.0) {
+    let g = smoothstep(0.02, 0.5, gridAt(field, io.uv));
+    let c = textureSampleLevel(lut, samp, vec2f(g * 0.82, view.fieldRow), 0.0).rgb;
+    light += c * g * view.fieldLight * (1.0 - 0.65 * peak);
+  }
+  // The broth glows softly underneath everything.
   if (view.foodLight > 0.0) {
-    let g = smoothstep(0.02, 0.5, foodAt(io.uv));
+    let g = smoothstep(0.02, 0.5, gridAt(food, io.uv));
     let c = textureSampleLevel(lut, samp, vec2f(g * 0.82, view.foodRow), 0.0).rgb;
     light += c * g * view.foodLight * (1.0 - 0.65 * peak);
   }
@@ -2106,15 +2253,18 @@ async function initGpu() {
     color: bgl([uni(F), raw(F), tex, smp, raw(F)]),
     blur: bgl([tex, smp]),
     composite: bgl([uni(F), tex, tex, smp]),
-    arena: bgl([uni(C), sto, sto, sto, sto, sto, sto, raw(C), raw(C), sto, raw(C), sto]),
-    arenaFood: bgl([uni(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, sto, sto, raw(C), raw(C)]),
+    arena: bgl([uni(C), sto, sto, sto, sto, sto, uni(C), raw(C), raw(C), sto, raw(C), raw(C)]),
+    arenaFood: bgl([uni(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, sto, raw(C), raw(C)]),
+    arenaRecipe: bgl([uni(C), sto, raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } },
+      { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }]),
+    arenaField: bgl([uni(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, raw(C), raw(C), raw(C), raw(C), uni(C)]),
     arenaStamp: bgl([uni(C), raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }]),
     arenaPlace: bgl([uni(C), uni(C), ro, ro, ro, sto, sto, raw(C), raw(C)]),
     arenaCensus: bgl([uni(C), ro, ro, sto, raw(C)]),
     arenaMark: bgl([uni(C), uni(C), ro, ro, sto]),
     arenaDiffuse: bgl([uni(C), sto, sto, raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } },
       { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, raw(C)]),
-    colorArena: bgl([uni(F), raw(F), raw(F), tex, smp, raw(F), { visibility: F, buffer: { type: 'read-only-storage' } }]),
+    colorArena: bgl([uni(F), raw(F), raw(F), tex, smp, raw(F), { visibility: F, buffer: { type: 'read-only-storage' } }, raw(F)]),
   };
   const comp = (layout, code, entryPoint = 'main') => device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
@@ -2149,6 +2299,8 @@ async function initGpu() {
     arenaPantry: comp(L.arenaCensus, WGSL_ARENA_CENSUS, 'pantry'),
     arenaMark: comp(L.arenaMark, WGSL_ARENA_MARK),
     arenaDiffuse: comp(L.arenaDiffuse, WGSL_ARENA_DIFFUSE),
+    arenaRecipe: comp(L.arenaRecipe, WGSL_ARENA_RECIPE),
+    arenaField: comp(L.arenaField, WGSL_ARENA_FIELD),
     probeTrailArena: comp(L.probeTrail, WGSL_PROBE_TRAIL_ARENA),
     colorArena: draw(L.colorArena, WGSL_COLOR_ARENA, 'rgba16float'),
     resample: comp(L.resample, WGSL_RESAMPLE),
@@ -4105,7 +4257,7 @@ const HELP = {
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together and keep their size. A particle that wanders away from its kin turns back, crowding past its imprinted density pushes it out, and it digests best near that density. A strain may grow only a little past the size it was placed at, then births just replace losses: a tenth more at 0.50, exactly its size at 1.', lo: 'Classic slime: wanderers lay trails others follow, bodies fray into spreading networks, and strains grow as far as food allows', hi: 'Bodies stay separate individuals at their own size: rings, ribbons and cells that move and compete' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful lineages', hi: 'Fast evolution and more failed offspring' },
   'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each lineage has, stacked in its chemical color. PARTICLES charts each lineage's share of the world.", tip: 'For life-like behavior, bodies matter more: they show whether a lineage stays as individuals, divides, or spreads into one sprawl.' },
-  'arena.founders': { t: 'STRAINS', d: 'Each specimen placed in the Incubator founds a strain: the specimen and all its descendants. Each row shows the strain’s share of the world and its number of bodies. Point at one to light it up in the dish. Click it for its full stats.', tip: 'Each species gives off a chemical of its own while any of the dish’s six are free, and shows in its own colors. Species that have to share a chemical smell alike.' },
+  'arena.founders': { t: 'STRAINS', d: 'Each specimen placed in the Incubator founds a strain: the specimen and all its descendants. Each row shows the strain’s share of the world and its number of bodies. Point at one to light it up in the dish. Click it for its full stats.', tip: 'Each species gives off a chemical of its own while any of the dish’s six are free, and shows in its own colors. Species that have to share a chemical smell alike. A strain from an organism with a reaction field brings the field with it: the field runs where the strain lives and follows it.' },
   'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Puts the organism you last had in SOLO on the cutting bench, with its bodies outlined, so you can choose what to cut and then place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
   'arena.add.library': { t: 'ADD FROM LIBRARY', d: 'Opens the Library. Press ADD on any save, or switch to SPECIMENS and press ADD TO ARENA on a kept body.' },
   'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight, cuts its best body (or its densest part if it has none) and places it in the most open spot.' },
@@ -5511,12 +5663,13 @@ const ARENA = {
   // How a species of one kind treats a stranger's chemical. A species with partners at home treats strangers with half
   // the attitude it has toward them, so rivals avoid strangers and allies are drawn to them.
   stranger: -.25,
-  // The economy, measured on eight bodies (docs/RESEARCH.md, "Keeping bodies fed"). coop: cooperative digestion's half
-  // point. settle: how fast a set density drifts toward the density a particle actually lives at. spread and veinFlow:
+  // The economy, measured on ten bodies (docs/RESEARCH.md, "Keeping bodies fed"). coop: cooperative digestion's half
+  // point, as a share of a particle's set density. settle: how fast a set density drifts toward the density a particle
+  // actually lives at. spread and veinFlow:
   // how freely food spreads across open broth, and how much more freely along veins. A dense body eats out its own
   // patch, so food has to reach it from the broth around it, or it starves with food all around.
   // spread + veinFlow must stay at most 0.25, or food could flow out of a cell faster than it is there.
-  coop: 1, settle: .0007, spread: .1, veinFlow: .15,
+  coop: .7, settle: .0007, spread: .1, veinFlow: .15,
   // How large a strain may grow, as a multiple of what was placed, from HOMEOSTASIS: a tenth more at 0.5, exactly its
   // size at 1, and as far as food allows at 0. A strain at its size only replaces what it loses.
   hold: homeo => homeo > 0 ? 1 + .1 * (1 - homeo) / homeo : null,
@@ -5566,25 +5719,28 @@ const arenaGenome = { field: { on: false } };
 
 function ensureArena() {
   if (arena.sim) return;
-  const s = createSim(QUALITY.med), B = GPUBufferUsage, T = GPUTextureUsage, n = s.q.agents, cells = FIELD_W * FIELD_H, { w, h } = s.q;
+  const s = createSim(QUALITY.med), B = GPUBufferUsage, T = GPUTextureUsage, n = s.q.agents, { w, h } = s.q;
   const buf = (size, usage) => device.createBuffer({ size, usage });
+  const texture = (tw, th) => device.createTexture({
+    size: [tw, th], format: 'rgba32float', usage: T.STORAGE_BINDING | T.TEXTURE_BINDING | T.RENDER_ATTACHMENT | T.COPY_SRC | T.COPY_DST,
+  });
   s.arena = arena;
   // The second trail map holds chemicals four to six, with its own deposit counters. The first is the simulation's own.
-  const trailB = [0, 1].map(() => device.createTexture({
-    size: [w, h], format: 'rgba32float', usage: T.STORAGE_BINDING | T.TEXTURE_BINDING | T.RENDER_ATTACHMENT | T.COPY_SRC | T.COPY_DST,
-  }));
+  // The reaction field and its two recipe maps run on the food grid; each has a pair to read from one and write the other.
+  const trailB = [0, 1].map(() => texture(w, h)), field = [0, 1].map(() => texture(FIELD_W, FIELD_H));
+  const recA = [0, 1].map(() => texture(FIELD_W, FIELD_H)), recB = [0, 1].map(() => texture(FIELD_W, FIELD_H));
+  const views = list => list.map(t => t.createView());
   Object.assign(arena, {
     sim: s,
-    trailB, trailBViews: trailB.map(t => t.createView()),
+    trailB, trailBViews: views(trailB), rd: field, rdViews: views(field), recA, recAViews: views(recA), recB, recBViews: views(recB),
     depositB: buf(w * h * 12, B.STORAGE | B.COPY_DST),
-    strain: buf(128 * 4, B.STORAGE | B.COPY_DST),
+    econ: buf(ECON.words * 4, B.STORAGE | B.COPY_DST),
+    recipeBuf: buf(66 * 16, B.UNIFORM | B.COPY_DST),
     chemBuf: buf(80, B.UNIFORM | B.COPY_DST),
-    viewBuf: buf(80, B.UNIFORM | B.COPY_DST),
+    viewBuf: buf(96, B.UNIFORM | B.COPY_DST),
     uniform: buf(80, B.UNIFORM | B.COPY_DST),
     genes: buf(n * 64, B.STORAGE | B.COPY_DST | B.COPY_SRC),
     claims: buf(n * 4, B.STORAGE | B.COPY_DST),
-    crowd: buf(cells * 4, B.STORAGE | B.COPY_DST),
-    returned: buf(cells * 4, B.STORAGE | B.COPY_DST),
     censusBuf: buf(CENSUS_BYTES, B.STORAGE | B.COPY_SRC | B.COPY_DST),
     censusRead: buf(CENSUS_BYTES, B.MAP_READ | B.COPY_DST),
     placeJob: buf(16, B.UNIFORM | B.COPY_DST),
@@ -5593,12 +5749,15 @@ function ensureArena() {
     markJob: buf(16, B.UNIFORM | B.COPY_DST),
   });
   const group = (layout, res) => device.createBindGroup({ layout, entries: res.map((r, binding) => ({ binding, resource: r.usage !== undefined ? { buffer: r } : r })) });
-  const tb = arena.trailBViews;
+  const tb = arena.trailBViews, rd = arena.rdViews, ra = arena.recAViews, rb = arena.recBViews;
   arena.liveBG = [0, 1].map(t => [0, 1].map(f => group(P.L.arena,
-    [arena.uniform, s.agentBuf, arena.genes, arena.claims, s.depositBuf, arena.crowd, arena.returned, s.trailViews[t], s.fieldViews[f], arena.depositB, tb[t], arena.strain])));
-  arena.foodBG = [0, 1].map(f => [0, 1].map(t => group(P.L.arenaFood, [arena.uniform, s.fieldViews[f], s.fieldViews[1 - f], arena.crowd, arena.returned, s.trailViews[t], tb[t]])));
+    [arena.uniform, s.agentBuf, arena.genes, arena.claims, s.depositBuf, arena.econ, arena.recipeBuf, s.trailViews[t], s.fieldViews[f], arena.depositB, tb[t], rd[0]])));
+  arena.foodBG = [0, 1].map(f => [0, 1].map(t => group(P.L.arenaFood, [arena.uniform, s.fieldViews[f], s.fieldViews[1 - f], arena.econ, s.trailViews[t], tb[t]])));
   arena.diffuseBG = [0, 1].map(t => group(P.L.arenaDiffuse, [arena.chemBuf, s.depositBuf, arena.depositB, s.trailViews[t], tb[t], s.trailViews[1 - t], tb[1 - t], s.wallView]));
-  arena.colorBG = [0, 1].map(f => [0, 1].map(t => group(P.L.colorArena, [arena.viewBuf, s.trailViews[t], tb[t], P.lutView, P.sampler, s.fieldViews[f], arena.mark])));
+  // The recipe maps are read from one of each pair and written to the other; the field steps run on the fresh ones.
+  arena.recipeBG = [0, 1].map(r => group(P.L.arenaRecipe, [arena.uniform, arena.econ, ra[r], rb[r], ra[1 - r], rb[1 - r]]));
+  arena.fieldBG = [0, 1].map(r => [0, 1].map(k => [0, 1].map(t => group(P.L.arenaField, [arena.uniform, rd[k], rd[1 - k], ra[r], rb[r], s.trailViews[t], tb[t], arena.recipeBuf]))));
+  arena.colorBG = [0, 1].map(f => [0, 1].map(t => group(P.L.colorArena, [arena.viewBuf, s.trailViews[t], tb[t], P.lutView, P.sampler, s.fieldViews[f], arena.mark, rd[0]])));
   s.probeTrailBG = [0, 1].map(t => group(P.L.probeTrail, [s.simBuf, s.trailViews[t], tb[t], P.probeCells]));
   arena.markBG = group(P.L.arenaMark, [arena.uniform, arena.markJob, s.agentBuf, arena.genes, arena.mark]);
   arena.censusBG = [0, 1].map(f => group(P.L.arenaCensus, [arena.uniform, s.agentBuf, arena.genes, arena.censusBuf, s.fieldViews[f]]));
@@ -5610,27 +5769,42 @@ function ensureArena() {
   device.queue.writeTexture({ texture: s.wall }, mask, { bytesPerRow: WALL_W }, [WALL_W, WALL_H]);
   resetArena();
 }
-// An empty world full of food. Every particle place starts parked, with its own random stream from the arena's seed.
+// An empty world full of food, with no reaction field anywhere. Every particle place starts parked, with its own random
+// stream from the arena's seed.
 function resetArena() {
   const s = arena.sim, n = s.q.agents, cells = FIELD_W * FIELD_H;
   const data = new ArrayBuffer(n * 16), f = new Float32Array(data), u = new Uint32Array(data), r = mulberry(arena.seed);
   for (let i = 0; i < n; i++) { f[i * 4] = f[i * 4 + 1] = -1; u[i * 4 + 3] = r(); }
   device.queue.writeBuffer(s.agentBuf, 0, data);
-  const food = new Float32Array(cells * 4);
-  for (let i = 0; i < cells; i++) { food[i * 4 + 1] = 1; food[i * 4 + 3] = 1; }
+  const food = new Float32Array(cells * 4), broth = new Float32Array(cells * 4);
+  for (let i = 0; i < cells; i++) { food[i * 4 + 1] = 1; food[i * 4 + 3] = 1; broth[i * 4] = 1; broth[i * 4 + 3] = 1; }
   for (const t of s.field) device.queue.writeTexture({ texture: t }, food, { bytesPerRow: FIELD_W * 16 }, [FIELD_W, FIELD_H]);
+  for (const t of arena.rd) device.queue.writeTexture({ texture: t }, broth, { bytesPerRow: FIELD_W * 16 }, [FIELD_W, FIELD_H]);
   const enc = device.createCommandEncoder();
-  for (const b of [arena.genes, arena.claims, arena.crowd, arena.returned, s.depositBuf, arena.depositB, arena.strain]) enc.clearBuffer(b);
+  for (const b of [arena.genes, arena.claims, arena.econ, s.depositBuf, arena.depositB]) enc.clearBuffer(b);
   for (const view of [...s.trailViews, ...arena.trailBViews]) enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] }).end();
+  for (const view of [...arena.recAViews, ...arena.recBViews]) enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] }).end();
   device.queue.submit([enc.finish()]);
   Object.assign(s, { cur: 0, step: 0, analysis: null, judged: null, run: (s.run || 0) + 1 });
   arena.fcur = 0;
+  arena.rcur = 0;
+  // Field recipes are numbered as founders are stamped, so a replay numbers them the same way again.
+  arena.recipes = [];
   arena.history = [];
   arena.census = null;
   for (const f of arena.founders) { f.track = null; f.start = null; }
   s.colorBG = arena.colorBG[0];
 }
-
+// The number of a field recipe in the dish's table, adding it if it is new. A recipe is feed, kill, seeding and how far
+// the field spreads. The table holds 63; past that, the closest one already there is used.
+function recipeNumber(rc) {
+  const same = (a, b) => Math.abs(a.feed - b.feed) < 1e-5 && Math.abs(a.kill - b.kill) < 1e-5 && Math.abs(a.seeding - b.seeding) < 1e-4 && Math.abs(a.spread - b.spread) < 1e-3;
+  const at = arena.recipes.findIndex(x => same(x, rc));
+  if (at >= 0) return at + 1;
+  if (arena.recipes.length < 63) { arena.recipes.push({ ...rc }); return arena.recipes.length; }
+  const gap = x => Math.abs(x.feed - rc.feed) * 20 + Math.abs(x.kill - rc.kill) * 20 + Math.abs(x.seeding - rc.seeding) + Math.abs(x.spread - rc.spread);
+  return arena.recipes.reduce((best, x, i) => gap(x) < gap(arena.recipes[best]) ? i : best, 0) + 1;
+}
 /* Chemistry. The dish has six chemicals. Each species placed gets one of its own while any are free, so its trail fades
    and spreads at exactly its home rate: a body whose species leave trails of very different lifetimes keeps its
    structure. Once all six are taken, a species shares the chemical whose trail lasts and spreads most like its own, and
@@ -5639,19 +5813,20 @@ function resetArena() {
 const fadeGap = (a, b) => Math.abs(Math.log((1.0001 - a.decay) / (1.0001 - b.decay))) + 2 * Math.abs(a.diffuse - b.diffuse);
 // What each founder brings: its species' trails, or for a kept specimen, the chemicals of the dish it was kept from.
 // Weights are particles placed, so a chemical two founders share fades at their average, weighted by how much each gives.
+// ref is a trail's typical level at home, which sets how strongly it seeds a reaction field (4 if not known).
 function founderSources(f) {
   const sp = f.specimen, area = f.spots.reduce((s, x) => s + (x.size || 1) ** 2, 0) || 1;
   if (sp.genes) {
     const n = sp.agents.dx.length;
-    return sp.meanEmit.map((e, c) => ({ decay: sp.chem.decay[c] ?? .95, diffuse: sp.chem.diffuse[c] ?? .4, palette: sp.chem.palettes?.[c], weight: e > .02 ? e * n * area : 0 }));
+    return sp.meanEmit.map((e, c) => ({ decay: sp.chem.decay[c] ?? .95, diffuse: sp.chem.diffuse[c] ?? .4, ref: sp.chem.ref?.[c] ?? 4, palette: sp.chem.palettes?.[c], weight: e > .02 ? e * n * area : 0 }));
   }
-  return sp.g.species.slice(0, sp.g.count).map((s, k) => ({ decay: s.decay, diffuse: s.diffuse, palette: sp.g.colors?.palettes[k], weight: sp.counts[k] * area }));
+  return sp.g.species.slice(0, sp.g.count).map((s, k) => ({ decay: s.decay, diffuse: s.diffuse, ref: sp.refs?.[k] ?? 4, palette: sp.g.colors?.palettes[k], weight: sp.counts[k] * area }));
 }
 function arenaChemistry() {
   const channels = [];
   const fade = ch => {
     const w = ch.owners.reduce((s, o) => s + o.weight, 0) || 1;
-    return { decay: ch.owners.reduce((s, o) => s + o.decay * o.weight, 0) / w, diffuse: ch.owners.reduce((s, o) => s + o.diffuse * o.weight, 0) / w };
+    return { decay: ch.owners.reduce((s, o) => s + o.decay * o.weight, 0) / w, diffuse: ch.owners.reduce((s, o) => s + o.diffuse * o.weight, 0) / w, ref: ch.owners.reduce((s, o) => s + o.ref * o.weight, 0) / w };
   };
   for (const f of arena.founders) {
     const sources = founderSources(f), kept = f.map?.length === sources.length;
@@ -5735,10 +5910,20 @@ function writeArenaUniforms(s, now, view = st.view) {
   // The most particles each strain may have: a share more than it was placed with.
   const most = new Uint32Array(64), hold = ARENA.hold(p.homeo);
   if (hold) arena.founders.forEach((f, i) => { if (i < 64 && f.placed) most[i] = Math.max(1, Math.round(f.placed * hold)); });
-  device.queue.writeBuffer(arena.strain, 256, most);
+  device.queue.writeBuffer(arena.econ, (ECON.strain + 64) * 4, most);
+  // The field recipes, by number. 0 means no field. Then how strongly each chemical's trail seeds a field: the Microscope
+  // scales a species' trail by a third of its typical level at home, so a lasting trail seeds no more than a fleeting one.
+  const recipes = new Float32Array(66 * 4);
+  arena.recipes.forEach((rc, i) => recipes.set([rc.feed, rc.kill, rc.seeding, rc.spread], (i + 1) * 4));
+  for (let c = 0; c < CHEM; c++) if (ch[c]) recipes[(c < 3 ? 64 * 4 + c : 65 * 4 + c - 3)] = 1 / (3 * Math.max(ch[c].ref, 1e-3));
+  device.queue.writeBuffer(arena.recipeBuf, 0, recipes);
   // The dish's picture: each chemical through its own gradient, balanced by its fade, since a longer-lasting chemical
   // piles up brighter.
-  const dish = new Float32Array(20), glowNow = now ? arena.glow : 0; // Exports and pictures never carry the highlight.
+  const dish = new Float32Array(24), glowNow = now ? arena.glow : 0; // Exports and pictures never carry the highlight.
+  // A reaction field glows as it did at home, in the field colors and glow of the first founder that brought one.
+  const firstField = arena.founders.find(f => f.specimen.field)?.specimen.field, fieldPalette = firstField?.palette;
+  dish[19] = firstField ? firstField.light ?? view.fieldLight : 0;
+  dish[20] = (PALETTE_NAMES.indexOf(PALETTES[fieldPalette] ? fieldPalette : 'ORCHID') + .5) / PALETTE_NAMES.length;
   for (let c = 0; c < CHEM; c++) {
     const k = c < 3 ? c : c + 1;
     dish[k] = ch[c] ? view.exposure / ((.12 / (1 - ch[c].decay)) * 3) : 0;
@@ -5767,6 +5952,16 @@ function simulateArena(pass, s, n) {
     pass.setPipeline(P.arenaFood); pass.setBindGroup(0, arena.foodBG[arena.fcur][s.cur]);
     pass.dispatchWorkgroups(Math.ceil(FIELD_W / 8), Math.ceil(FIELD_H / 8));
     arena.fcur = 1 - arena.fcur;
+    // The field recipes given off this step, then the reaction field. Its steps come in pairs, so it always ends where
+    // the particles and the picture read it.
+    pass.setPipeline(P.arenaRecipe); pass.setBindGroup(0, arena.recipeBG[arena.rcur]);
+    pass.dispatchWorkgroups(Math.ceil(FIELD_W / 8), Math.ceil(FIELD_H / 8));
+    arena.rcur = 1 - arena.rcur;
+    pass.setPipeline(P.arenaField);
+    for (let k = 0; k < FIELD_ITERS; k++) {
+      pass.setBindGroup(0, arena.fieldBG[arena.rcur][k % 2][s.cur]);
+      pass.dispatchWorkgroups(Math.ceil(FIELD_W / 8), Math.ceil(FIELD_H / 8));
+    }
   }
   s.colorBG = arena.colorBG[arena.fcur];
   s.step += n;
@@ -6024,10 +6219,10 @@ async function cutFrom(src, shape) {
   const { cx, cy, R } = shape, soft = shape.circle ? null : blurGrid(blurGrid(Float32Array.from(shape.mask), gw, gh), gw, gh);
   const size = Math.min(Math.ceil(2 * R) + 4, w, h), x0 = clamp(Math.round(cx - size / 2), 0, w - size), y0 = clamp(Math.round(cy - size / 2), 0, h - size);
   const data = await readRegion(sim.trail[sim.cur], x0, y0, size, size);
+  // How much of a point is inside the cut: the body's outline with a soft edge, or the circle.
+  const maskAt = (px, py) => soft ? clamp(gridAt(soft, gw, gh, px / cw - .5, py / ch - .5) * 1.6, 0, 1) : 1 - smoothstep(R * .85, R, Math.hypot(px - cx, py - cy));
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const px = x0 + x + .5, py = y0 + y + .5;
-    const m = soft ? clamp(gridAt(soft, gw, gh, px / cw - .5, py / ch - .5) * 1.6, 0, 1) : 1 - smoothstep(R * .85, R, Math.hypot(px - cx, py - cy));
-    const k = (y * size + x) * 4;
+    const m = maskAt(x0 + x + .5, y0 + y + .5), k = (y * size + x) * 4;
     data[k] *= m; data[k + 1] *= m; data[k + 2] *= m; data[k + 3] = 1 - (1 - data[k + 3]) * m;
   }
   const crop = { w: size, h: size, cx: cx - x0, cy: cy - y0, data };
@@ -6049,10 +6244,32 @@ async function cutFrom(src, shape) {
     // Living cells carry their own inherited multipliers on the species' rules.
     if (genes) out.mult.set(genes.subarray(i * 8 + 1, i * 8 + 5), j * 4);
   });
+  // Each species' typical trail level at home: its share of the picture's particles per pixel, piled up by how long its
+  // trail lasts. The Microscope scales a species' trail by this, so the dish uses it to seed fields the same way.
+  const sizes = [bA, bB - bA, agents - bB], refs = g.species.slice(0, g.count).map((s, i) => (Math.max(sizes[i], 1) / (w * h)) / (1 - s.decay));
+  // A body shaped by a reaction field takes the field from under it too, cut with the same soft edge. Outside the cut
+  // the field is plain broth, U at 1 and V at 0, and blue holds how much of each cell was cut, so placing blends in only
+  // that. Each species' pull toward the field is put on the dish's trail scale, as the Microscope sets it (see
+  // writeUniforms), so it follows the field as strongly as it did at home.
+  let field = null;
+  if (g.field.on && sim.fieldOn) {
+    const cell = w / FIELD_W, fx0 = clamp(Math.floor(x0 / cell), 0, FIELD_W - 1), fy0 = clamp(Math.floor(y0 / cell), 0, FIELD_H - 1);
+    const fw = clamp(Math.ceil((x0 + size) / cell), fx0 + 1, FIELD_W) - fx0, fh = clamp(Math.ceil((y0 + size) / cell), fy0 + 1, FIELD_H) - fy0;
+    const fdata = await readRegion(sim.field[0], fx0, fy0, fw, fh);
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      const m = maskAt((fx0 + x + .5) * cell, (fy0 + y + .5) * cell), k = (y * fw + x) * 4;
+      fdata[k] = 1 + (fdata[k] - 1) * m; fdata[k + 1] *= m; fdata[k + 2] = m; fdata[k + 3] = 0;
+    }
+    field = {
+      w: fw, h: fh, cx: cx / cell - fx0, cy: cy / cell - fy0, cell, data: fdata,
+      feed: g.field.feed, kill: g.field.kill, seeding: g.field.seeding, palette: colorsOf(g).fieldPalette, light: src.view?.fieldLight ?? st.view.fieldLight,
+      pull: g.species.slice(0, g.count).map((s, i) => s.toField * 4 * refs[i] * 3 * ARENA.norm),
+    };
+  }
   // A body shrunk to fit is treated as if it came from a taller picture, so placing scales it down evenly.
   const srcH = h / shape.shrink;
   // The organism's own colors go with it, so its species show in them in the Incubator.
-  return { name, g: { count: g.count, species: cloneSpecies(g.species.slice(0, g.count)), life: { ...lifeOf(g) }, colors: copyColors(colorsOf(g)) }, srcH, radius: R * shape.shrink / h, crop, agents: out, counts, shape: shape.circle ? 'circle' : 'body', steady: shape.steady ?? null };
+  return { name, g: { count: g.count, species: cloneSpecies(g.species.slice(0, g.count)), life: { ...lifeOf(g) }, colors: copyColors(colorsOf(g)) }, srcH, radius: R * shape.shrink / h, crop, field, refs, agents: out, counts, shape: shape.circle ? 'circle' : 'body', steady: shape.steady ?? null };
 }
 // The best cut without asking, for wild organisms: the top body if it is convincing, otherwise the densest circle.
 async function autoCut(src) {
@@ -6316,6 +6533,40 @@ async function stampFounder(f, only = -1) {
   f.placed = (only < 0 ? 0 : f.placed || 0) + n;
   return n;
 }
+// Blends a cut field into the dish's field around a copy: where the cut held it (its blue), the dish takes the cut's U
+// and V. The recipe is laid down there too, as if particles had given it off for a few steps, so the field keeps
+// running from the first step instead of fading before the particles start giving it off. cellPx is how many dish
+// pixels one of the cut's field cells covers.
+const FIELD_STAMP = 6;
+async function stampField(F, cx, cy, R, cellPx, rc) {
+  const dishCell = arena.sim.q.w / FIELD_W, rd = await readRegion(arena.rd[0], 0, 0, FIELD_W, FIELD_H);
+  const ra = await readRegion(arena.recA[arena.rcur], 0, 0, FIELD_W, FIELD_H), rb = await readRegion(arena.recB[arena.rcur], 0, 0, FIELD_W, FIELD_H);
+  const sample = (sx, sy, c) => {
+    if (sx < -.5 || sy < -.5 || sx > F.w - .5 || sy > F.h - .5) return c === 0 ? 1 : 0;
+    const x0 = clamp(Math.floor(sx), 0, F.w - 1), y0 = clamp(Math.floor(sy), 0, F.h - 1), x1 = Math.min(F.w - 1, x0 + 1), y1 = Math.min(F.h - 1, y0 + 1);
+    const tx = clamp(sx - x0, 0, 1), ty = clamp(sy - y0, 0, 1), at = (x, y) => F.data[(y * F.w + x) * 4 + c];
+    return (at(x0, y0) * (1 - tx) + at(x1, y0) * tx) * (1 - ty) + (at(x0, y1) * (1 - tx) + at(x1, y1) * tx) * ty;
+  };
+  const x0 = Math.max(0, Math.floor((cx - R) / dishCell)), x1 = Math.min(FIELD_W - 1, Math.ceil((cx + R) / dishCell));
+  const y0 = Math.max(0, Math.floor((cy - R) / dishCell)), y1 = Math.min(FIELD_H - 1, Math.ceil((cy + R) / dishCell));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const px = (x + .5) * dishCell, py = (y + .5) * dishCell, d = Math.hypot(px - cx, py - cy);
+    if (d > R) continue;
+    const sx = F.cx + (px - cx) / cellPx - .5, sy = F.cy + (py - cy) / cellPx - .5;
+    const m = sample(sx, sy, 2) * (1 - smoothstep(R * .85, R, d));
+    if (m <= 0) continue;
+    const k = (y * FIELD_W + x) * 4;
+    rd[k] += (sample(sx, sy, 0) - rd[k]) * m;
+    rd[k + 1] += (sample(sx, sy, 1) - rd[k + 1]) * m;
+    if (rc) {
+      const add = FIELD_STAMP * m;
+      ra[k] += add; ra[k + 1] += add * rc.feed; ra[k + 2] += add * rc.kill; ra[k + 3] += add * rc.seeding;
+      rb[k] += add * rc.spread;
+    }
+  }
+  const put = (texture, data) => device.queue.writeTexture({ texture }, data, { bytesPerRow: FIELD_W * 16 }, [FIELD_W, FIELD_H]);
+  put(arena.rd[0], rd); put(arena.recA[arena.rcur], ra); put(arena.recB[arena.rcur], rb);
+}
 // Writes one copy: its trail first, then its particles into free places, imprinting each one. A copy placed larger or
 // smaller has its sensing reach and speed scaled with it, so it behaves as a true larger or smaller copy of the organism.
 async function stampSpot(f, spot, index) {
@@ -6356,6 +6607,24 @@ async function stampSpot(f, spot, index) {
   device.queue.submit([enc.finish()]);
   s.cur = 1 - s.cur;
 
+  // The reaction field from under the body goes into the dish's field, with its recipe. A copy placed smaller or larger
+  // has its field spread less or more, so the field's pattern keeps its size relative to the body. A kept specimen's
+  // particles carry the recipes of the dish they came from, renumbered for this one.
+  let recipe = 0, keptRecipes = [];
+  if (sp.field) {
+    const cellPx = sp.field.cell * scale, spread = (cellPx / (w / FIELD_W)) ** 2;
+    if (sp.genes) {
+      keptRecipes = (sp.recipes || []).map(rc => recipeNumber({ ...rc, spread: clamp(rc.spread * spread, .1, 1) }));
+      const uses = new Map();
+      for (let j = 0; j < sp.agents.dx.length; j++) { const l = sp.genes[j * GENE_IN + 22]; if (l) uses.set(l, (uses.get(l) || 0) + 1); }
+      const most = [...uses].sort((x, y) => y[1] - x[1])[0];
+      await stampField(sp.field, cx, cy, R, cellPx, most ? arena.recipes[keptRecipes[most[0] - 1] - 1] : null);
+    } else {
+      recipe = recipeNumber({ feed: sp.field.feed, kill: sp.field.kill, seeding: sp.field.seeding, spread: clamp(spread, .1, 1) });
+      await stampField(sp.field, cx, cy, R, cellPx, arena.recipes[recipe - 1]);
+    }
+  }
+
   // Free places are found in order, so the same founders always land in the same places.
   const pos = new Float32Array(await readBack(s.agentBuf, s.q.agents * 16)), free = [];
   for (let i = 0; i < s.q.agents; i++) if (pos[i * 4] < 0) free.push(i);
@@ -6388,12 +6657,16 @@ async function stampSpot(f, spot, index) {
         genes[o + 14] = g[14];
         const stranger = unused.length ? unused.reduce((t, q) => t + g[15 + q], 0) / unused.length : ARENA.stranger;
         for (let d = 0; d < CHEM; d++) genes[o + 15 + d] = owners[d].length ? owners[d].reduce((t, q) => t + g[15 + q], 0) / owners[d].length : stranger;
+        genes[o + 21] = g[21];
+        genes[o + 22] = g[22] ? keptRecipes[g[22] - 1] || 0 : 0;
       } else {
         genes.set([ARENA.energy, 0, s0.sensorAngle * deg * m[0], s0.sensorDist * unit * m[1] * size, s0.turnSpeed * deg * m[2],
           s0.moveSpeed * unit * m[3] * size, s0.deposit, 0], o);
         genes.set(f.emit[k], o + 8);
         genes[o + 14] = ARENA.forage;
         genes.set(f.resp[k], o + 15);
+        // The species' pull toward its field, and the recipe it gives off.
+        if (sp.field) { genes[o + 21] = sp.field.pull[k] || 0; genes[o + 22] = recipe; }
       }
       genes[o + 1] = f.lineage;
       n++;
@@ -6959,6 +7232,8 @@ async function keepAt(x, y, radius, from = '') {
     const crop = { w: size, h: size, cx: cx - x0, cy: cy - y0, data: await readRegion(s.trail[s.cur], x0, y0, size, size), dataB: await readRegion(arena.trailB[s.cur], x0, y0, size, size) };
     const n = inside.length, out = { dx: new Float32Array(n), dy: new Float32Array(n), angle: new Float32Array(n), rng: new Uint32Array(n), kind: new Uint8Array(n), mult: null };
     const keptGenes = new Float32Array(n * GENE_IN), byLineage = new Map(), emit = new Array(CHEM).fill(0), sums = { setpoint: 0, speed: 0, angle: 0, reach: 0 };
+    // The field recipes the kept particles carry, numbered afresh for the specimen.
+    const recipes = [], ownNumber = new Map();
     inside.forEach((i, j) => {
       out.dx[j] = pos[i * 4] - cx; out.dy[j] = pos[i * 4 + 1] - cy; out.angle[j] = pos[i * 4 + 2]; out.rng[j] = rngs[i * 4 + 3];
       // Genes are kept as 24 plain numbers, with the packed chemistry unpacked.
@@ -6966,6 +7241,12 @@ async function keepAt(x, y, radius, from = '') {
       keptGenes.set(genes.subarray(o, o + 8), k);
       keptGenes[k + 1] = gu[o + 1];
       keptGenes.set(e, k + 8); keptGenes[k + 14] = genes[o + 11]; keptGenes.set(r, k + 15);
+      const fieldWord = gu[o + 15], recipe = fieldWord & 0xFFFF;
+      if (recipe && arena.recipes[recipe - 1]) {
+        if (!ownNumber.has(recipe)) { recipes.push({ ...arena.recipes[recipe - 1] }); ownNumber.set(recipe, recipes.length); }
+        keptGenes[k + 21] = fromHalf(fieldWord >>> 16);
+        keptGenes[k + 22] = ownNumber.get(recipe);
+      }
       const l = gu[o + 1];
       byLineage.set(l, (byLineage.get(l) || 0) + 1);
       for (let c = 0; c < CHEM; c++) emit[c] += e[c] / n;
@@ -6977,10 +7258,24 @@ async function keepAt(x, y, radius, from = '') {
     }));
     const ch = arena.channels, chem = {
       decay: Array.from({ length: CHEM }, (_, c) => ch[c]?.decay ?? .95), diffuse: Array.from({ length: CHEM }, (_, c) => ch[c]?.diffuse ?? .4),
+      ref: Array.from({ length: CHEM }, (_, c) => ch[c]?.ref ?? 4),
       palettes: Array.from({ length: CHEM }, (_, c) => ch[c]?.palette || ARENA.palettes[c]),
     };
+    // A body living in a reaction field takes the field from under it, as a cut does.
+    let field = null;
+    if (recipes.length) {
+      const cell = w / FIELD_W, fx0 = clamp(Math.floor(x0 / cell), 0, FIELD_W - 1), fy0 = clamp(Math.floor(y0 / cell), 0, FIELD_H - 1);
+      const fw = clamp(Math.ceil((x0 + size) / cell), fx0 + 1, FIELD_W) - fx0, fh = clamp(Math.ceil((y0 + size) / cell), fy0 + 1, FIELD_H) - fy0;
+      const data = await readRegion(arena.rd[0], fx0, fy0, fw, fh);
+      for (let yy = 0; yy < fh; yy++) for (let xx = 0; xx < fw; xx++) {
+        const m = 1 - smoothstep(R * .85, R, Math.hypot((fx0 + xx + .5) * cell - cx, (fy0 + yy + .5) * cell - cy)), k = (yy * fw + xx) * 4;
+        data[k] = 1 + (data[k] - 1) * m; data[k + 1] *= m; data[k + 2] = m; data[k + 3] = 0;
+      }
+      const first = arena.founders.find(f => f.specimen.field)?.specimen.field;
+      field = { w: fw, h: fh, cx: cx / cell - fx0, cy: cy / cell - fy0, cell, data, palette: first?.palette || 'ORCHID', light: first?.light ?? st.view.fieldLight };
+    }
     const specimen = {
-      kind: 'kept', name: 'Kept ' + (from || origin[0].name), srcH: h, radius, crop, agents: out, counts: [n], genes: keptGenes,
+      kind: 'kept', name: 'Kept ' + (from || origin[0].name), srcH: h, radius, crop, field, recipes, agents: out, counts: [n], genes: keptGenes,
       meanEmit: emit, chem, origin, keptAt: s.step,
       traits: Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, +v.toFixed(3)])),
     };
@@ -6998,10 +7293,10 @@ async function keepAt(x, y, radius, from = '') {
    files, which only held kept bodies, still open. */
 async function packSpecimen(sp) {
   const n = sp.agents.dx.length, cropFloats = sp.crop.w * sp.crop.h * 4, kindWords = Math.ceil(n / 4);
-  const hasMult = !!sp.agents.mult, hasGenes = !!sp.genes, hasB = !!sp.crop.dataB;
-  const words = 8 + cropFloats * (hasB ? 2 : 1) + n * 4 + kindWords + (hasMult ? n * 4 : 0) + (hasGenes ? n * GENE_IN : 0);
+  const hasMult = !!sp.agents.mult, hasGenes = !!sp.genes, hasB = !!sp.crop.dataB, F = sp.field, fieldFloats = F ? F.w * F.h * 4 : 0;
+  const words = 8 + cropFloats * (hasB ? 2 : 1) + fieldFloats + n * 4 + kindWords + (hasMult ? n * 4 : 0) + (hasGenes ? n * GENE_IN : 0);
   const out = new ArrayBuffer(words * 4), u = new Uint32Array(out), f = new Float32Array(out);
-  u.set([SPECIMEN_MAGIC, 3, n, sp.crop.w, sp.crop.h, (hasGenes ? 1 : 0) | (hasMult ? 2 : 0) | (hasB ? 4 : 0), hasGenes ? GENE_IN : 0]);
+  u.set([SPECIMEN_MAGIC, 3, n, sp.crop.w, sp.crop.h, (hasGenes ? 1 : 0) | (hasMult ? 2 : 0) | (hasB ? 4 : 0) | (F ? 8 : 0), hasGenes ? GENE_IN : 0, F ? F.w | F.h << 16 : 0]);
   let o = 8;
   for (const plane of hasB ? [sp.crop.data, sp.crop.dataB] : [sp.crop.data]) {
     f.set(plane, o);
@@ -7009,6 +7304,8 @@ async function packSpecimen(sp) {
     for (let i = o; i < o + cropFloats; i++) u[i] &= 0xFFFFF800;
     o += cropFloats;
   }
+  // A reaction field is kept exactly: the reaction is sensitive to small changes.
+  if (F) { f.set(F.data, o); o += fieldFloats; }
   f.set(sp.agents.dx, o); o += n;
   f.set(sp.agents.dy, o); o += n;
   f.set(sp.agents.angle, o); o += n;
@@ -7045,40 +7342,52 @@ const readColors = c => Array.isArray(c?.palettes) && c.palettes.length >= 1 && 
   ? { palettes: c.palettes.slice(0, 3), fieldPalette: PALETTES[c.fieldPalette] ? c.fieldPalette : 'BIOLUME' } : null;
 async function unpackSpecimen(blob, meta) {
   const raw = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-  const u = new Uint32Array(raw), f = new Float32Array(raw), [magic, version, n, cw, ch, flags, stride] = u;
+  const u = new Uint32Array(raw), f = new Float32Array(raw), [magic, version, n, cw, ch, flags, stride, fieldSize] = u;
   if (magic !== SPECIMEN_MAGIC || !n || version < 1 || version > 3) return null;
   const hasGenes = version === 1 || !!(flags & 1), hasMult = version >= 2 && !!(flags & 2), hasB = version === 3 && !!(flags & 4);
+  const hasField = version === 3 && !!(flags & 8) && !!meta.field, fw = fieldSize & 0xFFFF, fh = fieldSize >>> 16;
   const geneWords = !hasGenes ? 0 : version === 3 ? stride : 16, kindWords = version >= 2 ? Math.ceil(n / 4) : 0, plane = cw * ch * 4;
   if (version === 3 && hasGenes && stride !== GENE_IN) return null;
-  const words = 8 + plane * (hasB ? 2 : 1) + n * 4 + kindWords + (hasMult ? n * 4 : 0) + n * geneWords;
+  const words = 8 + plane * (hasB ? 2 : 1) + (hasField ? fw * fh * 4 : 0) + n * 4 + kindWords + (hasMult ? n * 4 : 0) + n * geneWords;
   if (raw.byteLength !== words * 4) return null;
   let o = 8;
   const crop = { w: cw, h: ch, cx: meta.crop.cx, cy: meta.crop.cy, data: f.slice(o, o + plane) };
   o += plane;
   if (hasB) { crop.dataB = f.slice(o, o + plane); o += plane; }
+  let field = null;
+  if (hasField) {
+    const m = meta.field, num = (v, d) => Number.isFinite(v) ? v : d;
+    field = { w: fw, h: fh, cx: num(m.cx, fw / 2), cy: num(m.cy, fh / 2), cell: num(m.cell, 4), data: f.slice(o, o + fw * fh * 4),
+      feed: num(m.feed, .037), kill: num(m.kill, .06), seeding: num(m.seeding, 1), palette: PALETTES[m.palette] ? m.palette : 'ORCHID', light: num(m.light, .3),
+      pull: Array.isArray(m.pull) ? m.pull.map(v => num(v, 0)) : [] };
+    o += fw * fh * 4;
+  }
   const agents = { dx: f.slice(o, o + n), dy: f.slice(o + n, o + 2 * n), angle: f.slice(o + 2 * n, o + 3 * n), rng: u.slice(o + 3 * n, o + 4 * n), kind: new Uint8Array(n), mult: null };
   o += 4 * n;
   if (kindWords) { agents.kind = new Uint8Array(raw.slice(o * 4, o * 4 + n)); o += kindWords; }
   if (hasMult) { agents.mult = f.slice(o, o + n * 4); o += n * 4; }
-  const base = { name: meta.name, srcH: meta.srcH, radius: meta.radius, crop, agents };
+  const base = { name: meta.name, srcH: meta.srcH, radius: meta.radius, crop, field, agents };
   if (hasGenes) {
     const genes = version === 3 ? f.slice(o, o + n * GENE_IN) : oldKeptGenes(f.subarray(o, o + n * 16), n);
     // A body kept from the three-chemical dish showed its chemicals in rose, kelp and glacier.
     const chem = { decay: meta.chem?.decay || [.95, .95, .95], diffuse: meta.chem?.diffuse || [.4, .4, .4], palettes: meta.chem?.palettes || ['ROSE', 'KELP', 'GLACIER'] };
     const meanEmit = (meta.meanEmit || [1, 0, 0]).slice(0, chem.decay.length);
-    return { ...base, kind: 'kept', counts: [n], genes, meanEmit, chem, origin: meta.origin, keptAt: meta.keptAt, traits: meta.traits };
+    const recipes = (Array.isArray(meta.recipes) ? meta.recipes : []).map(rc => ({ feed: +rc.feed || 0, kill: +rc.kill || .06, seeding: +rc.seeding || 0, spread: +rc.spread || 1 }));
+    return { ...base, kind: 'kept', counts: [n], genes, recipes, meanEmit, chem, origin: meta.origin, keptAt: meta.keptAt, traits: meta.traits };
   }
   const count = clamp(Number.isInteger(meta.g?.count) ? meta.g.count : 1, 1, 3), counts = [0, 0, 0];
   for (let j = 0; j < n; j++) { agents.kind[j] = Math.min(agents.kind[j], count - 1); counts[agents.kind[j]]++; }
-  return { ...base, kind: 'cut', g: { count, species: readSpecies(meta.g?.species).slice(0, count), life: readLife(meta.g?.life), colors: readColors(meta.g?.colors) }, counts, shape: meta.shape, source: meta.source, steady: meta.steady };
+  return { ...base, kind: 'cut', g: { count, species: readSpecies(meta.g?.species).slice(0, count), life: readLife(meta.g?.life), colors: readColors(meta.g?.colors) }, counts, shape: meta.shape, source: meta.source, steady: meta.steady, refs: Array.isArray(meta.refs) ? meta.refs.map(v => +v > 0 ? +v : 4) : null };
 }// The description saved beside a specimen's particles. A cut also records its rules and the save it came from.
 function specimenMeta(sp, id) {
   const common = {
     format: 'digital-life-specimen', version: 3, kind: sp.kind, id, name: sp.name, createdAt: new Date().toISOString(),
     radius: sp.radius, srcH: sp.srcH, particles: sp.agents.dx.length, crop: { w: sp.crop.w, h: sp.crop.h, cx: sp.crop.cx, cy: sp.crop.cy },
   };
-  if (sp.kind === 'kept') return { ...common, keptAt: sp.keptAt, chem: sp.chem, meanEmit: sp.meanEmit, origin: sp.origin, traits: sp.traits };
-  return { ...common, shape: sp.shape, source: sp.source, steady: sp.steady, g: { count: sp.g.count, species: sp.g.species, life: sp.g.life, colors: sp.g.colors || null }, counts: sp.counts };
+  // A reaction field's place in the crop and its recipe. Its values are in the specimen file.
+  const F = sp.field, field = F ? { cx: F.cx, cy: F.cy, cell: F.cell, palette: F.palette, light: F.light, ...(sp.kind === 'kept' ? {} : { feed: F.feed, kill: F.kill, seeding: F.seeding, pull: F.pull }) } : null;
+  if (sp.kind === 'kept') return { ...common, keptAt: sp.keptAt, chem: sp.chem, meanEmit: sp.meanEmit, origin: sp.origin, traits: sp.traits, field, recipes: sp.recipes || [] };
+  return { ...common, shape: sp.shape, source: sp.source, steady: sp.steady, field, refs: sp.refs, g: { count: sp.g.count, species: sp.g.species, life: sp.g.life, colors: sp.g.colors || null }, counts: sp.counts };
 }
 // Saves a specimen to the saves folder's "specimens" subfolder and returns its drawer item. With `ask`, the folder is
 // requested if needed. Without it, a specimen that can't be saved yet stays in the drawer for this session.

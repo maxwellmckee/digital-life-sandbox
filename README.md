@@ -45,7 +45,7 @@ There is nothing to install and no build step. The project was built for a deskt
 | `saves/` | Saved organisms (`dl-*.json`) and `taste.json` |
 | `saves/bodies/` | The grown body of each save (`.dlbody`): every agent, trail, vein and chemical |
 | `saves/thumbs/` | Library pictures. They can be regrown if missing |
-| `saves/specimens/` | Specimens cut from slides or kept from the Incubator: a description (`.json`), a picture (`.webp`) and their particles and trail (`.dlspec`, gzip). Version 3 files hold all six of the dish's chemicals and a cut's own colors; older files still open |
+| `saves/specimens/` | Specimens cut from slides or kept from the Incubator: a description (`.json`), a picture (`.webp`) and their particles and trail (`.dlspec`, gzip). Version 3 files hold all six of the dish's chemicals, a cut's own colors and, for a body that lived in a reaction field, the field beneath it; older files still open |
 | `saves/removed/` | Saves and specimens removed in the Library. Nothing is permanently deleted there |
 | `images/`, `videos/` | PNG and MP4 exports |
 | `docs/RESEARCH.md` | Papers behind the LIFE systems, how they were adapted, and test results |
@@ -171,19 +171,20 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 
 **How bodies are found.** Particle density is measured on a 240x135 grid. Dense regions are followed from the tightest threshold to the loosest, and a region that keeps its own identity over several thresholds stands apart from its surroundings: that is a body. Each body is filled in, so a membrane keeps whatever it holds, and ranked by how well it stands apart, how steady it is, whether it encloses space or has a brighter rim, and its size. Trail piled along the frame is ranked down. The cut follows the body's own outline with a small margin, so strands of network passing by stay behind.
 
-**What carries over.** A specimen keeps its particles where they were, the trail and veins beneath them, and each particle's own rules. Living cells keep their inherited multipliers. It is cut at its own scale. Only a body too big for the dish, wider than about 84% of the picture height, is shrunk evenly to fit, and the bench says so. A body keeps its full density unless it would take more than 40% of the world.
+**What carries over.** A specimen keeps its particles where they were, the trail and veins beneath them, and each particle's own rules. Living cells keep their inherited multipliers. It is cut at its own scale. Only a body too big for the dish, wider than about 84% of the picture height, is shrunk evenly to fit, and the bench says so. A body keeps its full density unless it would take more than 40% of the world. A body from an organism with a reaction field takes the field from under it too, with the same soft edge, along with the field's recipe and how strongly each species follows or flees it.
 
 **What each particle carries:**
 
 - **Movement rules** from its species, as in Solo.
 - **A target density**, imprinted from the density it actually lived at when cut. Vein particles want vein density, and rim particles want rim density. It drifts slowly toward its new surroundings, so a transplanted body can adjust instead of starving.
 - **A chemical of its own.** The dish has six chemicals. Each species placed gets one of its own while any are free, and its trail fades and spreads at exactly its home rate. That matters: when species share a chemical, its fade is an average, and a species whose trail used to last 500 steps loses the trail it follows. Each species also follows and flees the others of its organism exactly as it did at home, and shows in its organism's own colors. Toward a chemical that isn't its own organism's, a species behaves as toward a stranger: with half the attitude it had toward its partners at home, or a slight wariness if it had none. Once all six chemicals are taken, a new species shares the one whose trail behaves most like its own, and species sharing a chemical smell alike. A strain keeps the chemicals it was given, and its chemistry can still evolve.
-- **Energy.** Particles digest food best near their target density and with kin around, so a loner can barely eat. They divide when full, pass slightly mutated genes to their daughters, and die when starved.
+- **Energy.** Particles digest food best near their target density and with kin around at that density, so a loner can barely eat, while a body that is sparse by nature eats well at its own density. They divide when full, pass slightly mutated genes to their daughters, and die when starved.
 
 **The world:**
 
 - **Food** regrows like sunlight, and dead particles return to it.
 - **Food flows** across the broth into bodies, and faster still along veins, the way *Physarum* streams nutrients through its tubes. A dense body eats out its own patch quickly, so without this flow it starved with food all around it.
+- **Reaction fields.** A body that lived in a reaction field brings it, and its particles carry the field's recipe: the feed and kill rates of its Gray-Scott reaction and how strongly its trails seed it. They give the recipe off where they live, so the field runs where the strain is, follows it as it moves, and fades back to plain broth where no strain keeps it. Strains with different fields can share the dish. Each species follows or flees the field as strongly as it did at home, and the field glows in its organism's field colors.
 - **A strain keeps its size.** It may grow a little past the number of particles it was placed with, then a birth only replaces a loss, like an organism that stops growing when it is grown. Near that size each fed particle divides only by a draw weighted by the room left, so a whole well-fed body can't overshoot at once.
 - **Homing.** A particle that has wandered away, sensing little of its kin where it stands or where its sensors reach, turns back. Swarming bacteria such as *Myxococcus* reverse direction in a similar way to stay with their swarm. Without homing, a wanderer has nothing to steer by, lays a trail others follow, and the body frays into a spreading network.
 - **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. HOMEOSTASIS sets how reliably lost particles turn back, how hard crowding pushes out, how narrowly they digest around their target density, and how closely a strain keeps its size: a tenth more than it was placed with at 0.5, exactly its size at 1. At 0 the Arena behaves like classic slime and strains grow as far as food allows. From about 0.5, bodies stay separate individuals.
@@ -241,7 +242,7 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 - **Living cells:** a four-stage compute step of claim, birth, live and clear, with a separate 32-byte gene record per agent. Atomic claims keep runs repeatable.
 - **Rendering:** per-species gradient lookup, bloom, ACES tone mapping and fine grain.
 - **Metrics:** a GPU probe produces the LIFE score and verdicts ALIVE, NOISE, GRID, BLOB, FLAT or EMPTY. New variants get four checkpoints because good organisms can start slowly. Version 2 adds coarse-scale bodies, block variety, border share and edge direction.
-- **Arena:** its own count, claim, birth, live and clear stages over a 64-byte gene per particle, whose six emissions and six responses are packed as half floats. Steering adds a crowding penalty to slime sensing, which is Particle Lenia's energy. Six chemicals live in two trail maps, each with its own fade and spread. Food is a mass-balanced field that flows faster along veins. Each strain is counted every step, summed per workgroup so the totals don't depend on thread order, and holds its size from that count. Specimens are held in memory, so REPLAY is exact.
+- **Arena:** its own count, claim, birth, live and clear stages over a 64-byte gene per particle, whose six emissions and six responses are packed as half floats. Steering adds a crowding penalty to slime sensing, which is Particle Lenia's energy. Six chemicals live in two trail maps, each with its own fade and spread. Food is a mass-balanced field that flows faster along veins. Reaction fields run as Gray-Scott on the food grid, with each cell's recipe read from maps the particles give recipes off into. Food counters, strain sizes and recipe sums share one buffer, so a pass stays within the GPU's eight storage buffers. Each strain is counted every step, summed per workgroup so the totals don't depend on thread order, and holds its size from that count. Specimens are held in memory, so REPLAY is exact.
 - **Taste learning:** momentum from recent pick direction plus memory of favorites. One plain child and the WILD child are never steered.
 - **Family records:** an in-memory graph connects unsaved generations, so a save links to its nearest saved ancestors.
 - **Export:** a custom PNG writer, plus WebCodecs H.264 with a custom MP4 muxer.
@@ -293,7 +294,8 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 - Body counts, divisions and deaths in the Arena are measured on a coarse grid, so they are approximate.
 - The cutting bench finds bodies from particle density on a grid of 8-pixel cells (4 pixels on a Batch tile), so outlines are stepped, and a faint body in a dense network can be missed. A round cut is always available.
 - WILD specimens are placed but not filed in the specimen deck. KEEP a wild body you like to save it.
-- A body shaped by a reaction-diffusion field loses that field in the Arena, so it reorganizes after placing.
+- A reaction field in the dish lives only where a strain keeps it, so the field that filled the whole picture at home covers only the body and a margin around it. All fields in the dish glow in the colors of the first strain that brought one.
+- A copy placed smaller than ×1 has its field's pattern scaled down with it. A copy placed larger keeps the field's pattern at full size, because spreading it further would make the reaction unstable.
 - The dish has six chemicals. Past six species, a new species shares the chemical whose trail behaves most like its own, so it fades at an average rate and smells like the species it shares with.
 - A strain's size limit counts the whole strain, so in a strain of several species one species can fill the room left by another that dies out.
 - There is no WebGL2 fallback.
@@ -316,13 +318,13 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 
 1. Done: every species gets its own chemical in the dish, and the dish has six.
 2. Done: food flows into bodies and strains keep their size, so a placed body neither starves nor balloons. The bench marks whether a body holds its shape at home.
-3. Carry a body's reaction field into the Incubator. Some field bodies lose their inner structure without it.
+3. Done: a body's reaction field comes with it into the Incubator and follows its strain.
 4. A bigger dish, with specimens kept at their true size and a way to zoom in, and saving and reopening a whole dish in the Archive.
 5. Membrane material made by the particles themselves.
 6. Score lineages by their bodies: how long they last and how often they divide.
 
 **Notes 3 progress:** done: body-aware cutting with a preview, the specimen drawer with MAKE SPECIMEN (the Archive's CUT), colors per organism rolled by RANDOM, and the SHAPE start.
 
-**Latest changes:** CUT works from anywhere in the Microscope and from every Archive card, and the specimen drawer became a deck of cards beside the dish that you flip through with the scroll wheel. The Incubator now rests calmly, and a strain glows only while you point at it. In the dish, each species has a chemical of its own and shows in its own colors, food reaches dense bodies, strains keep their size, and the bench says whether a body is steady at home.
+**Latest changes:** CUT works from anywhere in the Microscope and from every Archive card, and the specimen drawer became a deck of cards beside the dish that you flip through with the scroll wheel. The Incubator now rests calmly, and a strain glows only while you point at it. In the dish, each species has a chemical of its own and shows in its own colors, food reaches dense bodies, strains keep their size, the bench says whether a body is steady at home, and a body's reaction field comes with it.
 
 **Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, mutating only part of a body, and small evolvable brains.
