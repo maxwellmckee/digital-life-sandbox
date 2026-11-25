@@ -78,7 +78,7 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 | Control | Key | What it does |
 |---|---|---|
 | MUTATE / BREED / ADD | `M` / `Enter` | Changes the rules. **PASS ON** decides whether the grown body carries over. In Arena, adds a specimen |
-| RANDOM | `N` | Rolls unrelated new organisms. Batch keeps picked tiles. Arena grows and places a wild specimen |
+| RANDOM | `N` | Rolls unrelated new organisms: species count, rules, ecology, field, start and colors. Batch keeps picked tiles. Arena grows and places a wild specimen |
 | REROLL / EMPTY | `R` | Same settings, fresh start, leaving any inherited body behind. In Arena, press twice to empty it |
 | REPLAY | `P` | Same settings and same start. An inherited body returns to its moment of birth. Arena replays its founders |
 | SAVE | `S` | Saves the body and rules of the organism, or of every picked tile. Not used in Arena |
@@ -98,9 +98,10 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 The numbered menu under the settings opens one page at a time.
 
 - **ORGANISM:** species count, ecology and movement sliders.
+- **START** (on the settings above the menu) arranges the agents at step 0: SCATTER, RING IN, RING OUT, SHAPE or BLANK. **SHAPE** starts from a shape picked by the seed: several clusters, a swirl, or two groups side by side. The seed also sets the details, such as how many clusters and which way the swirl turns, so the same seed always starts the same way. With several species, each cluster or group belongs to one species, and a swirl gives each species its own ring. RANDOM and mutation can pick SHAPE too.
 - **LIFE:** optional veins and living cells.
 - **FIELD:** an optional reaction-diffusion chemical that agents interact with.
-- **LIGHT:** color gradients, glow and exposure. These change the look only.
+- **LIGHT:** color gradients, glow and exposure. These change the look only. Each organism has its own colors, which RANDOM rolls, children inherit and saves keep. In Batch, choosing a color recolors every slide in the tray. Glow and exposure are shared by all.
 - **DRAW:** barrier and organism brushes, in Solo.
 - **TASTE:** what the app has learned from your picks.
 
@@ -246,7 +247,10 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 - `walls`, `spawns` and `body`. `body` points to a gzip file in `saves/bodies/`. `spawns` is left out when a body is saved.
 - `paint`, a fingerprint of `spawns`.
 - `updatedAt`, set when a save is updated.
-- `autoName`, set while the name is automatic. Older versions still load. When changing the format, keep them loading.
+- `autoName`, set while the name is automatic.
+- `startShape`, the shape a SHAPE start began from, for reading. Replays take it from the seed.
+
+The organism's colors are stored in `view.palettes` and `view.fieldPalette`. Older versions still load. When changing the format, keep them loading.
 
 ## Rules for future changes
 
@@ -309,6 +313,6 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 3. Membrane material made by the particles themselves.
 4. Score lineages by their bodies: how long they last and how often they divide.
 
-**Notes 3 progress:** done: body-aware cutting with a preview, and the specimen drawer with MAKE SPECIMEN (the Archive's CUT). Not started: RANDOM colors per slide and the random START structure.
+**Notes 3 progress:** done: body-aware cutting with a preview, the specimen drawer with MAKE SPECIMEN (the Archive's CUT), colors per organism rolled by RANDOM, and the SHAPE start.
 
 **Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, mutating only part of a body, and small evolvable brains.

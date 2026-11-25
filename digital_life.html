@@ -411,6 +411,8 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .seg button:hover:not(:disabled){color:#e6fff8;background:#121f22}
 .seg button[aria-pressed=true]{background:#113032;color:var(--lumen);box-shadow:inset 0 0 0 1px #2ff0c440}
 .seg button:disabled{opacity:.4;cursor:default}
+/* Five starts share one row, so their labels are set a little tighter. */
+#segInit button{font-size:9px;letter-spacing:0;white-space:nowrap}
 .lib-head .seg button{height:28px;padding:0 8px}
 .roombar :focus-visible,.lib-head :focus-visible,.panel :focus-visible{outline-color:var(--lumen)}
 .seg.swatches{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -656,9 +658,11 @@ const SCREEN_CHECKS = [300, 600, 900, 1200], SCREEN_GAP = 60, SCOUTS = 3, SCREEN
 const SCREEN_STOPS = SCREEN_CHECKS.flatMap(c => [c - SCREEN_GAP, c]);
 const MAX_KEPT = 3;
 const SPEEDS = [1, 2, 4, 8];
-const INITS = { scatter:'SCATTER', in:'RING IN', out:'RING OUT', empty:'BLANK' };
+const INITS = { scatter:'SCATTER', in:'RING IN', out:'RING OUT', shape:'SHAPE', empty:'BLANK' };
 // BLANK waits for the organism brush, so random rolls and mutations only choose starts that grow by themselves.
-const GROWN_INITS = ['scatter', 'in', 'out'];
+const GROWN_INITS = ['scatter', 'in', 'out', 'shape'];
+// SHAPE starts from one of these, picked by the seed.
+const START_SHAPES = ['clusters', 'swirl', 'groups'];
 const MODES = { solo:'SOLO', batch:'BATCH', arena:'ARENA' };
 const STRENGTHS = { subtle:['SUBTLE', .035], medium:['MEDIUM', .07], wild:['WILD', .15] };
 
@@ -1811,6 +1815,7 @@ const st = {
   count: 1, editing: 0, species: SPECIES_TEMPLATES.map(s => ({ ...s })), field: { ...DEFAULT_FIELD },
   saveId: null, parents: [], generation: 0, walls: null, spawns: null, life: { ...DEFAULT_LIFE }, body: null,
   view: { palettes: ['ABYSS', 'GLACIER', 'KELP'], fieldPalette: 'BIOLUME', ...defaults(VIEW_PARAMS) },
+  colors: { palettes: ['ABYSS', 'GLACIER', 'KELP'], fieldPalette: 'BIOLUME' },
 };
 const batch = {
   ready: false, filled: false, lineage: null, gen: 1, tiles: [], picks: [], parents: [], history: [],
@@ -2145,16 +2150,50 @@ function readySpawns(s, g, n) {
   return s.spawnNext < list.length ? Math.min(n, list[s.spawnNext].s - s.step) : n;
 }
 
+// The SHAPE start's layout. It comes from its own stream of the seed, as fractions of the picture, so a seed always
+// gives the same shape at every quality level, and the other starts are untouched.
+function startLayout(g, { w, h }) {
+  const r = mulberry((g.seed ^ 0x51A9E5ED) >>> 0), rf = () => r() / 4294967296, n = g.count;
+  const kind = START_SHAPES[Math.floor(rf() * START_SHAPES.length)];
+  if (kind === 'clusters') {
+    const k = 3 + Math.floor(rf() * 5);
+    return { kind, blobs: Array.from({ length: k }, (_, i) => ({ x: w * (.12 + rf() * .76), y: h * (.15 + rf() * .7), r: h * (.05 + rf() * .09), species: i % n })) };
+  }
+  if (kind === 'swirl') return { kind, x: w * (.4 + rf() * .2), y: h * (.4 + rf() * .2), r: h * (.3 + rf() * .14), turn: rf() < .5 ? 1 : -1, lean: (rf() - .5) * .6 };
+  // Two groups side by side, a gap apart and slightly offset. With three species, the third is shared by both.
+  const gap = w * (.06 + rf() * .2), size = h * (.15 + rf() * .1), tilt = (rf() - .5) * h * .3;
+  return { kind, blobs: [
+    { x: w / 2 - gap / 2 - size, y: h / 2 - tilt / 2, r: size * (.8 + rf() * .4), species: 0 },
+    { x: w / 2 + gap / 2 + size, y: h / 2 + tilt / 2, r: size * (.8 + rf() * .4), species: n > 1 ? 1 : 0 },
+  ] };
+}
+const startShapeOf = g => startLayout(g, QUALITY.med).kind;
 function seedAgents(sim, g) {
   const { w, h, agents: n } = sim.q;
   const data = new ArrayBuffer(n * 16), f = new Float32Array(data), u = new Uint32Array(data);
   const r = mulberry(g.seed), rf = () => r() / 4294967296;
   const cx = w / 2, cy = h / 2, radius = h * .42, mask = wallMask(g.walls);
+  const layout = g.init === 'shape' ? startLayout(g, sim.q) : null, [boundA, boundB] = speciesBounds(n, g);
+  // Each species' own clusters or groups. A species with none of its own shares them all.
+  const homes = layout?.blobs && [0, 1, 2].map(s => { const own = layout.blobs.filter(b => b.species === s); return own.length ? own : layout.blobs; });
   for (let i = 0; i < n; i++) {
     let x, y, a, tries = 0;
     do {
       if (g.init === 'empty') { x = -1; y = -1; a = rf() * TAU; }
       else if (g.init === 'scatter') { x = rf() * w; y = rf() * h; a = rf() * TAU; }
+      else if (layout) {
+        const s = i < boundA ? 0 : i < boundB ? 1 : 2, th = rf() * TAU;
+        if (homes) {
+          const blob = homes[s][Math.floor(rf() * homes[s].length)], rr = blob.r * Math.sqrt(rf());
+          x = blob.x + Math.cos(th) * rr; y = blob.y + Math.sin(th) * rr; a = rf() * TAU;
+        } else {
+          // A swirl: each species in its own ring, every agent heading around the center.
+          const lo = s / g.count, hi = (s + 1) / g.count, rr = layout.r * Math.sqrt(lo * lo + rf() * (hi * hi - lo * lo));
+          x = layout.x + Math.cos(th) * rr; y = layout.y + Math.sin(th) * rr;
+          a = th + layout.turn * Math.PI / 2 + layout.lean + (rf() - .5) * .4;
+        }
+        x = clamp(x, 0, w - .01); y = clamp(y, 0, h - .01);
+      }
       else {
         const th = rf() * TAU, rr = radius * Math.sqrt(rf());
         x = cx + Math.cos(th) * rr; y = cy + Math.sin(th) * rr;
@@ -2348,7 +2387,7 @@ function speciesBounds(agents, g) {
 }
 function writeUniforms(s, g, now, view = st.view) {
   if (s.arena) { writeArenaUniforms(s, now, view); return; }
-  const { w, h, agents } = s.q, scale = h / 1080, rad = Math.PI / 180, n = g.count, sp = g.species;
+  const { w, h, agents } = s.q, scale = h / 1080, rad = Math.PI / 180, n = g.count, sp = g.species, colors = g.colors || view;
   const [boundA, boundB] = speciesBounds(agents, g);
   const sizes = [boundA, boundB - boundA, agents - boundB];
   simU[0] = w; simU[1] = h; simU[2] = agents; simU[3] = n;
@@ -2377,14 +2416,14 @@ function writeUniforms(s, g, now, view = st.view) {
     simF[44 + i] = 1 / (reference * 3);
     // The chemical runs from 0 to 1, so its pull is scaled up to match this species' typical trail strength.
     simF[40 + i] = p.toField * 4 * reference * 3;
-    viewF[4 + i] = (PALETTE_NAMES.indexOf(view.palettes[i]) + .5) / PALETTE_NAMES.length;
+    viewF[4 + i] = (PALETTE_NAMES.indexOf(colors.palettes[i]) + .5) / PALETTE_NAMES.length;
   }
   device.queue.writeBuffer(s.simBuf, 0, simData);
   viewF[3] = view.glow;
   viewF[7] = running ? (now * .001) % 97 : 1;
   viewU[8] = n;
   viewF[9] = g.field.on ? view.fieldLight : 0;
-  viewF[10] = (PALETTE_NAMES.indexOf(view.fieldPalette) + .5) / PALETTE_NAMES.length;
+  viewF[10] = (PALETTE_NAMES.indexOf(colors.fieldPalette) + .5) / PALETTE_NAMES.length;
   s.fieldOn = g.field.on;
   device.queue.writeBuffer(s.viewBuf, 0, viewData);
 }
@@ -2550,7 +2589,7 @@ function lcdLines() {
     ag + ' ' + q.w + 'X' + q.h + ' ' + lifeLabel(R?.judged),
     capture?.live ? captureLabel() : lib.loading ? lib.status : growing ? growing.label : flashing ? flashText
       : lifeOf(st).mode === 'cells' && Number.isFinite(R?.analysis?.values.alive) ? 'CELLS ' + Math.round(R.analysis.values.alive * 100) + '% ALIVE'
-      : 'SEED ' + hex8(st.seed) + ' ' + (st.count > 1 || st.field.on ? st.count + ' SPP' + (st.field.on ? ' RD' : '') : st.view.palettes[0]),
+      : 'SEED ' + hex8(st.seed) + ' ' + (st.count > 1 || st.field.on ? st.count + ' SPP' + (st.field.on ? ' RD' : '') : colorsOf(st).palettes[0]),
   ];
 }
 
@@ -2735,7 +2774,8 @@ function syncSlide() {
   $('porthole').hidden = $('incubatorHud').hidden = mode !== 'arena' || !!arena.bench;
   if (!inLab) return;
   const number = 'SLIDE ' + hex8(st.seed).slice(0, 4);
-  const tail = [st.count > 1 ? st.count + ' strains' : '1 strain', st.generation ? 'gen ' + st.generation : 'founder', lifeOf(st).mode !== 'off' ? lifeOf(st).mode : ''].filter(Boolean).join(' · ');
+  const tail = [st.count > 1 ? st.count + ' strains' : '1 strain', st.generation ? 'gen ' + st.generation : 'founder', lifeOf(st).mode !== 'off' ? lifeOf(st).mode : '',
+    st.init === 'shape' ? startShapeOf(st) + ' start' : ''].filter(Boolean).join(' · ');
   const label = $('slideLabel');
   if (label.dataset.key !== number + tail) {
     label.dataset.key = number + tail;
@@ -3128,10 +3168,30 @@ function undo() {
 const gaussian = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(TAU * Math.random());
 const pickOne = list => list[Math.floor(Math.random() * list.length)];
 const cloneSpecies = list => list.map(s => ({ ...s }));
+// Each organism carries its own colors: one gradient per species and one for its reaction field. Colors are passed on
+// to children and stored in saves. The LIGHT page's choice is the fallback for anything that has none.
+const COLOR_CHOICES = PALETTE_NAMES.filter(n => n !== 'MONO');
+const colorsOf = g => g?.colors || st.view;
+const copyColors = c => ({ palettes: [...c.palettes], fieldPalette: c.fieldPalette });
+function ownColors(g) { if (!g.colors) g.colors = copyColors(st.view); return g.colors; }
+// Distinct gradients, so the species of a random organism read apart from each other and from its field.
+// The LIGHT page recolors the organism shown. In Batch it recolors every slide in the tray. The choice is also remembered
+// as the fallback for organisms without colors of their own.
+function setPalette(i, v) {
+  const targets = mode === 'batch' ? [st, ...batch.tiles.map(t => t.genome).filter(Boolean)] : [st];
+  for (const g of targets) { const c = ownColors(g); if (i === 'field') c.fieldPalette = v; else c.palettes[i] = v; }
+  if (i === 'field') st.view.fieldPalette = v; else st.view.palettes[i] = v;
+  syncUi();
+  drawLcd();
+}
+function randomColors() {
+  const pool = [...COLOR_CHOICES], pick = () => pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+  return { palettes: [pick(), pick(), pick()], fieldPalette: pick() };
+}
 const cloneGenome = g => ({
   uid: familyId(g), seed: g.seed, init: g.init, count: g.count, species: cloneSpecies(g.species), field: { ...g.field }, saveId: g.saveId || null,
   parents: [...(g.parents || [])], generation: g.generation || 0, tag: g.tag || '', walls: g.walls || null, spawns: g.spawns || null,
-  life: { ...lifeOf(g) }, body: g.body || null,
+  life: { ...lifeOf(g) }, body: g.body || null, colors: copyColors(colorsOf(g)),
 });
 
 function mutateSpecies(s, g, sigma) {
@@ -3200,7 +3260,7 @@ function makeChild(parents, sigma, tag = '') {
     field: { ...(b && Math.random() < .5 ? b.field : a.field) },
     uid: familyNode([familyId(a), ...(b ? [familyId(b)] : [])]), parents: [],
     generation: Math.max(a.generation || 0, b?.generation || 0) + 1, tag,
-    walls: a.walls || lead.walls || null, spawns: null, life: { ...lifeOf(lead) }, body: donor?.body || null,
+    walls: a.walls || lead.walls || null, spawns: null, life: { ...lifeOf(lead) }, body: donor?.body || null, colors: copyColors(colorsOf(a)),
   };
   mutateCount(child, tag === 'WILD' ? .45 : .12);
   mutateHybrid(child, tag === 'WILD' ? .4 : .1);
@@ -3242,7 +3302,7 @@ function randomFounder() {
     const { feed, kill } = HYBRIDS[pickOne(['coral', 'maze', 'cells', 'waves'])];
     Object.assign(field, { on: true, feed, kill, seeding: snapTo(between(RANDOM.seeding), FIELD_PARAMS[2]) });
   }
-  return { uid: familyNode(), seed: newSeed(), init: pickOne(GROWN_INITS), count, species, field, saveId: null, parents: [], generation: 0, tag: '', walls: st.walls || null, spawns: null, life: { ...lifeOf(st) }, body: null };
+  return { uid: familyNode(), seed: newSeed(), init: pickOne(GROWN_INITS), count, species, field, saveId: null, parents: [], generation: 0, tag: '', walls: st.walls || null, spawns: null, life: { ...lifeOf(st) }, body: null, colors: randomColors() };
 }
 async function rollFounders(n) {
   const founders = Array.from({ length: n }, randomFounder);
@@ -3275,7 +3335,7 @@ async function randomSolo() {
   // Anything you changed while it was searching wins over the roll.
   if (!g || mode !== 'solo' || snapshot() !== before) return;
   st.seed = g.seed; st.init = g.init; st.count = g.count; st.species = g.species; st.field = g.field;
-  st.uid = g.uid; st.saveId = null; st.parents = []; st.generation = 0; st.walls = g.walls; st.spawns = null; st.life = g.life; st.body = null;
+  st.uid = g.uid; st.saveId = null; st.parents = []; st.generation = 0; st.walls = g.walls; st.spawns = null; st.life = g.life; st.body = null; st.colors = g.colors;
   st.editing = Math.min(st.editing, g.count - 1);
   restart(); commit(); syncUi(); flash('NEW FOUNDER');
 }
@@ -3426,7 +3486,7 @@ function enterBatch() {
     batch.openIndex = -1;
     const t = batch.tiles[i];
     if (snapshot() !== batch.openSnap) { t.genome = { ...cloneGenome(st), tag: '' }; restartSim(t.sim, t.genome); }
-    else t.genome.saveId = st.saveId;
+    else { t.genome.saveId = st.saveId; t.genome.colors = copyColors(colorsOf(st)); }
     return;
   }
   if (snapshot() !== batch.sourceSnap) startBatchFrom(st);
@@ -3499,7 +3559,7 @@ async function openTile(i) {
   const tile = batch.tiles[i], g = tile.genome;
   st.seed = g.seed; st.init = g.init; st.count = g.count; st.species = cloneSpecies(g.species); st.field = { ...g.field };
   st.uid = familyId(g); st.saveId = family.get(st.uid).saveId; st.parents = [...g.parents]; st.generation = g.generation;
-  st.walls = g.walls || null; st.spawns = g.spawns || null; st.life = { ...lifeOf(g) }; st.body = liveBody(g);
+  st.walls = g.walls || null; st.spawns = g.spawns || null; st.life = { ...lifeOf(g) }; st.body = liveBody(g); st.colors = copyColors(colorsOf(g));
   batch.openIndex = i;
   setMode('solo');
   const job = growing = { label: 'OPENING TILE ' + (i + 1) };
@@ -3776,7 +3836,7 @@ const HELP = {
   ] },
 
   'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'In ARENA this is ADD: it cuts a living specimen from your SOLO organism for you to place. Press it again for an open spot.' },
-  'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'In ARENA it grows a wild organism out of sight and places a specimen of it in an open spot.' },
+  'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen: species count, rules, field, start and colors. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'In ARENA it grows a wild organism out of sight and places a specimen of it in an open spot.' },
   'pad.reroll': { t: 'REROLL / EMPTY', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'In ARENA this is EMPTY, the same as CLEAR on the ARENA page: press it twice to remove every founder.' },
   'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.', tip: 'In ARENA it places the same founders again, which replays the same history.' },
   'pad.save': { t: 'SAVE', d: 'Always stores the body and the rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked.', tip: 'Saving the same organism again updates its library entry instead of adding a copy. It is named automatically, and you can rename it in the library.' },
@@ -3843,6 +3903,7 @@ const HELP = {
   'init.scatter': { t: 'SCATTER', d: 'Agents begin everywhere, facing random directions. Grows an even network.' },
   'init.in': { t: 'RING IN', d: 'Agents begin in a disc, all facing the center, and collapse inward before spreading.' },
   'init.out': { t: 'RING OUT', d: 'Agents begin in a disc, all facing outward, so growth radiates from the middle.' },
+  'init.shape': { t: 'SHAPE', d: 'Agents begin in a shape picked by the seed: several clusters, a swirl, or two groups side by side. The seed also sets the details, such as how many clusters and which way the swirl turns.', tip: 'With several species, each cluster or group belongs to one species, and a swirl gives each species its own ring. The same seed always starts the same way.' },
   'init.empty': { t: 'BLANK', d: 'Starts with an empty sandbox. Hold the ORGANISM brush on the picture to place each species yourself.', tip: 'With CELLS on the LIFE page, a small painted colony can feed and grow by itself.' },
   saves: { t: 'WORKING FOLDER', d: 'Holds your saves, images and videos folders. CHANGE picks a different one.' },
   export: { t: 'EXPORT', d: 'Turns what is on screen into files you can keep and share, with no interface in them.' },
@@ -3913,8 +3974,8 @@ const HELP = {
   seeding: { t: 'SEEDING', d: 'How strongly agent trails spark new chemical.', lo: 'Grows only from its first droplets, leaving dark patches', hi: 'Fills in quickly along the trails' },
   toField: { t: 'FOLLOWS FIELD', d: 'How this species reacts to the chemical. Plus chases it, minus avoids it, zero ignores it.' },
 
-  palette: { t: 'SPECIES COLOR', d: "The glowing color gradient for this species. Changes the look only." },
-  fieldPalette: { t: 'FIELD COLOR', d: 'The color gradient for the chemical layer.' },
+  palette: { t: 'SPECIES COLOR', d: "The glowing color gradient for this species. Changes the look only.", tip: 'Each organism keeps its own colors, and its children inherit them. In BATCH this recolors every slide.' },
+  fieldPalette: { t: 'FIELD COLOR', d: 'The color gradient for the chemical layer. Each organism keeps its own.' },
   glow: { t: 'GLOW', d: 'How far bright areas bleed light into their surroundings. 50 is balanced.', lo: 'Crisp, clean lines', hi: 'Soft, dreamy halos' },
   exposure: { t: 'EXPOSURE', d: 'Overall brightness of the trails. 50 keeps colors richest.', lo: 'Dim, only the strongest veins show', hi: 'Brighter, with veins washing out toward white' },
   fieldLight: { t: 'FIELD GLOW', d: 'How brightly the chemical layer shows behind the trails.' },
@@ -4201,7 +4262,8 @@ function buildSave(g, sim) {
     ...(g.walls?.length ? { walls: g.walls.map(w => ({ r: w.r, ...(w.erase ? { erase: true } : {}), pts: w.pts.join(' ') })) } : {}),
     // The painting itself is inside the body file, so a short fingerprint is kept to tell paintings apart.
     ...(spawns ? { spawns, paint: hashText(spawns.join('|')) } : {}),
-    view: { ...st.view, palettes: [...st.view.palettes] }, metrics: metricsFor(sim),
+    view: { ...st.view, ...copyColors(colorsOf(g)) }, metrics: metricsFor(sim),
+    ...(g.init === 'shape' ? { startShape: startShapeOf(g) } : {}),
   };
 }
 // A moment file holds the whole living state. Trail values drop their least visible bits so the file compresses well.
@@ -4406,7 +4468,7 @@ function parseSave(d) {
     // Version 1 saves stored a single `parent`.
     parents: Array.isArray(d.parents) ? d.parents.filter(x => typeof x === 'string') : typeof d.parent === 'string' ? [d.parent] : [],
     generation: Number.isFinite(d.generation) ? d.generation : 0, tag: '',
-    walls: readWalls(d.walls), spawns: readSpawns(d.spawns), life: readLife(d.life), body: null,
+    walls: readWalls(d.walls), spawns: readSpawns(d.spawns), life: readLife(d.life), body: null, colors: copyColors(savedView(d)),
   };
 }
 function savedView(d) {
@@ -4440,7 +4502,7 @@ async function applySave(d, regrow = true) {
   setMode('solo');
   batch.openIndex = -1;
   const body = d.body ? await loadBody(d, g) : null;
-  Object.assign(st, { uid: null, seed: g.seed, init: g.init, count: g.count, species: g.species, field: g.field, saveId: g.saveId, parents: g.parents, generation: g.generation, walls: g.walls, spawns: g.spawns, life: g.life, body });
+  Object.assign(st, { uid: null, seed: g.seed, init: g.init, count: g.count, species: g.species, field: g.field, saveId: g.saveId, parents: g.parents, generation: g.generation, walls: g.walls, spawns: g.spawns, life: g.life, body, colors: g.colors });
   st.view = savedView(d);
   const fromTile = d.grownAt === 'tile';
   if (!fromTile && QUALITY[d.quality] && d.quality !== st.quality) { st.quality = d.quality; buildResources(); }
@@ -6081,7 +6143,7 @@ function placeNow(x, y) {
 }
 // The largest a copy can be is what still fits the dish.
 const maxPlaceSize = specimen => Math.min(PLACE_SIZES[1], .46 / Math.max(specimen.radius, .01));// Grows an organism out of sight, for saves without a body and for wild founders. The caller destroys the simulation.
-async function growSim(g, q, steps) {
+async function growHidden(g, q, steps) {
   const sim = createSim(q);
   try {
     restartSim(sim, g);
@@ -6097,7 +6159,7 @@ async function growSim(g, q, steps) {
   } catch (e) { destroySim(sim); throw e; }
 }
 async function growBody(g, q, steps) {
-  const sim = await growSim(g, q, steps);
+  const sim = await growHidden(g, q, steps);
   try {
     const judged = await sampleSim(sim, g).then(() => sim.judged);
     const metrics = metricsFor(sim), body = captureBody(sim, g);
@@ -6128,7 +6190,7 @@ async function arenaFromSave(d, name) {
     arena.task = 'REGROWING';
     drawLcd();
     const q = d.grownAt === 'tile' ? TILE : QUALITY[d.quality] || QUALITY.med;
-    return growSim(g, q, clamp(Number.isFinite(d.step) ? d.step : ARENA.grow, BODY_MIN_STEPS, REGROW_LIMIT));
+    return growHidden(g, q, clamp(Number.isFinite(d.step) ? d.step : ARENA.grow, BODY_MIN_STEPS, REGROW_LIMIT));
   });
   if (sim) await openBench({ sim, g, view: savedView(d), own: true, name: name || 'Untitled' });
 }
@@ -6140,7 +6202,7 @@ async function arenaRandom() {
     for (let t = 0; t < ARENA.tries; t++) {
       const g = randomFounder();
       g.walls = null;
-      const sim = await growSim(g, TILE, ARENA.grow);
+      const sim = await growHidden(g, TILE, ARENA.grow);
       try {
         const judged = await sampleSim(sim, g).then(() => sim.judged);
         if (judged?.verdict !== 'ALIVE' && t < ARENA.tries - 1) continue;
@@ -7309,7 +7371,7 @@ function syncBrush() {
   for (const b of $('segBrushSpecies').children) {
     const i = +b.dataset.value;
     b.disabled = !solo || i >= st.count;
-    b.style.setProperty('--swatch', PALETTES[st.view.palettes[i]][3]);
+    b.style.setProperty('--swatch', PALETTES[colorsOf(st).palettes[i]][3]);
   }
   $('brushSize').disabled = $('drawClear').disabled = !solo;
   $('drawGrow').disabled = !solo || st.init === 'empty';
@@ -7518,15 +7580,15 @@ function syncUi() {
   const g = shownGenome(), shown = shownSpecies(g);
   markSeg($('segInit'), g.init); markSeg($('segTab'), activeTab); markSeg($('segHybrid'), hybridOf(g));
   for (const [key, [, id]] of Object.entries(TABS)) $(id).hidden = inArena || key !== activeTab;
-  for (let i = 0; i < 3; i++) { markSeg($('segPal' + i), st.view.palettes[i]); $('palRow' + i).hidden = i >= g.count; }
-  markSeg($('segPalField'), st.view.fieldPalette);
+  for (let i = 0; i < 3; i++) { markSeg($('segPal' + i), colorsOf(g).palettes[i]); $('palRow' + i).hidden = i >= g.count; }
+  markSeg($('segPalField'), colorsOf(g).fieldPalette);
   $('palRowField').hidden = !g.field.on;
   setTitle($('fieldTitle'), 'REACTION FIELD', inBatch ? 'tile ' + (displayedTile() + 1) + ' · open to edit' : '');
   markSeg($('segCount'), g.count); markSeg($('segEdit'), shown); markSeg($('segEco'), ecologyOf(g));
   $('editRow').hidden = $('ecoRow').hidden = g.count === 1;
   for (const b of $('segEdit').children) {
     b.disabled = +b.dataset.value >= g.count;
-    b.style.setProperty('--swatch', PALETTES[st.view.palettes[+b.dataset.value]][3]);
+    b.style.setProperty('--swatch', PALETTES[colorsOf(g).palettes[+b.dataset.value]][3]);
   }
   $('playPad').setAttribute('aria-pressed', String(running));
   setDots($('playLabel'), running ? 'PAUSE' : 'PLAY');
@@ -7774,8 +7836,8 @@ function initUi() {
   segmented($('segSpeed'), SPEEDS.map(s => [s, s + 'X']), setSpeed);
   segmented($('segInit'), Object.entries(INITS), setInit);
   const swatches = Object.entries(PALETTES).map(([k, c]) => [k, k, `linear-gradient(90deg,${c.slice(0, 5).join(',')})`]);
-  for (let i = 0; i < 3; i++) segmented($('segPal' + i), swatches, v => { st.view.palettes[i] = v; syncUi(); drawLcd(); });
-  segmented($('segPalField'), swatches, v => { st.view.fieldPalette = v; syncUi(); });
+  for (let i = 0; i < 3; i++) segmented($('segPal' + i), swatches, v => setPalette(i, v));
+  segmented($('segPalField'), swatches, v => setPalette('field', v));
   segmented($('segCount'), [1, 2, 3].map(n => [n, String(n)]), setCount);
   segmented($('segEdit'), SPECIES_NAMES.map((name, i) => [i, name]), v => { st.editing = v; syncUi(); });
   segmented($('segEco'), Object.entries(ECOLOGIES).map(([k, [label]]) => [k, label]), applyEcology);
@@ -7846,7 +7908,7 @@ window.DL = {
   RANDOM, randomFounder, rollFounders, restartSim, actions, brush, wallMask, buildSave, parseSave, commitDraft,
   wallsOpened, setSandbox, captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, organismKey, mergeDuplicates, autoName, colorWords, readSaves, setInit, lifeOf, bodies, liveBody, wallArt,
   get R() { return R; },
-  goRoom, flashIcon, iconFlash, afterglow,
+  goRoom, flashIcon, iconFlash, afterglow, startShapeOf, startLayout, setPalette, colorsOf,
   // Reads every agent's inherited genes back, eight numbers each, starting with energy.
   async genes(sim = R) {
     if (!sim.geneBuf) return null;
@@ -7870,7 +7932,7 @@ window.DL = {
     read.unmap(); read.destroy();
     return out;
   },
-  bodyMeasures, analyze, arena, ARENA, ensureArena, keepAt, keepBody, labelBodies, beginKeeping, arenaClear, useSpecimen, unpackSpecimen, packSpecimen, resetArena, cutFrom, autoCut, surveyBodies, findBodies, densityGrid, openBench, closeBench, benchCut, growSim, BENCH, densestCircle, circleCut, drawer, loadDrawer, pickCard, saveSpecimen, cancelPlacing, arenaUndo, foundAt, stampFounder, replayArena, arenaFromSolo, arenaFromSave, arenaRandom, arenaCensus, growBody, placeNow, openSpot,
+  bodyMeasures, analyze, arena, ARENA, ensureArena, keepAt, keepBody, labelBodies, beginKeeping, arenaClear, useSpecimen, unpackSpecimen, packSpecimen, resetArena, cutFrom, autoCut, surveyBodies, findBodies, densityGrid, openBench, closeBench, benchCut, growHidden, BENCH, densestCircle, circleCut, drawer, loadDrawer, pickCard, saveSpecimen, cancelPlacing, arenaUndo, foundAt, stampFounder, replayArena, arenaFromSolo, arenaFromSave, arenaRandom, arenaCensus, growBody, placeNow, openSpot,
   // Steps the arena directly, for testing without the animation loop.
   async arenaAdvance(n) {
     for (let left = n; left > 0;) {
