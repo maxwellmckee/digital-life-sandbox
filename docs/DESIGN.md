@@ -54,7 +54,7 @@ An earlier version sent motes of light crawling around the edges of controls and
 |---|---|---|---|
 | Microscope | SOLO and BATCH | A glass slide with corner brackets, scale bar and label. BATCH is a tray of nine slides, each with its own brackets and frosted SLIDE label | Clinical, bright, focused |
 | Incubator | Arena | A round porthole in dark machinery with readouts around the rim | Warm, alive, slightly dangerous |
-| Archive | Library | Drawers of photographs, the family chart, specimen files | Quiet, cold, orderly |
+| Archive | Library | Drawers of photographs, the family chart, specimen files, saved dishes | Quiet, cold, orderly |
 
 Rooms are chosen from the room bar at the top of the screen. Each room shows only the controls it needs.
 
@@ -71,6 +71,8 @@ Rooms are chosen from the room bar at the top of the screen. Each room shows onl
 - **Incubator rim:** a bezel with tick marks, and readouts for population, broth, strains and step down its left side.
 - **Specimen deck:** a card file standing to the right of the dish. The card in front is full size and the rest stand behind it above and below, smaller and tilted back, with a gap between each. Scrolling flips one card per notch. The cards move only while you scroll, and only briefly, so the rule below still holds.
 - **History display:** the Incubator's chart is an LED bar display. Each column of dots is a moment, stacked in each strain's color, and unlit dots stay faintly visible.
+- **Zoom key:** while the dish is magnified, a small key in the machinery below the readouts shows how far, such as `×3.3 · SHOW ALL`, and returns to the whole dish. The porthole stays put; only what is seen through it moves, as under a real lens.
+- **Dish cards:** a saved dish's card in the Archive shows the whole dish, a size badge, its step, its strains with their color and share, and OPEN and REMOVE, like a specimen file.
 - **Strain highlight:** the dish rests calmly, with a soft bloom. Pointing at a strain in the list lifts its trails to full glow and dims the others, and its dots stay bright on the history display. Moving away returns the dish to rest.
 
 ## Pixel icons

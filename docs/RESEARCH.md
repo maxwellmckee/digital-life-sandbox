@@ -290,6 +290,30 @@ A 1620 dish holds 2.25 times as many copies, and a 2160 dish four times as many.
 - **Graphics card limits.** Without asking the card for more, one buffer holds at most 128 MiB, which caps the dish at about 2 million particles.
 - **The field grid.** A carried reaction field needs its grid to grow with the dish, so its patterns keep their size.
 
+### Building it: three dish sizes, zoom and saved dishes
+
+The Incubator now offers 1×, 1.5× and 2× dishes (1080, 1620 and 2160 pixels high). A pixel is the same size in all three: genes, specimen sizes and kept bodies are measured against a 1080-high picture, and every grid grows with the dish rather than its cells. The food and reaction field keep one cell per 4 pixels, the body counter 20 pixels and the strain highlight 8. The dish's shaders are built for each size with those numbers written in. The fade at the picture's edge, which used to be 6% of the height, is now a fixed 65 pixels.
+
+**The 1× dish is unchanged.** A two-strain run with a reaction field, 300 steps, gives bit-for-bit the same trails, broth, field and particles as before the change.
+
+**A body is the same in every dish.** One half-size copy of Bold Blue-Teal Branches was placed in the middle of each dish. After 12 steps its trail differed between dishes by about 1 part in 10,000: rounding, since a number's precision depends on how far it is from the picture's corner. After 400 steps its particles were spread the same way around the middle in all three, to within 0.2% at every distance from 25 to 300 pixels. A body kept in a 2× dish and placed in a 1× dish lands with every one of its 161,250 particles.
+
+**Cost**, with six chemicals, on the RTX 40-series card, with a third or more of the dish filled:
+
+| Dish | Particle places | GPU memory | One step | At 1× | Fastest |
+|---|---|---|---|---|---|
+| 1× (1080) | 500,000 | about 270 MB | 1.4 ms | 60 fps | 8×, 480 steps a second |
+| 1.5× (1620) | 1,125,000 | about 600 MB | 3.5 ms | 60 fps | about 180 steps a second |
+| 2× (2160) | 2,000,000 | about 1.1 GB | 6.0 ms | 60 fps | about 120 steps a second |
+
+At 8×, a full 2× dish first fell to 12 frames a second: the speed control took away one step per frame every 20 frames, too slowly to catch up with a queue already far behind. It now halves the steps per frame at once when the card is more than 40 ms behind, and the same dish settles at 60 frames a second, as fast as the card allows. The genes of 2 million particles fill 128 MB, just under the 128 MiB a buffer may hold without asking the card for more, so 2× is the largest dish without that.
+
+**Seeing it.** Scrolling zooms toward the pointer and dragging moves around, up to 8 times magnification in a 1× dish and 16 in a 2×. The round window never looks past the glass. Where the picture has more pixels than the screen, as a 2× dish shown whole does, each screen pixel now averages four samples, so fine trails no longer shimmer. This also smooths the Microscope at MED and HIGH, where the picture was always larger than the screen. Pictures saved with IMAGE always show the whole dish at full size; clips and recordings film what you see.
+
+**Smaller copies.** Copies can now be placed down to ×⅓, where the bold bodies above keep 88 to 93% of their likeness.
+
+**Saved dishes.** A saved dish holds every particle place (position, heading and random state), the genes of the living particles, both trail maps, the broth, the reaction field and both recipe maps, and each strain's chemistry, size limit, history and body map. Trails drop their 13 least visible bits, keeping about three significant digits, as body files do; everything else is exact. The test rounds the live trails the same way before saving, then runs the original 300 more steps, opens the saved dish and runs it 300 steps: trails, broth, field and every particle came out bit-for-bit the same, in a 1× and a 2× dish. Body identities carry over too, so a body's age keeps counting. With two strains, the file was 18.6 MB for a 1× dish and 29.9 MB for a 2× dish, saved in about 3 and 5 seconds and opened in 0.5 and 0.9.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
