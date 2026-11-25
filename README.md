@@ -24,7 +24,7 @@ The goal is **art through emergence**: organic, soft, luminous forms that are di
 
 <p align="center"><em>Organisms grown and bred in the sandbox.</em></p>
 
-> **New here, or a new Claude session?** Read this file first, then skim [Build Update 2](Digital%20Life%20Sandbox%20Build%20Update%202.md), the [Project Notes](Digital%20Life%20Sandbox%20Project%20Notes.md) and the [Research Notes](docs/RESEARCH.md). This README says what exists today. The first two hold the vision and plan, and the last explains the science behind the LIFE systems. For the look and the story behind it, read [Design](docs/DESIGN.md) and [World](docs/WORLD.md).
+> **New here, or a new Claude session?** Read this file first, then skim [Notes 3](update_notes/Digital%20Life%20Sandbox%20Notes%203.md), [Build Update 2](update_notes/Digital%20Life%20Sandbox%20Build%20Update%202.md), the [Project Notes](update_notes/Digital%20Life%20Sandbox%20Project%20Notes.md) and the [Research Notes](docs/RESEARCH.md). This README says what exists today. The three notes hold the vision and plans, newest first, and the Research Notes explain the science behind the LIFE systems and the Arena. For the look and the story behind it, read [Design](docs/DESIGN.md) and [World](docs/WORLD.md).
 
 ## Run it
 
@@ -39,8 +39,9 @@ There is nothing to install and no build step. The project was built for a deskt
 |---|---|
 | `digital_life.html` | The entire app: interface, GPU shaders and logic |
 | `README.md` | This guide |
-| `Digital Life Sandbox Project Notes.md` | The original vision and design document |
-| `Digital Life Sandbox Build Update 2.md` | The next planned changes. It overrides the Project Notes where they conflict |
+| `update_notes/Digital Life Sandbox Project Notes.md` | The original vision and design document |
+| `update_notes/Digital Life Sandbox Build Update 2.md` | Planned changes after the first build. It overrides the Project Notes where they conflict |
+| `update_notes/Digital Life Sandbox Notes 3.md` | Ideas after the Arena: an organism library, smarter body detection and random starting structures |
 | `saves/` | Saved organisms (`dl-*.json`) and `taste.json` |
 | `saves/bodies/` | The grown body of each save (`.dlbody`): every agent, trail, vein and chemical |
 | `saves/thumbs/` | Library pictures. They can be regrown if missing |
@@ -145,16 +146,22 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 
 1. Press **A**, or click **INCUBATOR** in the room bar. The INCUBATOR page replaces the organism pages.
 2. Choose what to add on the **ADD FROM** row:
-   - **SOLO** cuts the organism you last had in Solo. To use a different organism, open it in Solo first.
-   - **LIBRARY** opens the Library. Press **ADD** on any save, or switch to **SPECIMENS** and press **ADD TO ARENA**. A save without a body is regrown out of sight first.
-   - **WILD** grows a random organism and places it in the most open spot.
-3. A ring the size of the cut follows the pointer. Click to place it. Press **ADD** (`M`) for the most open spot, or Esc to cancel.
-4. The **WORLD** row:
+   - **SOLO** puts the organism you last had in Solo on the cutting bench. To use a different organism, open it in Solo first.
+   - **LIBRARY** opens the Library. Press **ADD** on any save to put it on the cutting bench, or switch to **SPECIMENS** and press **ADD TO ARENA** to place a kept body directly. A save without a body is regrown out of sight first.
+   - **WILD** grows a random organism, cuts its best body (or its densest part if it has none) and places it in the most open spot.
+3. **The cutting bench** shows the organism with the bodies found in it outlined, best first, labeled A, B, C. Everything outside the chosen cut is dimmed.
+   - Click an outlined body to choose it. A body inside another can be clicked directly.
+   - Click anywhere else for a round cut, and scroll to size it. **CIRCLE** sets its starting size.
+   - **CUT** (`Enter`, or the ADD pad) takes it. Esc cancels. The Incubator holds still while the bench is open.
+4. A ring the size of the cut follows the pointer. Click to place it. Press **ADD** (`M`) for the most open spot, or Esc to cancel.
+5. The **WORLD** row:
    - **KEEP** saves a living body as a specimen. Click it, then click a body; everything inside the ring is kept.
    - **REPLAY** places the same founders again and replays the same history.
    - **CLEAR** removes every founder. Press it twice. The EMPTY pad does the same.
 
-**What carries over.** A specimen keeps its particles where they were, the trail and veins beneath them, and each particle's own rules. Living cells keep their inherited multipliers. It is cut at its own scale, so a body is never shrunk. **SPECIMEN** sets the disc size.
+**How bodies are found.** Particle density is measured on a 240x135 grid. Dense regions are followed from the tightest threshold to the loosest, and a region that keeps its own identity over several thresholds stands apart from its surroundings: that is a body. Each body is filled in, so a membrane keeps whatever it holds, and ranked by how well it stands apart, how steady it is, whether it encloses space or has a brighter rim, and its size. Trail piled along the frame is ranked down. The cut follows the body's own outline with a small margin, so strands of network passing by stay behind.
+
+**What carries over.** A specimen keeps its particles where they were, the trail and veins beneath them, and each particle's own rules. Living cells keep their inherited multipliers. It is cut at its own scale. Only a body too big for the dish, wider than about 84% of the picture height, is shrunk evenly to fit, and the bench says so. A body keeps its full density unless it would take more than 40% of the world.
 
 **What each particle carries:**
 
@@ -185,7 +192,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 
 **Specimens.** A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. It is saved in `saves/specimens/` and listed in the Library under **SPECIMENS**. Each card shows when it was kept, its average set point, speed and sensors, and which founders its particles came from. Added back to an Arena, its particles keep their own genes and set points.
 - The world is round: the largest circle that fits the 1920x1080 picture. Particles, food, trail and placed specimens all stay inside the glass.
-- The arena always runs at MED: 1920x1080 and 500,000 particle places. A step costs about 1 ms on the RTX 4070. Up to 16 founders, each thinned to at most 60,000 particles.
+- The arena always runs at MED: 1920x1080 and 500,000 particle places. A step costs about 1 ms on the RTX 4070. Up to 16 founders, each thinned to at most 200,000 particles.
 - **REPLAY** places the same founders again and reproduces the same history exactly.
 
 The design reasoning, the research behind it and what was measured are in [docs/RESEARCH.md](docs/RESEARCH.md#the-arena).
@@ -270,6 +277,8 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 - In the Arena, whole bodies have not yet been seen dividing into two. Runs of 3,000 to 4,000 steps showed coexistence, spreading networks, persistent rings and lineages invading each other.
 - An Arena's founders and history are lost when the page closes. KEEP saves living bodies as specimens, and images and clips keep the look.
 - Body counts, divisions and deaths in the Arena are measured on a coarse grid, so they are approximate.
+- The cutting bench finds bodies from particle density on a grid of 8-pixel cells (4 pixels on a Batch tile), so outlines are stepped, and a faint body in a dense network can be missed. A round cut is always available.
+- Cuts from the cutting bench are not saved yet. KEEP in the Incubator still saves living bodies as specimens.
 - A body shaped by a reaction-diffusion field loses that field in the Arena, so it reorganizes after placing.
 - There is no WebGL2 fallback.
 - A hidden browser tab or preview pane throttles animation, so frame-rate measurements there are not meaningful.

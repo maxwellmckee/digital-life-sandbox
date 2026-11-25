@@ -132,6 +132,29 @@ A lineage's share of the world is an ecological measure only. It says how much m
 
 The census now counts each lineage on a 96x54 grid and sums its genes. The Arena page tracks bodies by overlap between counts and reports bodies, divisions, deaths, lifespans and trait drift. In a first test, a ring-forming lineage held 2 to 5 bodies over 3,000 steps, with 8 recorded divisions and 7 deaths. At this resolution, many of these are pieces pinching off and rejoining, so they are best read as a measure of how often bodies split and fuse, not as clean reproduction.
 
+### Cutting along the body
+
+The first cut did not look for a body. It took a fixed circle (12%, 18% or 25% of the picture height) at the densest spot. Bodies larger than the circle were sliced, smaller ones came with the network around them, and strands passing through were cut loose.
+
+The cutting bench finds bodies the way a hill shows its shape as water drains away. Particle density is measured on a 240x135 grid and smoothed. Dense regions are followed from a tight threshold (8.5 times the average density) down to a loose one (1.25 times). A region that stays one region, growing by less than 1.8 times per level, is the same body. Two that join become a separate candidate, the pair. Regions touching the frame are dropped. Each candidate is filled, so a membrane keeps what it holds, grown by two cells as a margin, and ranked:
+
+| Measure | Weight | What it asks |
+|---|---|---|
+| Contrast | 30% | How much denser it is than a band around it |
+| Steadiness | 25% | How many thresholds it survived |
+| Enclosed space | 20% | How much of it is space inside a wall |
+| Rim | 10% | Whether its edge is denser than its middle, like a membrane |
+| Size | 15% | Whether the Incubator can hold it |
+| Border | minus 40% | How much of it lies along the frame |
+
+The particles inside the outline are cut, and the trail is masked with a soft edge, so passing strands stay behind.
+
+**Tested on 16 saves with bodies.** Finding bodies took 130 to 260 ms. The top candidate was the body a person would point to in most of them: the inner cell of Bold Cyan Islands, the membrane-bound cells of Feathered Silver Honeycomb and Silver Web V, the large cell of Bold Blue-Teal Branches, and the rings of Flowing Blue Islands and Bold Cyan Web. Saves with no separate body, such as Dense Blue Lace, gave weak candidates, which is where the round cut remains useful.
+
+**Does the body hold?** Six saves were cut both ways, placed alone and run for 2,000 steps. Outline cuts kept whole membranes and rings in four of six (Feathered Silver Honeycomb, Silver Web V, Bold Cyan Web, Flowing Blue Islands). Circle cuts of the same saves started as fragments, such as a crescent of a ring or two arcs of a membrane, and stayed fragments. Bold Cyan Islands fell apart either way. Its body is shaped by a reaction field, which the Incubator does not carry. 17 of the 31 saves tested use a reaction field, so this is the next limit on incubation.
+
+**Thinning.** Every cut had been thinned to 60,000 particles. A body cut from a Batch tile is enlarged four times in particle count, so thinning left as little as 22% of its density. Raising the limit to 200,000 kept bodies brighter and closer to their original from the first step. Bodies still thinned are ones that would take over 40% of the world.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.

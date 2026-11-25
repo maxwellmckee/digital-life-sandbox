@@ -72,6 +72,21 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 #slideScale{position:absolute;left:24px;bottom:22px;display:flex;align-items:center;gap:8px;font-size:9px;color:#8fd9c6}
 #slideScale i{display:block;width:64px;height:2px;background:#8fd9c6;box-shadow:0 -3px 0 -1px #8fd9c6 inset}
 
+/* The cutting bench: the source organism laid over the Incubator, with its bodies outlined. */
+.bench{position:absolute;inset:0;z-index:4;background:#020405}
+.bench[hidden]{display:none}
+.bench canvas{position:absolute;inset:0;width:100%;height:100%}
+#benchMarks{cursor:crosshair}
+.bench .corner{z-index:1;pointer-events:none}
+.bench-label{position:absolute;left:22px;top:18px;display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;pointer-events:none;
+  background:#d7f5ec12;border:1px solid #9fe9d62b;backdrop-filter:blur(6px);font-size:10px;color:#8fbfb3;letter-spacing:.08em}
+.bench-label .dotsvg{font-size:11px;color:#e3fbf4}
+.bench-bar{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;max-width:calc(100% - 32px);
+  padding:7px 7px 7px 14px;border-radius:10px;background:#071113e6;box-shadow:inset 0 0 0 1px #1f3537,0 8px 24px #000a;backdrop-filter:blur(6px)}
+#benchInfo{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#a9d8cc;font-size:10px;letter-spacing:.08em;margin-right:6px}
+.bench-bar .dlg-btn{flex:none;min-height:30px}
+.bench-bar kbd{font:inherit;font-size:9px;opacity:.6}
+
 /* The Incubator: a round porthole in dark machinery, with readouts beside it. */
 .porthole{position:absolute;top:0;bottom:0;left:50%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;pointer-events:none;
   box-shadow:inset 0 0 70px #000b,0 0 0 2px #2a4a4a,0 0 0 11px #0b1416,0 0 0 12px #1f3537,0 0 60px 14px #2ff0c40d,0 0 0 200vmax #04080a}
@@ -439,6 +454,17 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
           <div class="ihud right"><small>STEP</small><b id="ihudStep"></b></div>
         </div>
       </div>
+      <div class="bench" id="bench" hidden>
+        <canvas id="benchPic"></canvas>
+        <canvas id="benchMarks" data-help="bench"></canvas>
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="bench-label"><b id="benchTitle"></b><span id="benchName"></span></div>
+        <div class="bench-bar">
+          <span id="benchInfo"></span>
+          <button type="button" class="dlg-btn" id="benchCancel">CANCEL <kbd>ESC</kbd></button>
+          <button type="button" class="dlg-btn primary" id="benchCut" data-help="bench.cut">CUT <kbd>ENTER</kbd></button>
+        </div>
+      </div>
       <canvas id="brushLayer" data-help="draw.canvas" hidden></canvas>
       <div id="brushRing" hidden></div>
       <div id="placeRing" hidden></div>
@@ -492,7 +518,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         <button type="button" data-do="replay" data-help="arena.replay">REPLAY</button>
         <button type="button" data-do="clear" data-help="arena.clear">CLEAR</button>
       </div></div>
-      <div class="row wide"><span>SPECIMEN</span><div class="seg" id="segSpecimen"></div></div>
+      <div class="row wide"><span>CIRCLE</span><div class="seg" id="segSpecimen"></div></div>
       <div id="arenaSliders"></div>
       <div class="row wide"><span>CHART</span><div class="seg" id="segChart"></div></div>
       <canvas id="arenaChart" data-help="arena.chart"></canvas>
@@ -2423,7 +2449,8 @@ function frame(now) {
   let n = 0;
   // The grid holds still while the next generation is being screened.
   // While a video is being captured, the capture loop advances the simulation so no frame is ever dropped.
-  if (running && !(mode === 'batch' && batch.screening) && !capture?.live && !growing && !lib.open) {
+  // The Incubator holds still while an organism is on the cutting bench.
+  if (running && !(mode === 'batch' && batch.screening) && !(mode === 'arena' && arena.bench) && !capture?.live && !growing && !lib.open) {
     // Step rate follows real time, so a 144 Hz monitor runs the sim at the same speed as a 60 Hz one.
     acc += dt / 1000 * BASE_STEPS_PER_SEC * st.speed;
     n = Math.min(Math.floor(acc), stepLimit);
@@ -2491,7 +2518,8 @@ function lcdLines() {
       state + ' ARENA ST ' + String(arena.sim.step).padStart(8),
       rate,
       c ? 'POP ' + k(c.total).padEnd(5) + ' FOOD ' + Math.round(c.food * 100) + '%' : 'POP --    FOOD 100%',
-      capture?.live ? captureLabel() : lib.loading ? lib.status : arena.task ? arena.task + '...' : flashing ? flashText : arena.placing ? 'CLICK TO PLACE'
+      capture?.live ? captureLabel() : lib.loading ? lib.status : arena.task ? arena.task + '...' : flashing ? flashText
+        : arena.bench ? 'CHOOSE A BODY TO CUT' : arena.placing ? 'CLICK TO PLACE'
         : arena.keeping ? 'CLICK A BODY TO KEEP'
         : !arena.founders.length ? 'PRESS M TO ADD' : 'LINEAGES ' + alive + '/' + arena.founders.length + ' ' + lifeLabel(arena.sim.judged),
     ];
@@ -2686,7 +2714,7 @@ const OBJECTIVES = { low: '10X', med: '40X', high: '100X' };
 function syncSlide() {
   const inLab = mode === 'solo';
   $('slideHud').hidden = !inLab;
-  $('porthole').hidden = $('incubatorHud').hidden = mode !== 'arena';
+  $('porthole').hidden = $('incubatorHud').hidden = mode !== 'arena' || !!arena.bench;
   if (!inLab) return;
   const number = 'SLIDE ' + hex8(st.seed).slice(0, 4);
   const tail = [st.count > 1 ? st.count + ' strains' : '1 strain', st.generation ? 'gen ' + st.generation : 'founder', lifeOf(st).mode !== 'off' ? lifeOf(st).mode : ''].filter(Boolean).join(' · ');
@@ -3400,7 +3428,7 @@ function setMode(m) {
     enterBatch();
   } else if (mode === 'batch') batch.sourceSnap = snapshot();
   if (m === 'arena') ensureArena();
-  if (mode === 'arena') { arena.keeping = false; cancelPlacing(); }
+  if (mode === 'arena') { arena.keeping = false; cancelPlacing(); closeBench(); }
   mode = m;
   acc = 0;
   batch.hover = -1;
@@ -3761,17 +3789,19 @@ const HELP = {
   'room.incubator': { t: 'INCUBATOR', d: 'The Arena: a round chamber of broth where living specimens cut from your cultures eat, divide, mutate and compete.', tip: 'Press A to come and go.' },
   'room.archive': { t: 'ARCHIVE', d: 'The Library: every saved culture, the family tree, and the specimens kept from the Incubator.', tip: 'Press L to open it.' },
   'view.arena': { t: 'ARENA', d: 'A shared world where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to place your SOLO organism, or ADD on a save in the LIBRARY.' },
-  'lib.add': { t: 'ADD TO ARENA', d: 'Cuts a living disc from this save, at the SPECIMEN size, and lets you place it in the arena.', tip: 'A save with only its rules is regrown out of sight first.' },
-  'arena.specimen': { t: 'SPECIMEN', d: 'How large a disc is cut from a body when you add it. Bodies keep their own scale, so a small cut holds a small piece of the structure.' },
+  'lib.add': { t: 'ADD TO ARENA', d: 'Puts this save on the cutting bench in the Incubator, with its bodies outlined, so you can choose what to cut and place.', tip: 'A save with only its rules is regrown out of sight first.' },
+  'arena.specimen': { t: 'CIRCLE', d: 'How large a round cut starts: on the cutting bench when no body is found or you click outside the outlined bodies, and for KEEP. Bodies found on the bench are cut along their own outline instead.', tip: 'On the bench, scroll to resize a circle.' },
+  bench: { t: 'CUTTING BENCH', d: 'The organism you are adding, with the bodies found in it outlined, best first. Click a body to choose it. Click anywhere else for a circle, and scroll to size it. Everything outside the cut is dimmed.', tip: 'A body is where particles gather more densely than around it, and keeps together as the threshold loosens. It is cut along its own outline, so passing strands stay behind.' },
+  'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
   'arena.food': { t: 'FOOD', d: 'How fast food grows back. Particles eat it to gain energy, and dead particles return to it.', lo: 'Scarce food: hard competition and crashes', hi: 'Plenty: fast growth and crowding' },
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together. A particle that wanders away from its kin turns back, crowding past its imprinted density pushes it out, and it digests best near that density.', lo: 'Classic slime: wanderers lay trails others follow, and bodies fray into spreading networks', hi: 'Bodies stay separate individuals: rings, ribbons and cells that move and compete' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful lineages', hi: 'Fast evolution and more failed offspring' },
   'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each lineage has, stacked in its chemical color. PARTICLES charts each lineage's share of the world.", tip: 'For life-like behavior, bodies matter more: they show whether a lineage stays as individuals, divides, or spreads into one sprawl.' },
   'arena.founders': { t: 'STRAINS', d: 'Each specimen placed in the Incubator founds a strain: the specimen and all its descendants. Each row shows the strain’s share of the world and its number of bodies. Point at one to light it up in the dish. Click it for its full stats.', tip: 'A strain’s color shows its chemical identity. Similar colors can smell each other.' },
-  'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Cuts a living disc from the organism you last had in SOLO, then lets you place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
+  'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Puts the organism you last had in SOLO on the cutting bench, with its bodies outlined, so you can choose what to cut and then place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
   'arena.add.library': { t: 'ADD FROM LIBRARY', d: 'Opens the Library. Press ADD on any save, or switch to SPECIMENS and press ADD TO ARENA on a kept body.' },
-  'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight and places a specimen of it in the most open spot.' },
+  'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight, cuts its best body (or its densest part if it has none) and places it in the most open spot.' },
   'arena.keep': { t: 'KEEP', d: 'Click a living body in the arena to keep it as a specimen. Everything inside the ring is saved, with every gene it evolved.', tip: 'Kept specimens appear in the Library under SPECIMENS. The ring size follows SPECIMEN.' },
   'arena.replay': { t: 'REPLAY', d: 'Places the same founders again from the start, which replays exactly the same history.' },
   'arena.clear': { t: 'CLEAR', d: 'Removes every founder and starts an empty world. Press it twice to confirm.', tip: 'Kept specimens are not affected.' },
@@ -4581,7 +4611,7 @@ async function useSave(item, breedIt) {
   const data = item.data;
   const name = itemName(item);
   closeLibrary();
-  // From the ARENA, the second button cuts a specimen from this save instead of breeding it.
+  // From the ARENA, the second button puts this save on the cutting bench instead of breeding it.
   if (breedIt && mode === 'arena') { arenaFromSave(data, name); return; }
   // With body inheritance, a recipe save first regrows so its children have a grown structure to inherit.
   await applySave(data, !breedIt || st.inherit === 'body');
@@ -5150,7 +5180,8 @@ function libraryClosed() {
 // Specimens are cut at their own scale, so a body keeps the size its rules give it. Radii are fractions of the picture height.
 const ARENA = {
   sizes: { s: .12, m: .18, l: .25 }, palettes: ['ROSE', 'KELP', 'GLACIER'], foodPalette: 'BIOLUME',
-  maxFounders: 16, energy: .6, forage: .25, grow: 900, tries: 3, maxParticles: 60000,
+  // A founder keeps its full density unless it would take more than 40% of the world. Thinning a body loosens it.
+  maxFounders: 16, energy: .6, forage: .25, grow: 900, tries: 3, maxParticles: 200000,
   // One fixed scale for the chemicals keeps every imprinted set point meaningful as the founders change.
   norm: 1 / 12,
 };
@@ -5340,41 +5371,251 @@ async function readRegion(texture, x, y, w, h) {
   return data;
 }
 
-// A specimen is a living disc cut from a body at its own scale: every particle in it with its rules, and the trail and
-// veins beneath them. It lives in memory on its own, so the arena can replay its founders exactly.
-async function cutSpecimen(body, g, name) {
-  const { w, h, agents } = body.q, radius = ARENA.sizes[arena.size], R = radius * h;
-  const pos = new Float32Array(await readBack(body.agents, agents * 16)), rngs = new Uint32Array(pos.buffer);
-  const genes = body.genes ? new Float32Array(await readBack(body.genes, agents * 32)) : null;
-  // The disc goes where the body holds the most particles, nudged toward the middle.
-  const gw = 48, gh = 27, grid = new Float32Array(gw * gh);
+/* ---------- The cutting bench ---------- */
+/* A specimen is cut from a living organism at its own scale: every particle in the cut with its rules, and the trail and
+   veins beneath them. It lives in memory on its own, so the arena can replay its founders exactly.
+   Bodies are found where particles gather. Particle density is measured on a grid, and dense regions are followed from
+   the tightest threshold to the loosest, the way a hill shows its shape as water drains away. A region that keeps its
+   own identity over several thresholds stands apart from its surroundings, and that is a body. Each body is then cut
+   along its own outline with a small margin, so the strands of network passing by stay behind. */
+const BENCH = {
+  gw: 240, gh: 135, levels: [1.25, 1.6, 2, 2.5, 3.2, 4, 5, 6.5, 8.5], minCells: 40, maxShare: .45, grow: 1.8, margin: 2,
+  maxRadius: .42, keep: 6, autoScore: .5,
+};
+// A 3x3 average, so a body's strands read as one region and single particles don't.
+function blurGrid(a, gw, gh) {
+  const out = new Float32Array(a.length);
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+    let s = 0, n = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < gw && ny < gh) { s += a[ny * gw + nx]; n++; }
+    }
+    out[y * gw + x] = s / n;
+  }
+  return out;
+}
+// Particle counts per cell, and their density relative to the average cell.
+function densityGrid(pos, { w, h, agents }) {
+  const { gw, gh } = BENCH, counts = new Float32Array(gw * gh);
+  let n = 0;
   for (let i = 0; i < agents; i++) {
     const x = pos[i * 4];
-    if (x < 0) continue;
-    grid[Math.min(gh - 1, Math.floor(pos[i * 4 + 1] / h * gh)) * gw + Math.min(gw - 1, Math.floor(x / w * gw))]++;
+    if (!(x >= 0)) continue;
+    counts[Math.min(gh - 1, Math.floor(pos[i * 4 + 1] / h * gh)) * gw + Math.min(gw - 1, Math.floor(x / w * gw))]++;
+    n++;
   }
-  const rx = R / w * gw, ry = R / h * gh;
-  let best = 0, cx = w / 2, cy = h / 2;
-  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
-    const px = (x + .5) / gw * w, py = (y + .5) / gh * h;
-    if (px < R || px > w - R || py < R || py > h - R) continue;
+  const D = blurGrid(blurGrid(counts, gw, gh), gw, gh), mean = n / (gw * gh) || 1;
+  for (let i = 0; i < D.length; i++) D[i] /= mean;
+  return { D, counts };
+}
+// Labels the connected regions of a mask. Each region notes whether it touches the edge of the picture.
+function labelRegions(mask, gw, gh) {
+  const label = new Int32Array(gw * gh).fill(-1), stack = new Int32Array(gw * gh), regions = [];
+  for (let start = 0; start < mask.length; start++) {
+    if (!mask[start] || label[start] >= 0) continue;
+    const id = regions.length, cells = [];
+    let top = 0, edge = false;
+    stack[top++] = start; label[start] = id;
+    while (top) {
+      const p = stack[--top], x = p % gw, y = (p - x) / gw;
+      cells.push(p);
+      if (x === 0 || y === 0 || x === gw - 1 || y === gh - 1) edge = true;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy, q = ny * gw + nx;
+        if ((dx || dy) && nx >= 0 && ny >= 0 && nx < gw && ny < gh && mask[q] && label[q] < 0) { label[q] = id; stack[top++] = q; }
+      }
+    }
+    regions.push({ id, cells, edge });
+  }
+  return { label, regions };
+}
+// A region with any space it encloses, so a membrane keeps whatever it holds inside.
+function fillRegion(cells, gw, gh) {
+  const mask = new Uint8Array(gw * gh);
+  for (const p of cells) mask[p] = 1;
+  const outside = new Uint8Array(gw * gh), stack = [];
+  for (let x = 0; x < gw; x++) for (const y of [0, gh - 1]) stack.push(y * gw + x);
+  for (let y = 0; y < gh; y++) for (const x of [0, gw - 1]) stack.push(y * gw + x);
+  while (stack.length) {
+    const p = stack.pop();
+    if (outside[p] || mask[p]) continue;
+    outside[p] = 1;
+    const x = p % gw, y = (p - x) / gw;
+    if (x > 0) stack.push(p - 1);
+    if (x < gw - 1) stack.push(p + 1);
+    if (y > 0) stack.push(p - gw);
+    if (y < gh - 1) stack.push(p + gw);
+  }
+  for (let i = 0; i < mask.length; i++) if (!outside[i]) mask[i] = 1;
+  return mask;
+}
+function growMask(mask, gw, gh, steps) {
+  let m = mask;
+  for (let s = 0; s < steps; s++) {
+    const out = Uint8Array.from(m);
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+      if (m[y * gw + x]) continue;
+      if ((x > 0 && m[y * gw + x - 1]) || (x < gw - 1 && m[y * gw + x + 1]) || (y > 0 && m[(y - 1) * gw + x]) || (y < gh - 1 && m[(y + 1) * gw + x])) out[y * gw + x] = 1;
+    }
+    m = out;
+  }
+  return m;
+}
+const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const maskCells = mask => { const out = []; for (let i = 0; i < mask.length; i++) if (mask[i]) out.push(i); return out; };
+// Where a cut sits and how far it reaches, in the source picture's pixels. A body too big for the Incubator is shrunk
+// to fit rather than sliced.
+function cutGeometry(mask, { w, h }) {
+  const { gw, gh } = BENCH, cw = w / gw, ch = h / gh, cells = maskCells(mask);
+  let sx = 0, sy = 0, x0 = gw, x1 = 0, y0 = gh, y1 = 0;
+  for (const p of cells) {
+    const x = p % gw, y = (p - x) / gw;
+    sx += x; sy += y; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+  }
+  const reach = (cx, cy) => cells.reduce((r, p) => {
+    const x = p % gw, y = (p - x) / gw;
+    return Math.max(r, Math.hypot(Math.abs((x + .5) * cw - cx) + cw / 2, Math.abs((y + .5) * ch - cy) + ch / 2));
+  }, 0);
+  const options = [[(sx / cells.length + .5) * cw, (sy / cells.length + .5) * ch], [(x0 + x1 + 1) / 2 * cw, (y0 + y1 + 1) / 2 * ch]];
+  const [cx, cy, R] = options.map(([x, y]) => [x, y, reach(x, y)]).sort((a, b) => a[2] - b[2])[0];
+  return { cx, cy, R, shrink: Math.min(1, BENCH.maxRadius * h / R), cells };
+}
+// How much a candidate looks like a body: it stands apart from its surroundings, holds together over several
+// thresholds, encloses space or has a brighter rim like a membrane, and is a size the Incubator can hold.
+function scoreBody(filled, raw, levels, D, q) {
+  const { gw, gh } = BENCH, cells = maskCells(filled), band = growMask(filled, gw, gh, 3);
+  let inside = 0, outside = 0, nOut = 0, rimSum = 0, nRim = 0, coreSum = 0, nCore = 0;
+  for (const p of cells) {
+    inside += D[p];
+    const x = p % gw, y = (p - x) / gw;
+    const border = !filled[p - 1] || !filled[p + 1] || !filled[p - gw] || !filled[p + gw] || x === 0 || y === 0 || x === gw - 1 || y === gh - 1;
+    if (border) { rimSum += D[p]; nRim++; } else { coreSum += D[p]; nCore++; }
+  }
+  for (let i = 0; i < band.length; i++) if (band[i] && !filled[i]) { outside += D[i]; nOut++; }
+  inside /= cells.length;
+  outside = nOut ? outside / nOut : 0;
+  const contrast = clamp(1 - outside / Math.max(inside, 1e-6), 0, 1);
+  const ring = clamp((cells.length - raw) / cells.length * 2.5, 0, 1);
+  const rim = nCore ? clamp(rimSum / nRim / Math.max(coreSum / nCore, 1e-6) - .9, 0, 1) : 0;
+  const steady = Math.min(1, levels / 4);
+  const r = Math.sqrt(cells.length / Math.PI) / gh; // The radius of a disc of the same area, as a share of the picture height.
+  const size = r < .04 ? r / .04 : r > .3 ? clamp(1 - (r - .3) / .15, 0, 1) : 1;
+  // Trail piled along the frame is an artifact of the edge, not a body.
+  const border = cells.filter(p => { const x = p % gw, y = (p - x) / gw; return x < 5 || y < 5 || x >= gw - 5 || y >= gh - 5; }).length / cells.length;
+  return { score: .3 * contrast + .25 * steady + .2 * ring + .1 * rim + .15 * size - .4 * border, contrast, ring, rim, steady, border };
+}
+function findBodies(D, counts, q) {
+  const { gw, gh, levels, minCells, maxShare } = BENCH, total = gw * gh;
+  let tracks = [];
+  const ended = [];
+  for (const t of [...levels].reverse()) {
+    const mask = new Uint8Array(total);
+    for (let i = 0; i < total; i++) mask[i] = D[i] > t ? 1 : 0;
+    const { label, regions } = labelRegions(mask, gw, gh), next = [], taken = new Set();
+    // Which region each current track sits in at this looser threshold, if most of it lies in one.
+    const home = tracks.map(tr => {
+      const tally = new Map();
+      for (const p of tr.cells) if (label[p] >= 0) tally.set(label[p], (tally.get(label[p]) || 0) + 1);
+      let best = -1, most = 0;
+      for (const [id, n] of tally) if (n > most) { most = n; best = id; }
+      return most >= tr.cells.length * .7 ? best : -1;
+    });
+    for (const r of regions) {
+      if (r.edge || r.cells.length < minCells || r.cells.length > total * maxShare) continue;
+      const mine = tracks.filter((_, k) => home[k] === r.id);
+      // One body that has only grown a little is the same body. Two bodies joining make a new candidate: the pair.
+      if (mine.length === 1 && r.cells.length <= mine[0].cells.length * BENCH.grow) {
+        Object.assign(mine[0], { cells: r.cells, levels: mine[0].levels + 1, t });
+        next.push(mine[0]);
+        taken.add(mine[0]);
+      } else next.push({ cells: r.cells, levels: 1, t });
+    }
+    for (const tr of tracks) if (!taken.has(tr)) ended.push(tr);
+    tracks = next;
+  }
+  ended.push(...tracks);
+  const found = ended.map(tr => {
+    const filled = fillRegion(tr.cells, gw, gh), cut = growMask(filled, gw, gh, BENCH.margin);
+    const geo = cutGeometry(cut, q), traits = scoreBody(filled, tr.cells.length, tr.levels, D, q);
+    let motes = 0;
+    for (const p of geo.cells) motes += counts[p];
+    return { mask: cut, ...geo, ...traits, motes, area: geo.cells.length };
+  }).sort((a, b) => b.score - a.score);
+  // The same body found twice keeps only its better outline.
+  const kept = [];
+  for (const c of found) {
+    const overlaps = kept.some(k => {
+      let both = 0;
+      for (const p of c.cells) if (k.mask[p]) both++;
+      return both / (c.area + k.area - both) > .6;
+    });
+    if (!overlaps) kept.push(c);
+    if (kept.length >= BENCH.keep) break;
+  }
+  kept.forEach((c, i) => { c.name = String.fromCharCode(65 + i); });
+  return kept;
+}
+// A plain round cut, for when no body is found or you click outside the outlined bodies.
+function circleCut(q, counts, cx, cy, radius) {
+  const { gw, gh } = BENCH, R = Math.min(radius, BENCH.maxRadius) * q.h, cw = q.w / gw, ch = q.h / gh;
+  let motes = 0;
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) if (Math.hypot((x + .5) * cw - cx, (y + .5) * ch - cy) <= R) motes += counts[y * gw + x];
+  return { circle: true, cx, cy, R, shrink: 1, motes };
+}
+// The densest spot a circle of this size can sit on, nudged toward the middle.
+function densestCircle(q, counts, radius) {
+  const { gw, gh } = BENCH, R = radius * q.h, rx = R / q.w * gw, ry = R / q.h * gh;
+  let best = -1, at = [q.w / 2, q.h / 2];
+  for (let y = 0; y < gh; y += 2) for (let x = 0; x < gw; x += 2) {
+    const px = (x + .5) / gw * q.w, py = (y + .5) / gh * q.h;
+    if (px < R || px > q.w - R || py < R || py > q.h - R) continue;
     let sum = 0;
     for (let yy = Math.max(0, Math.floor(y - ry)); yy <= Math.min(gh - 1, Math.ceil(y + ry)); yy++) {
       for (let xx = Math.max(0, Math.floor(x - rx)); xx <= Math.min(gw - 1, Math.ceil(x + rx)); xx++) {
-        if (((xx - x) / rx) ** 2 + ((yy - y) / ry) ** 2 <= 1) sum += grid[yy * gw + xx];
+        if (((xx - x) / rx) ** 2 + ((yy - y) / ry) ** 2 <= 1) sum += counts[yy * gw + xx];
       }
     }
-    sum *= 1 - .5 * Math.hypot((px - w / 2) / w, (py - h / 2) / h);
-    if (sum > best) { best = sum; cx = px; cy = py; }
+    sum *= 1 - .5 * Math.hypot((px - q.w / 2) / q.w, (py - q.h / 2) / q.h);
+    if (sum > best) { best = sum; at = [px, py]; }
   }
-  if (!best) return null;
+  return circleCut(q, counts, at[0], at[1], radius);
+}
+// Reads where every particle is and finds the bodies among them.
+async function surveyBodies(src) {
+  const { q } = src.sim, pos = new Float32Array(await readBack(src.sim.agentBuf, q.agents * 16));
+  const { D, counts } = densityGrid(pos, q);
+  return { pos, counts, bodies: findBodies(D, counts, q) };
+}
+// Samples a grid of cells smoothly at a point given in cells.
+function gridAt(grid, gw, gh, x, y) {
+  const x0 = clamp(Math.floor(x), 0, gw - 1), y0 = clamp(Math.floor(y), 0, gh - 1), x1 = Math.min(gw - 1, x0 + 1), y1 = Math.min(gh - 1, y0 + 1);
+  const sx = clamp(x - x0, 0, 1), sy = clamp(y - y0, 0, 1);
+  return (grid[y0 * gw + x0] * (1 - sx) + grid[y0 * gw + x1] * sx) * (1 - sy) + (grid[y1 * gw + x0] * (1 - sx) + grid[y1 * gw + x1] * sx) * sy;
+}
+// Cuts the chosen shape out of the source: the particles inside it, and the trail beneath them with a soft edge.
+async function cutFrom(src, shape) {
+  const { sim, g, name } = src, { w, h, agents } = sim.q, { gw, gh } = BENCH, cw = w / gw, ch = h / gh;
+  const pos = src.pos || new Float32Array(await readBack(sim.agentBuf, agents * 16)), rngs = new Uint32Array(pos.buffer);
+  const genes = sim.genesReady ? new Float32Array(await readBack(sim.geneBuf, agents * 32)) : null;
+  const { cx, cy, R } = shape, soft = shape.circle ? null : blurGrid(blurGrid(Float32Array.from(shape.mask), gw, gh), gw, gh);
   const size = Math.min(Math.ceil(2 * R) + 4, w, h), x0 = clamp(Math.round(cx - size / 2), 0, w - size), y0 = clamp(Math.round(cy - size / 2), 0, h - size);
-  const crop = { w: size, h: size, cx: cx - x0, cy: cy - y0, data: await readRegion(body.trail, x0, y0, size, size) };
-  const [bA, bB] = body.bounds || speciesBounds(agents, g), inside = [];
+  const data = await readRegion(sim.trail[sim.cur], x0, y0, size, size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const px = x0 + x + .5, py = y0 + y + .5;
+    const m = soft ? clamp(gridAt(soft, gw, gh, px / cw - .5, py / ch - .5) * 1.6, 0, 1) : 1 - smoothstep(R * .85, R, Math.hypot(px - cx, py - cy));
+    const k = (y * size + x) * 4;
+    data[k] *= m; data[k + 1] *= m; data[k + 2] *= m; data[k + 3] = 1 - (1 - data[k + 3]) * m;
+  }
+  const crop = { w: size, h: size, cx: cx - x0, cy: cy - y0, data };
+  const [bA, bB] = speciesBounds(agents, g), inside = [];
   for (let i = 0; i < agents; i++) {
     const x = pos[i * 4], y = pos[i * 4 + 1];
-    if (x >= 0 && (x - cx) ** 2 + (y - cy) ** 2 <= R * R) inside.push(i);
+    if (!(x >= 0)) continue;
+    const kept = shape.circle ? (x - cx) ** 2 + (y - cy) ** 2 <= R * R : shape.mask[Math.min(gh - 1, Math.floor(y / ch)) * gw + Math.min(gw - 1, Math.floor(x / cw))];
+    if (kept) inside.push(i);
   }
+  if (inside.length < 50) return null;
   const n = inside.length, counts = [0, 0, 0];
   const out = { dx: new Float32Array(n), dy: new Float32Array(n), angle: new Float32Array(n), rng: new Uint32Array(n), kind: new Uint8Array(n), mult: genes ? new Float32Array(n * 4) : null };
   inside.forEach((i, j) => {
@@ -5385,9 +5626,163 @@ async function cutSpecimen(body, g, name) {
     // Living cells carry their own inherited multipliers on the species' rules.
     if (genes) out.mult.set(genes.subarray(i * 8 + 1, i * 8 + 5), j * 4);
   });
-  return { name, g: { count: g.count, species: cloneSpecies(g.species.slice(0, g.count)), life: { ...lifeOf(g) } }, srcH: h, radius, crop, agents: out, counts };
+  // A body shrunk to fit is treated as if it came from a taller picture, so placing scales it down evenly.
+  const srcH = h / shape.shrink;
+  return { name, g: { count: g.count, species: cloneSpecies(g.species.slice(0, g.count)), life: { ...lifeOf(g) } }, srcH, radius: R * shape.shrink / h, crop, agents: out, counts, shape: shape.circle ? 'circle' : 'body' };
+}
+// The best cut without asking, for wild organisms: the top body if it is convincing, otherwise the densest circle.
+async function autoCut(src) {
+  const survey = await surveyBodies(src), top = survey.bodies[0];
+  const shape = top && top.score >= BENCH.autoScore ? top : densestCircle(src.sim.q, survey.counts, ARENA.sizes[arena.size]);
+  return cutFrom({ ...src, pos: survey.pos }, shape);
 }
 
+// The bench shows the source organism with its bodies outlined. One is chosen; click another, or click anywhere else
+// for a round cut and scroll to size it. CUT takes it, and Esc puts everything back.
+async function openBench(src) {
+  closeBench();
+  const found = await arenaWork('FINDING BODIES', async () => {
+    const survey = await surveyBodies(src);
+    const pixels = await renderPixels([{ sim: src.sim, genome: src.g, rect: null, view: src.view }], 960, 540);
+    return { ...survey, pixels };
+  });
+  if (!found) { if (src.own) destroySim(src.sim); return; }
+  const b = arena.bench = { ...src, ...found, pick: 0, hover: -1, ghost: null, circleR: ARENA.sizes[arena.size], circle: null };
+  if (!b.bodies.length) { b.circle = densestCircle(b.sim.q, b.counts, b.circleR); b.pick = -1; }
+  const pic = $('benchPic');
+  pic.width = 960; pic.height = 540;
+  pic.getContext('2d').putImageData(new ImageData(b.pixels, 960, 540), 0, 0);
+  setDots($('benchTitle'), 'CUTTING BENCH');
+  $('benchName').textContent = b.name;
+  $('bench').hidden = false;
+  drawBench();
+  syncUi();
+  renderArenaPanel();
+  flash(b.bodies.length ? b.bodies.length + (b.bodies.length === 1 ? ' BODY FOUND' : ' BODIES FOUND') : 'NO BODY FOUND');
+}
+function closeBench() {
+  const b = arena.bench;
+  if (!b) return;
+  arena.bench = null;
+  if (b.own) destroySim(b.sim);
+  $('bench').hidden = true;
+  syncUi();
+  renderArenaPanel();
+}
+const benchShape = b => b.pick >= 0 ? b.bodies[b.pick] : b.circle;
+async function benchCut() {
+  const b = arena.bench;
+  if (!b || arena.busy) return;
+  const shape = benchShape(b);
+  const specimen = await arenaWork('CUTTING', () => cutFrom(b, shape));
+  closeBench();
+  if (specimen) beginPlacing(specimen); else flash('NOTHING TO CUT');
+}
+// The bench's grid cell under a pointer event.
+function benchCell(e) {
+  const r = $('benchMarks').getBoundingClientRect(), { gw, gh } = BENCH;
+  return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1),
+    cell: clamp(Math.floor((e.clientY - r.top) / r.height * gh), 0, gh - 1) * gw + clamp(Math.floor((e.clientX - r.left) / r.width * gw), 0, gw - 1) };
+}
+// The smallest outlined body under the pointer, so a body inside another can still be chosen.
+function benchBodyAt(b, cell) {
+  let best = -1;
+  b.bodies.forEach((body, i) => { if (body.mask[cell] && (best < 0 || body.area < b.bodies[best].area)) best = i; });
+  return best;
+}
+function initBench() {
+  const marks = $('benchMarks');
+  marks.addEventListener('pointermove', e => {
+    const b = arena.bench;
+    if (!b) return;
+    const { x, y, cell } = benchCell(e), i = benchBodyAt(b, cell);
+    b.hover = i;
+    b.ghost = i < 0 ? { x: x * b.sim.q.w, y: y * b.sim.q.h } : null;
+    drawBench();
+  });
+  marks.addEventListener('pointerleave', () => { const b = arena.bench; if (b) { b.hover = -1; b.ghost = null; drawBench(); } });
+  marks.addEventListener('click', e => {
+    const b = arena.bench;
+    if (!b || arena.busy) return;
+    const { x, y, cell } = benchCell(e), i = benchBodyAt(b, cell);
+    if (i >= 0) b.pick = i;
+    else { b.pick = -1; b.circle = circleCut(b.sim.q, b.counts, x * b.sim.q.w, y * b.sim.q.h, b.circleR); }
+    drawBench();
+  });
+  marks.addEventListener('wheel', e => {
+    const b = arena.bench;
+    if (!b || (b.pick >= 0 && !b.ghost)) return;
+    e.preventDefault();
+    b.circleR = clamp(b.circleR * (e.deltaY > 0 ? 1 / 1.08 : 1.08), .04, BENCH.maxRadius);
+    if (b.pick < 0) b.circle = circleCut(b.sim.q, b.counts, b.circle.cx, b.circle.cy, b.circleR);
+    drawBench();
+  }, { passive: false });
+  $('benchCut').addEventListener('click', e => { if (e.detail) e.currentTarget.blur(); benchCut(); });
+  $('benchCancel').addEventListener('click', e => { if (e.detail) e.currentTarget.blur(); closeBench(); });
+  new ResizeObserver(drawBench).observe(marks);
+}
+// Outlines are drawn along the grid, so they read as part of the instrument's dot display.
+function outlinePath(mask, sx, sy) {
+  const { gw, gh } = BENCH, path = new Path2D();
+  for (let p = 0; p < mask.length; p++) {
+    if (!mask[p]) continue;
+    const x = p % gw, y = (p - x) / gw, X = x * sx, Y = y * sy;
+    if (x === 0 || !mask[p - 1]) { path.moveTo(X, Y); path.lineTo(X, Y + sy); }
+    if (x === gw - 1 || !mask[p + 1]) { path.moveTo(X + sx, Y); path.lineTo(X + sx, Y + sy); }
+    if (y === 0 || !mask[p - gw]) { path.moveTo(X, Y); path.lineTo(X + sx, Y); }
+    if (y === gh - 1 || !mask[p + gw]) { path.moveTo(X, Y + sy); path.lineTo(X + sx, Y + sy); }
+  }
+  return path;
+}
+function benchTraits(s) {
+  if (s.circle) return 'CIRCLE · ' + kilo(s.motes) + ' MOTES · SCROLL TO RESIZE';
+  const traits = [s.contrast >= .55 && 'STANDS APART', s.ring >= .25 && 'ENCLOSED', s.rim >= .25 && 'MEMBRANE'].filter(Boolean);
+  return `BODY ${s.name} · ${kilo(s.motes)} MOTES · ${traits.join(' · ') || 'LOOSE'}${s.shrink < .99 ? ' · SHRUNK TO ' + Math.round(s.shrink * 100) + '%' : ''}`;
+}
+function drawBench() {
+  const b = arena.bench, c = $('benchMarks');
+  if (!b || !c) return;
+  const dpr = devicePixelRatio || 1, W = Math.round(c.clientWidth * dpr), H = Math.round(c.clientHeight * dpr);
+  if (!W || !H) return;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const x = c.getContext('2d'), { gw, gh } = BENCH, sx = W / gw, sy = H / gh, q = b.sim.q, shape = benchShape(b);
+  x.clearRect(0, 0, W, H);
+  // Everything outside the chosen cut is dimmed, so it is clear what will be kept.
+  x.fillStyle = 'rgba(2,4,5,.72)';
+  x.fillRect(0, 0, W, H);
+  x.globalCompositeOperation = 'destination-out';
+  if (shape.circle) { x.beginPath(); x.ellipse(shape.cx / q.w * W, shape.cy / q.h * H, shape.R / q.w * W, shape.R / q.h * H, 0, 0, Math.PI * 2); x.fill(); }
+  else { x.beginPath(); for (const p of shape.cells) x.rect((p % gw) * sx - .5, Math.floor(p / gw) * sy - .5, sx + 1, sy + 1); x.fill(); }
+  x.globalCompositeOperation = 'source-over';
+  const key = W + 'x' + H;
+  b.bodies.forEach((body, i) => {
+    if (body.pathKey !== key) { body.path = outlinePath(body.mask, sx, sy); body.pathKey = key; }
+    const on = i === b.pick, hot = i === b.hover;
+    x.save();
+    x.lineWidth = (on ? 2 : 1.25) * dpr;
+    x.strokeStyle = on ? '#9ff5dc' : hot ? 'rgba(159,245,220,.85)' : 'rgba(111,240,207,.45)';
+    if (!on) x.setLineDash([3 * dpr, 3 * dpr]);
+    if (on) { x.shadowColor = '#2ff0c4'; x.shadowBlur = 10 * dpr; }
+    x.stroke(body.path);
+    x.restore();
+    // The body's letter sits on a dark chip at its top left.
+    const top = body.cells[0], lx = (top % gw) * sx, ly = Math.floor(top / gw) * sy, pitch = 1.5 * dpr;
+    x.fillStyle = on ? '#9ff5dc' : 'rgba(3,6,7,.85)';
+    x.fillRect(lx, ly - 13 * dpr, 13 * dpr, 13 * dpr);
+    x.fillStyle = on ? '#04201a' : '#9ff5dc';
+    dotText(x, body.name, lx + 3.2 * dpr, ly - 11.2 * dpr, pitch);
+  });
+  const ring = shape.circle ? shape : b.ghost ? { cx: b.ghost.x, cy: b.ghost.y, R: b.circleR * q.h } : null;
+  if (ring) {
+    x.save();
+    x.lineWidth = (shape.circle ? 2 : 1.25) * dpr;
+    x.strokeStyle = shape.circle ? '#9ff5dc' : 'rgba(159,245,220,.6)';
+    x.setLineDash([5 * dpr, 4 * dpr]);
+    x.beginPath(); x.ellipse(ring.cx / q.w * W, ring.cy / q.h * H, ring.R / q.w * W, ring.R / q.h * H, 0, 0, Math.PI * 2); x.stroke();
+    x.restore();
+  }
+  $('benchInfo').textContent = benchTraits(shape);
+}
 /* Chemical identity. Each founder's species give off a mix of the three chemicals set by a hue, with founders spread
    around the wheel by the golden angle. Responses are solved so each founder's own FOLLOW settings hold exactly
    among its species. How it reacts to other founders then follows from how alike their chemicals are, the way
@@ -5587,8 +5982,8 @@ function placeNow(x, y) {
   const spot = x === undefined ? openSpot(specimen.radius) : { x, y };
   foundAt(specimen, spot.x, spot.y);
 }
-// Grows an organism out of sight and keeps its body, for saves without one and for random founders.
-async function growBody(g, q, steps) {
+// Grows an organism out of sight, for saves without a body and for wild founders. The caller destroys the simulation.
+async function growSim(g, q, steps) {
   const sim = createSim(q);
   try {
     restartSim(sim, g);
@@ -5600,57 +5995,67 @@ async function growBody(g, q, steps) {
       device.queue.submit([enc.finish()]);
       await device.queue.onSubmittedWorkDone();
     }
+    return sim;
+  } catch (e) { destroySim(sim); throw e; }
+}
+async function growBody(g, q, steps) {
+  const sim = await growSim(g, q, steps);
+  try {
     const judged = await sampleSim(sim, g).then(() => sim.judged);
     const metrics = metricsFor(sim), body = captureBody(sim, g);
     await device.queue.onSubmittedWorkDone();
     return { body, judged, metrics };
   } finally { destroySim(sim); }
 }
+// SOLO: the organism you last had in the Microscope goes on the bench as it is now.
 async function arenaFromSolo() {
   if (!R || R.step < BODY_MIN_STEPS) { flash('LET IT GROW FIRST'); return; }
-  const name = autoName(buildSave(st, R), null);
-  const specimen = await arenaWork('CUTTING', async () => {
-    const body = captureBody(R, st);
-    try { return await cutSpecimen(body, st, name); } finally { dropBody(body); }
-  });
-  beginPlacing(specimen);
+  await openBench({ sim: R, g: st, view: st.view, own: false, name: autoName(buildSave(st, R), null) });
 }
+// A save goes on the bench in its saved state, or regrown from its recipe if it has no body.
 async function arenaFromSave(d, name) {
   const g = parseSave(d);
   if (!g) return;
   setMode('arena');
-  const specimen = await arenaWork('CUTTING', async () => {
-    let body = d.body ? await loadBody(d, g) : null;
-    if (!body) {
-      arena.task = 'REGROWING';
-      drawLcd();
-      const q = d.grownAt === 'tile' ? TILE : QUALITY[d.quality] || QUALITY.med;
-      body = (await growBody(g, q, clamp(Number.isFinite(d.step) ? d.step : ARENA.grow, BODY_MIN_STEPS, REGROW_LIMIT))).body;
+  closeBench();
+  const sim = await arenaWork('OPENING', async () => {
+    const body = d.body ? await loadBody(d, g) : null;
+    if (body) {
+      const s = createSim(body.q);
+      placeState(body, s, g);
+      await device.queue.onSubmittedWorkDone();
+      dropBody(body);
+      return s;
     }
-    try { return await cutSpecimen(body, g, name || 'Untitled'); } finally { dropBody(body); }
+    arena.task = 'REGROWING';
+    drawLcd();
+    const q = d.grownAt === 'tile' ? TILE : QUALITY[d.quality] || QUALITY.med;
+    return growSim(g, q, clamp(Number.isFinite(d.step) ? d.step : ARENA.grow, BODY_MIN_STEPS, REGROW_LIMIT));
   });
-  beginPlacing(specimen);
+  if (sim) await openBench({ sim, g, view: savedView(d), own: true, name: name || 'Untitled' });
 }
-// A wild founder: rolled like RANDOM, grown out of sight, kept only if it comes to life, and placed in an open spot.
+// A wild founder: rolled like RANDOM, grown out of sight, kept only if it comes to life, cut around its best body and
+// placed in an open spot.
 async function arenaRandom() {
+  closeBench();
   const specimen = await arenaWork('GROWING WILD', async () => {
     for (let t = 0; t < ARENA.tries; t++) {
       const g = randomFounder();
       g.walls = null;
-      const { body, judged, metrics } = await growBody(g, TILE, ARENA.grow);
+      const sim = await growSim(g, TILE, ARENA.grow);
       try {
+        const judged = await sampleSim(sim, g).then(() => sim.judged);
         if (judged?.verdict !== 'ALIVE' && t < ARENA.tries - 1) continue;
-        const named = { format: 'digital-life-save', seed: g.seed, init: g.init, count: g.count, species: g.species, field: g.field, life: g.life, metrics };
-        return await cutSpecimen(body, g, 'Wild ' + autoName(named, null));
-      } finally { dropBody(body); }
+        const named = { format: 'digital-life-save', seed: g.seed, init: g.init, count: g.count, species: g.species, field: g.field, life: g.life, metrics: metricsFor(sim) };
+        return await autoCut({ sim, g, name: 'Wild ' + autoName(named, null) });
+      } finally { destroySim(sim); }
     }
     return null;
   });
   if (!specimen) { flash('NOTHING TO CUT'); return; }
   const spot = openSpot(specimen.radius);
   foundAt(specimen, spot.x, spot.y);
-}
-async function arenaUndo() {
+}async function arenaUndo() {
   if (!arena.founders.length || arena.busy) return;
   arena.founders.pop();
   arenaChemistry();
@@ -5870,7 +6275,11 @@ function renderArenaPanel() {
     set('chem', s0 && now ? chemSwatches(s0.emit, now.emit) : '—');
     r.keep.disabled = !largest.mass || arena.busy;
   });
-  $('arenaNote').textContent = arena.placing ? `Click the picture to place ${arena.placing.name}. Press ADD again for an open spot, or Esc to cancel.`
+  const b = arena.bench;
+  $('arenaNote').textContent = b ? (b.bodies.length
+      ? `${b.name} is on the cutting bench. The outlined ${b.bodies.length === 1 ? 'region is a body' : 'regions are bodies'} found in it, best first. Click one to choose it, or click anywhere else for a circle and scroll to size it. CUT takes it; Esc cancels.`
+      : `${b.name} is on the cutting bench. No separate body was found, so a circle sits on its densest part. Click to move it and scroll to size it. CUT takes it; Esc cancels.`)
+    : arena.placing ? `Click the picture to place ${arena.placing.name}. Press ADD again for an open spot, or Esc to cancel.`
     : arena.keeping ? 'Click a living body to keep it as a specimen. The ring shows what will be kept. Esc cancels.'
     : !arena.founders.length ? 'Choose what to add: your SOLO organism, a save or specimen from the LIBRARY, or a WILD one. Then click the picture to place it.'
     : 'Each row is a strain: a placed specimen and all its descendants. Point at one to light it up in the dish, or click it to see its bodies and how its genes have drifted.';
@@ -6723,7 +7132,7 @@ function initBrush() {
 /* ---------- Actions and interface ---------- */
 const actions = {
   mutate() {
-    if (mode === 'arena') { if (arena.placing) placeNow(); else arenaFromSolo(); return; }
+    if (mode === 'arena') { if (arena.bench) benchCut(); else if (arena.placing) placeNow(); else arenaFromSolo(); return; }
     if (mode === 'batch') { breed(); return; }
     if (!commitDraft()) return;
     // The grown structure carries over, so it has to survive its own changed rules.
@@ -6912,7 +7321,7 @@ function syncUi() {
     : life.mode === 'veins' ? 'Busy paths thicken and last. Unused paths wither.'
     : 'Classic slime mold. VEINS and CELLS add early-life behavior.';
   syncBrush();
-  setDots($('mutateLabel'), inArena ? 'ADD' : inBatch ? 'BREED' : 'MUTATE');
+  setDots($('mutateLabel'), inArena ? (arena.bench ? 'CUT' : 'ADD') : inBatch ? 'BREED' : 'MUTATE');
   $('mutateKey').textContent = inBatch ? 'ENTER' : 'M';
   $('tiles').hidden = !inBatch;
   setTitle($('organismTitle'), 'ORGANISM', inBatch ? 'tile ' + (displayedTile() + 1) + ' · open to edit' : '');
@@ -7037,6 +7446,7 @@ function initUi() {
     else { arena.keeping = false; placeRing.hidden = true; keepAt(x, y, ARENA.sizes[arena.size]); }
   });
   new ResizeObserver(drawArenaChart).observe($('arenaChart'));
+  initBench();
   // The arena page's own buttons: where to add from, and what to do with the world.
   for (const b of $('arenaAdd').children) b.addEventListener('click', e => {
     if (e.detail) b.blur();
@@ -7145,6 +7555,8 @@ function initUi() {
       if (e.key.toLowerCase() === 'h' && !e.repeat && !e.ctrlKey && !e.metaKey && e.target.tagName !== 'INPUT') actions.help();
       return;
     }
+    if (e.key === 'Escape' && mode === 'arena' && arena.bench) { closeBench(); return; }
+    if (e.key === 'Enter' && mode === 'arena' && arena.bench && e.target.tagName !== 'BUTTON') { e.preventDefault(); benchCut(); return; }
     if (e.key === 'Escape' && mode === 'arena' && arena.placing) { cancelPlacing(); return; }
     if (e.key === 'Escape' && mode === 'arena' && arena.keeping) { cancelKeeping(); return; }
     if (e.key === 'Escape' && helpTarget) { hideHelp(); return; }
@@ -7218,7 +7630,7 @@ window.DL = {
     read.unmap(); read.destroy();
     return out;
   },
-  bodyMeasures, analyze, arena, ARENA, ensureArena, keepAt, keepBody, labelBodies, beginKeeping, arenaClear, useSpecimen, unpackSpecimen, packSpecimen, resetArena, cutSpecimen, foundAt, stampFounder, replayArena, arenaFromSolo, arenaFromSave, arenaRandom, arenaCensus, growBody, placeNow, openSpot,
+  bodyMeasures, analyze, arena, ARENA, ensureArena, keepAt, keepBody, labelBodies, beginKeeping, arenaClear, useSpecimen, unpackSpecimen, packSpecimen, resetArena, cutFrom, autoCut, surveyBodies, findBodies, densityGrid, openBench, closeBench, benchCut, growSim, BENCH, densestCircle, circleCut, foundAt, stampFounder, replayArena, arenaFromSolo, arenaFromSave, arenaRandom, arenaCensus, growBody, placeNow, openSpot,
   // Steps the arena directly, for testing without the animation loop.
   async arenaAdvance(n) {
     for (let left = n; left > 0;) {
