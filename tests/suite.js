@@ -171,6 +171,41 @@
     },
 
     // Every control that offers help has its text, in every room and Archive view.
+    // The cell finder on a drawn grid: a ring with a body inside, a big ring holding a small one, and an open arc. It
+    // must find the three closed cells and not the arc, keep the small cell apart from the big one, and see the bodies
+    // inside. Then on a real dish: looking for cells only reads it, so the dish runs exactly the same.
+    async 'Cells: found, kept apart, read only'() {
+      const G = makeCellGrid(96, 96, 46), light = new Float32Array(G.N).fill(.05), wrong = [];
+      const draw = (cx, cy, r, gap = 0) => {
+        for (let k = 0; k < G.N; k++) {
+          const x = k % 96 + .5, y = Math.floor(k / 96) + .5, d = Math.hypot(x - cx, y - cy);
+          if ((r ? Math.abs(d - r) < 1 : d < 1.6) && !(gap && Math.abs(Math.atan2(y - cy, x - cx)) < gap / 2)) light[k] = .9;
+        }
+      };
+      draw(28, 30, 9); draw(28, 30, 0); draw(60, 62, 12); draw(60, 62, 4); draw(26, 70, 8, 1.2);
+      const found = await findCells(G, light), at = (x, y) => found.filter(c => c.r.set.has(y * 96 + x)).sort((a, b) => a.r.area - b.r.area)[0];
+      const bodies = c => c ? measureCell(G, light, new Uint8Array(G.N), c, []).organelles : -1;
+      if (found.length !== 3) wrong.push(`${found.length} cells found, expected 3`);
+      if (bodies(at(28, 30)) < 1) wrong.push('the body inside the ring was missed');
+      const big = at(51, 62), small = at(60, 62);
+      if (!big || !small || big === small) wrong.push('the small ring was not kept apart from the big one');
+      else if (bodies(big) < 1 || bodies(small) !== 0) wrong.push(`bodies: big ${bodies(big)}, small ${bodies(small)}`);
+      if (found.some(c => c.r.set.has(70 * 96 + 26 - 8))) wrong.push('the open arc was taken for a cell');
+      const list = [...found[0].r.cells].sort((a, b) => a - b);
+      if (cellsFromRuns(cellRuns(list)).join() !== list.join()) wrong.push('outline does not survive saving');
+      const run = async look => {
+        await freshDish('s', 31);
+        await foundAt(fx.a, .5, .5, 1); await idle();
+        await foundAt(fx.b, .3, .45, .5); await idle();
+        cellScope.nextStep = Infinity;
+        for (let i = 0; i < 2; i++) { await DL.arenaAdvance(150); if (look) await lookForCells(); }
+        return [await dishHash(), cellScope.tracks.length];
+      };
+      const [plain] = await run(false), [looked, followed] = await run(true);
+      if (plain !== looked) wrong.push('looking for cells changed the dish');
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `3 drawn cells found, arc ignored; dish unchanged by looking (${followed} outlines followed)` };
+    },
+
     async 'Every help label has its text'() {
       const keys = new Set(), take = () => document.querySelectorAll('[data-help]').forEach(e => keys.add(e.dataset.help));
       DL.goRoom('lab'); await sleep(200); take();

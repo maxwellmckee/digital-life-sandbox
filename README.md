@@ -50,7 +50,7 @@ You work the night shift in a culture lab. Three rooms:
   ones you love, breed them, draw on them, and CUT a body out of anything on screen.
 - **INCUBATOR** (`A`). A round dish of broth where specimens live together: each brings its own chemistry and reaction
   field, eats, divides and evolves, and is held at about its own size. Dishes come in three sizes, zoom and pan, and can
-  be saved whole.
+  be saved whole. CELLS boxes the cell-like structures that form there and scores them; KEEP CELL files one.
 - **ARCHIVE** (`L`). Your saved slides, as a grid or a family tree, and the LIVING things: specimens and saved dishes,
   each dish with a snapshot from every save.
 
@@ -87,7 +87,7 @@ There is nothing to install and no build step. It was built on a desktop NVIDIA 
 **Built:** the Microscope (breeding, three species, ecologies, reaction-diffusion hybrids, inherited bodies, living
 cells, barriers, an organism brush, taste learning, the LIFE score), the cutting bench, specimens and the deck, the
 Incubator (six chemicals, food that flows along veins, strains that keep their size, carried reaction fields, three dish
-sizes, zoom, saved dishes, framed recordings), and the Archive (slides, family tree, specimens, dishes with snapshots),
+sizes, zoom, saved dishes, framed recordings, a cell finder), and the Archive (slides, family tree, specimens, dishes with snapshots),
 with PNG and MP4 export and Help everywhere.
 
 **Next:**

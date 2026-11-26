@@ -4,6 +4,13 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Cells in the Incubator.** CELLS: SHOW boxes the cell-like structures that form in a dish, each with an EU or PR
+  name and a score that rewards a closed wall, an inside that keeps its particles and keeps moving, bodies and strains
+  inside, and age; a box turns green for an EU cell at 80% or more. The dish lists its three best cells, follows its
+  cells whether or not they are shown, and keeps them with a saved dish. KEEP CELL files a cell as a specimen cut along
+  its own outline.
+- The KEEP ring is sized with the scroll wheel, and the CIRCLE row is gone. Clicking a strain row flips the deck to its
+  card. REMOVE, above the deck, takes out the card in front.
 - Cleanup, with no change to how anything runs: the test suite moved into the repo (`tests/run.ps1`), the screen uses one
   set of names (Incubator, Archive, strain, deck) and the code keeps a glossary of its older ones, the README split into
   a front page, a guide, an architecture note and this changelog, the format upgrades sit in one section, and the old

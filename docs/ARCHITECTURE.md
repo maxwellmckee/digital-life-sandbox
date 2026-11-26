@@ -21,7 +21,7 @@ The script opens with a map of its sections. In order: configuration; shaders (t
 dish's, then the picture passes); state and GPU setup; barriers, the organism brush and inherited bodies; simulation and
 rendering; the dot-matrix display and the lab look; metrics; family records, undo, genomes and breeding; random
 founders and taste learning; help; saving and loading; the Archive; the Incubator's dish; the cutting bench, specimens,
-saved dishes and the specimen deck; export; the draw page; actions and the interface; keeping old files working; the
+saved dishes, cells and the specimen deck; export; the draw page; actions and the interface; keeping old files working; the
 debug handle; boot.
 
 ### Words on screen and in the code
@@ -37,6 +37,7 @@ Some things kept their earlier names in the code. The screen always uses the fir
 | Slide (a saved organism) | save |
 | LIVING (specimens and dishes) | `lib.specimens`, `lib.dishes` |
 | KEEP | `keepAt`, `beginKeeping` |
+| Cells, KEEP CELL | `cellScope.tracks` (one track per cell), `keepCell` |
 | EMPTY | `arenaClear` |
 
 ## How it works
@@ -61,6 +62,7 @@ Some things kept their earlier names in the code. The screen always uses the fir
 - **Rendering:** per-species gradient lookup, bloom, ACES tone mapping and fine grain. A picture shown smaller than its own size is sampled four times per screen pixel, so fine trails don't shimmer, and the Incubator's zoom is a window into that picture.
 - **Metrics:** a GPU probe produces the LIFE score and verdicts ALIVE, NOISE, GRID, BLOB, FLAT or EMPTY. New variants get four checkpoints because good organisms can start slowly. Version 2 adds coarse-scale bodies, block variety, border share and edge direction.
 - **Incubator (arena in the code):** its own count, claim, birth, live and clear stages over a 64-byte gene per particle, whose six emissions and six responses are packed as half floats. Steering adds a crowding penalty to slime sensing, which is Particle Lenia's energy. Six chemicals live in two trail maps, each with its own fade and spread. Food is a mass-balanced field that flows faster along veins. Reaction fields run as Gray-Scott on the food grid, with each cell's recipe read from maps the particles give recipes off into. Food counters, strain sizes and recipe sums share one buffer, so a pass stays within the GPU's eight storage buffers. Each strain is counted every step, summed per workgroup so the totals don't depend on thread order, and holds its size from that count. Specimens are held in memory, so REPLAY is exact. The dish's shaders are built for each dish size, with its grid sizes and counter places written in. Distances are in pixels of a 1080-high picture at every size.
+- **Cells:** two compute passes every 150 steps: one averages the dish's shown glow over 8-pixel squares and notes the strongest chemical in each, the other samples up to 131,072 particles with their strains. The rest runs on the CPU in pieces between frames: enclosures at eight brightness levels, filled in, merged across levels, measured, matched to the cells already followed and scored. It only reads the dish, so it never changes a run.
 - **Taste learning:** momentum from recent pick direction plus memory of favorites. One plain child and the WILD child are never steered.
 - **Family records:** an in-memory graph connects unsaved generations, so a save links to its nearest saved ancestors.
 - **Export:** a custom PNG writer, plus WebCodecs H.264 with a custom MP4 muxer.
@@ -83,8 +85,8 @@ The organism's colors are stored in `view.palettes` and `view.fieldPalette`. Old
 | `saves/*.json` | Saved organisms, save format version 7 (above) |
 | `saves/bodies/*.dlbody` | The grown body of each save: every agent, trail, vein and chemical, gzip |
 | `saves/thumbs/*.webp` | Archive pictures, regrown if missing |
-| `saves/specimens/` | Specimens: a description (`.json`), a picture (`.webp`) and particles and trail (`.dlspec`, gzip, version 3). A cut keeps its organism's rules and colors; a kept body keeps every gene its particles evolved; either can carry the reaction field beneath it |
-| `saves/dishes/` | Saved dishes: a description (`.json`) with every strain and a list of snapshots, the newest picture (`.webp`), one round snapshot per save (`.s<step>.webp`) and the whole dish (`.dldish`, gzip, version 1): every particle place, the living particles' genes, both trail maps, the broth, the reaction field and its recipe maps, and each strain's body map |
+| `saves/specimens/` | Specimens: a description (`.json`), a picture (`.webp`) and particles and trail (`.dlspec`, gzip, version 3). A cut keeps its organism's rules and colors; a kept body keeps every gene its particles evolved; either can carry the reaction field beneath it. A kept cell also stores `masked` (its trail is already cut to its outline) and `cell` (its name in the dish, the saved dish's name if any, score, parts, age and strains) |
+| `saves/dishes/` | Saved dishes: a description (`.json`) with every strain and a list of snapshots, the newest picture (`.webp`), one round snapshot per save (`.s<step>.webp`) and the whole dish (`.dldish`, gzip, version 1): every particle place, the living particles' genes, both trail maps, the broth, the reaction field and its recipe maps, and each strain's body map. The description also keeps the cells the dish was following (`cells`, each outline stored as runs of squares) |
 | `saves/removed/` | Saves, specimens and dishes removed or folded in the Archive. Nothing there is deleted |
 | `saves/taste.json` | What taste learning has learned from your picks |
 | `images/`, `videos/` | PNG and MP4 exports |
@@ -113,6 +115,7 @@ your saves, and prints PASS or FAIL for each check. It takes about half a minute
 | One Archive entry per dish | Saving again keeps one entry with a snapshot per save, and an older separate save folds in |
 | Specimens: file and duplicates | A specimen survives its file, and cutting the same body twice files it once |
 | Old names renamed once | Old names become strain names, a typed name stays, and a second pass changes nothing |
+| Cells: found, kept apart, read only | On a drawn grid the finder finds three closed cells, one inside another, and not an open arc, and sees the bodies inside; looking for cells leaves a real dish's run unchanged |
 | Every help label has its text | Every control that offers help, in every room and Archive view, has its text |
 
 The test organisms are grown from fixed seeds in the browser's private storage. The fingerprints were recorded on an

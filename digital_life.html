@@ -111,6 +111,10 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .deck{position:absolute;z-index:3;right:1.4%;top:5%;bottom:5%;width:18.6%;display:flex;flex-direction:column;gap:10px;color:var(--ink)}
 .deck[hidden]{display:none}
 .deck-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:8.5px;letter-spacing:.18em;color:#4f7a72}
+#deckRemove{margin-left:auto;padding:1px 7px;border:1px solid #2a4a4a;border-radius:4px;background:transparent;color:#8fbfb3;font:inherit;font-size:8.5px;letter-spacing:.12em;cursor:pointer}
+#deckRemove:hover{color:#e6fff8;border-color:#4f7a72}
+#deckRemove.armed{background:#8a3b1e;border-color:#8a3b1e;color:#fff3ec}
+#deckRemove[hidden]{display:none}
 .deck-head b{font-weight:400;font-size:10px;letter-spacing:.08em;color:#9ff5dc}
 .deck-stack{position:relative;flex:1;min-height:0;perspective:900px}
 .deck-card{position:absolute;top:50%;padding:0;border:0;border-radius:7px;background:#071113;color:var(--ink);cursor:pointer;
@@ -148,6 +152,19 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 @keyframes stageglow{from{box-shadow:inset 0 0 0 1px #6ff0cf99,inset 0 0 40px #2ff0c422,0 0 0 1px #000,0 18px 50px #000a}}
 @media (prefers-reduced-motion:reduce){.glows.afterglow::after{animation-duration:.3s}.stage.afterglow{animation:none}}
 #sim{display:block;width:100%;height:100%}
+#cellLayer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#cellLayer[hidden]{display:none}
+#cellTop{display:flex;flex-direction:column;gap:6px;margin:2px 0 10px}
+#cellTop[hidden]{display:none}
+.cell-row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;padding:6px 8px;border-radius:7px;background:#0b1719;box-shadow:inset 0 0 0 1px #86dcc322}
+.cell-row.green{box-shadow:inset 0 0 0 1px #5dff9a66}
+.cell-head{display:flex;gap:8px;align-items:baseline;padding:0;border:0;background:none;color:var(--ink);font:inherit;cursor:pointer;text-align:left}
+.cell-head b{color:#e8f7f2}
+.cell-row.green .cell-head b{color:#5dff9a}
+.cell-head span{color:#8fbfb3}
+.cell-row small{grid-column:1;color:#6f8d88;font-size:9.5px}
+.cell-keep{grid-column:2;grid-row:1 / span 2;padding:4px 8px;border:0;border-radius:5px;background:#113032;color:var(--lumen);font:inherit;font-size:9.5px;cursor:pointer}
+.cell-keep:disabled{opacity:.4;cursor:default}
 #brushLayer{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}
 #brushLayer.applied{opacity:.94}
 #brushRing{position:absolute;border:1.5px solid #d9fff2;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 1px #03060799}
@@ -507,6 +524,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
     <button type="button" class="help-toggle help-float" id="stageHelp" data-help="help" aria-pressed="false">HELP <kbd>H</kbd></button>
     <div class="screen" id="screen">
       <canvas id="sim"></canvas>
+      <canvas id="cellLayer" hidden></canvas>
       <div class="slide-hud" id="slideHud">
         <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
         <div id="slideLabel"></div>
@@ -527,7 +545,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         </div>
       </div>
       <div class="deck" id="deck" hidden>
-        <div class="deck-head"><span>SPECIMENS</span><b id="deckCount"></b></div>
+        <div class="deck-head"><span>SPECIMENS</span><b id="deckCount"></b><button type="button" id="deckRemove" data-help="drawer.remove" hidden>REMOVE</button></div>
         <div class="deck-stack" id="deckStack" data-help="drawer"></div>
         <div class="deck-foot" id="deckFoot"></div>
       </div>
@@ -593,7 +611,8 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         <button type="button" data-add="wild" data-help="arena.add.wild">WILD</button>
       </div></div>
       <div class="row wide"><span>DISH</span><div class="seg" id="segDish"></div></div>
-      <div class="row wide"><span>CIRCLE</span><div class="seg" id="segSpecimen"></div></div>
+      <div class="row wide"><span>CELLS</span><div class="seg" id="segCells"></div></div>
+      <div id="cellTop" hidden></div>
       <div class="row wide"><span>SETTINGS</span><div class="seg" id="arenaSettings">
         <button type="button" data-do="random" data-help="arena.randomize">RANDOMIZE</button>
         <button type="button" data-do="default" data-help="arena.defaults">DEFAULT</button>
@@ -2241,6 +2260,59 @@ const WGSL_BLEND = WGSL_FS_VERT + /* wgsl */`
   return vec4f(mix(textureLoad(first, at, 0).rgb, textureLoad(second, at, 0).rgb, amount.x), 1.0);
 }`;
 
+// The cell finder's view of the dish: each 8-pixel square's glow, averaged, as the dish shows it (every chemical through
+// its own exposure, the brightest at each pixel), and which chemical glows most there. Averaging keeps a thick membrane
+// bright while the thin lines of a textured inside dim.
+const WGSL_CELL_LIGHT = /* wgsl */`
+struct DishView { exposureLo: vec4f, exposureHi: vec4f, rowsLo: vec4f, rowsHi: vec4f, foodLight: f32, foodRow: f32, lit: f32, fieldLight: f32, fieldRow: f32, pad1: f32, pad2: f32, pad3: f32 }
+@group(0) @binding(0) var<uniform> view: DishView;
+@group(0) @binding(1) var trail: texture_2d<f32>;
+@group(0) @binding(2) var trailB: texture_2d<f32>;
+@group(0) @binding(3) var<storage, read_write> light: array<vec2f>;
+const CELL = 8u;
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  let size = textureDimensions(trail, 0);
+  let grid = (size + vec2u(CELL - 1u)) / CELL;
+  if (id.x >= grid.x || id.y >= grid.y) { return; }
+  var ex = array<f32, 6>(view.exposureLo.x, view.exposureLo.y, view.exposureLo.z, view.exposureHi.x, view.exposureHi.y, view.exposureHi.z);
+  var per = array<f32, 6>(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+  var total = 0.0;
+  for (var y = 0u; y < CELL; y++) {
+    for (var x = 0u; x < CELL; x++) {
+      let p = id.xy * CELL + vec2u(x, y);
+      if (p.x >= size.x || p.y >= size.y) { continue; }
+      let a = textureLoad(trail, p, 0).rgb;
+      let b = textureLoad(trailB, p, 0).rgb;
+      var level = array<f32, 6>(a.x, a.y, a.z, b.x, b.y, b.z);
+      var top = 0.0;
+      for (var c = 0; c < 6; c++) {
+        if (ex[c] <= 0.0) { continue; }
+        let t = 1.0 - exp(-max(level[c], 0.0) * ex[c]);
+        per[c] += t;
+        top = max(top, t);
+      }
+      total += top;
+    }
+  }
+  var strongest = 0;
+  for (var c = 1; c < 6; c++) { if (per[c] > per[strongest]) { strongest = c; } }
+  light[id.y * grid.x + id.x] = vec2f(total / f32(CELL * CELL), f32(strongest));
+}`;
+// A sample of the dish's particles for the cell finder: every stride-th place, with its position and strain.
+const WGSL_CELL_PROBE = /* wgsl */`
+struct Agent { pos: vec2f, angle: f32, rng: u32 }
+@group(0) @binding(0) var<uniform> job: vec4u;
+@group(0) @binding(1) var<storage, read> agents: array<Agent>;
+@group(0) @binding(2) var<storage, read> genes: array<u32>;
+@group(0) @binding(3) var<storage, read_write> sample: array<vec4f>;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= job.y) { return; }
+  let i = id.x * job.x;
+  sample[id.x] = vec4f(agents[i].pos, f32(genes[i * 16u + 1u]), 0.0);
+}`;
+
 // Lays a prepared picture with transparency over a frame, such as the Incubator's porthole and readouts on a recording.
 const WGSL_OVERLAY = WGSL_FS_VERT + /* wgsl */`
 @group(0) @binding(0) var art: texture_2d<f32>;
@@ -2356,6 +2428,8 @@ async function initGpu() {
     arenaDiffuse: bgl([uni(C), sto, sto, raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } },
       { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, raw(C)]),
     colorArena: bgl([uni(F), raw(F), raw(F), tex, smp, raw(F), { visibility: F, buffer: { type: 'read-only-storage' } }, raw(F)]),
+    cellLight: bgl([uni(C), raw(C), raw(C), sto]),
+    cellProbe: bgl([uni(C), ro, ro, sto]),
   };
   const comp = (layout, code, entryPoint = 'main') => device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
@@ -2380,6 +2454,8 @@ async function initGpu() {
     cellClear: comp(L.cells, WGSL_CELLS, 'clear'),
     comp, draw, dishes: {}, // The Incubator's own pipelines are built for each dish size as it is used (dishPipelines).
     arenaStamp: comp(L.arenaStamp, WGSL_ARENA_STAMP),
+    cellLight: comp(L.cellLight, WGSL_CELL_LIGHT),
+    cellProbe: comp(L.cellProbe, WGSL_CELL_PROBE),
     arenaDiffuse: comp(L.arenaDiffuse, WGSL_ARENA_DIFFUSE),
     probeTrailArena: comp(L.probeTrail, WGSL_PROBE_TRAIL_ARENA),
     resample: comp(L.resample, WGSL_RESAMPLE),
@@ -3004,6 +3080,7 @@ function frame(now) {
   }
   const items = mode === 'batch' ? batchItems() : [{ sim: mode === 'arena' ? arena.sim : R, genome: mode === 'arena' ? arenaGenome : st, rect: null }];
   if (mode === 'arena' && now >= arena.nextCensusAt) { arena.nextCensusAt = now + 500; arenaCensus(); }
+  if (mode === 'arena' && arena.sim && !arena.busy && !cellScope.pending && arena.sim.step >= cellScope.nextStep) { cellScope.nextStep = arena.sim.step + CELLS.every; lookForCells(); }
   for (const it of items) writeUniforms(it.sim, it.genome, now);
   const counts = items.map(it => readySpawns(it.sim, it.genome, n));
   const enc = device.createCommandEncoder();
@@ -4360,12 +4437,15 @@ const HELP = {
   'view.arena': { t: 'INCUBATOR', d: 'A shared dish where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to cut your SOLO organism, or CUT on a slide in the Archive.' },
   'arena.dish': { t: 'DISH SIZE', d: 'How much room the dish has. At 1.5× it holds about 2¼ times as much, and at 2× four times as much. Every specimen keeps its true size, so a larger dish holds more copies, not larger ones.', tip: 'Changing the size places the strains again where they were and starts the run over. Larger dishes need more of the GPU, so the fastest speeds may slow down. Scroll on the dish to zoom in and drag to look around.' },
   'arena.zoom': { t: 'ZOOM', d: 'How far the dish is magnified. Scroll on the dish to zoom toward the pointer, and drag to look around. Click here to see the whole dish again.', tip: 'While placing a specimen, scrolling sizes the copy instead; hold Ctrl or pinch to zoom. IMAGE always saves the whole dish at full size, and CLIP and RECORD film what you see, framed by the porthole and readouts.' },
+  'arena.cells': { t: 'CELLS', d: 'Cells are structures nobody placed: closed membranes that form in the dish around a living inside. SHOW puts a box over each one scoring 25% or more, with its name and score. A box turns green for an EU cell (one with a body inside, like a nucleus) scoring 80% or more.', tip: 'The score multiplies five parts: a closed wall, an outline that holds and keeps its particles in, particles that keep moving inside, bodies and several strains inside, and age. The dish looks every 150 steps and keeps following its cells whether or not they are shown.' },
+  'arena.cellTop': { t: 'BEST CELLS', d: 'The dish\'s three best cells: name, score, how long each has lasted, and the strains living inside. Click one to zoom to it.', tip: 'EU cells hold a body inside them; PR cells do not. The number is the order the dish first saw them in.' },
+  'cell.keep': { t: 'KEEP CELL', d: 'Cuts this cell along its own outline, with every gene its particles evolved, and files it as a specimen. The Archive marks it as a cell, with its score and age.' },
   'arena.randomize': { t: 'RANDOMIZE', d: 'Sets FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT at random, more often near the middle of each, and never with so little food that the dish starves.', tip: 'It changes the settings of the dish as it runs. In tests, FOOD below about 0.45 was the one setting that made every dish shrink, so RANDOMIZE keeps it above that.' },
   'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
-  'arena.specimen': { t: 'CIRCLE', d: 'How large a round cut starts: on the cutting bench when no body is found or you click outside the outlined bodies, and for KEEP. Bodies found on the bench are cut along their own outline instead.', tip: 'On the bench, scroll to resize a circle.' },
   bench: { t: 'CUTTING BENCH', d: 'The organism you are adding, with the bodies found in it outlined, best first. Click a body to choose it. Click anywhere else for a circle, and scroll to size it. Everything outside the cut is dimmed.', rows: [['STEADY', 'Out of sight, the organism ran on for 900 more steps, and this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it pulled together, spread or reshaped on its own, so it will keep changing in the dish too.']], tip: 'A body is where particles gather more densely than around it, and keeps together as the threshold loosens. It is cut along its own outline, so passing strands stay behind.' },
   'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle, files it in your specimen deck and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
   drawer: { t: 'SPECIMENS', d: 'Every specimen you have cut or kept, newest in front, as a deck of cards. Scroll over the deck to flip through it, then click a card to pick it. Scroll over the dish to size the copy, and click the dish to place it. Esc stops.', tip: 'Specimens are saved in saves/specimens. The Archive lists them under SPECIMENS, where they can be removed. Cutting the same body from the same moment twice makes no second card, and older duplicates move to the removed folder. The arrow keys also flip the deck when a card has focus.' },
+  'drawer.remove': { t: 'REMOVE', d: 'Takes the card in front out of the deck. Press it twice. Its files move to the removed folder, so it can be brought back.', tip: 'Strains already in the dish keep living; only the card goes.' },
   'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it and place copies of it. The copies placed while it is picked form one strain, so they recognize each other as kin. Click it again to stop.', tip: 'Copies can be placed from a third of their size to twice it. A copy placed larger or smaller has its sensing reach and speed scaled with it, so it behaves like a true larger or smaller version. An orange count means it is not saved yet.' },
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
   'arena.food': { t: 'FOOD', d: 'How fast food grows back. Particles eat it to gain energy, and dead particles return to it.', lo: 'Scarce food: hard competition and crashes', hi: 'Plenty: fast growth and crowding' },
@@ -4373,7 +4453,7 @@ const HELP = {
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together and keep their size. A particle that wanders away from its kin turns back, crowding past its imprinted density pushes it out, and it digests best near that density. A strain may grow only a little past the size it was placed at, then births just replace losses: a tenth more at 0.50, exactly its size at 1.', lo: 'Classic slime: wanderers lay trails others follow, bodies fray into spreading networks, and strains grow as far as food allows', hi: 'Bodies stay separate individuals at their own size: rings, ribbons and cells that move and compete' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful lineages', hi: 'Fast evolution and more failed offspring' },
   'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each lineage has, stacked in its chemical color. PARTICLES charts each lineage's share of the world.", tip: 'For life-like behavior, bodies matter more: they show whether a lineage stays as individuals, divides, or spreads into one sprawl.' },
-  'arena.founders': { t: 'STRAINS', d: 'Each specimen placed in the Incubator founds a strain: the specimen and all its descendants. Each row shows the strain’s share of the world and its number of bodies. Point at one to light it up in the dish. Click it for its full stats.', tip: 'Each species gives off a chemical of its own while any of the dish’s six are free, and shows in its own colors. Species that have to share a chemical smell alike. A strain from an organism with a reaction field brings the field with it: the field runs where the strain lives and follows it.' },
+  'arena.founders': { t: 'STRAINS', d: 'Each specimen placed in the Incubator founds a strain: the specimen and all its descendants. Each row shows the strain’s share of the world and its number of bodies. Point at one to light it up in the dish. Click it for its full stats, and the specimen deck flips to its card.', tip: 'Each species gives off a chemical of its own while any of the dish’s six are free, and shows in its own colors. Species that have to share a chemical smell alike. A strain from an organism with a reaction field brings the field with it: the field runs where the strain lives and follows it.' },
   'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Puts the organism you last had in SOLO on the cutting bench, with its bodies outlined, so you can choose what to cut and then place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
   'arena.add.library': { t: 'ADD FROM ARCHIVE', d: 'Opens the Archive. Press CUT on any slide to put it on the cutting bench, or under SPECIMENS press PLACE IN DISH.' },
   'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight, cuts its best body (or its densest part if it has none) and places it in the most open spot.' },
@@ -4559,7 +4639,7 @@ function placeHelp(target) {
 function initHelp() {
   const rows = {
     segMode: 'view', segStrength: 'strength', segFilter: 'filter', segQuality: 'quality', segSpeed: 'speed', segInit: 'init',
-    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology', segSandbox: 'sandbox', segSpecimen: 'arena.specimen', segDish: 'arena.dish', segChart: 'arena.chart',
+    segCount: 'count', segEdit: 'edit', segEco: 'eco', segHybrid: 'hybrid', segLearn: 'learn', segInherit: 'inherit', segLife: 'biology', segSandbox: 'sandbox', segDish: 'arena.dish', segCells: 'arena.cells', segChart: 'arena.chart',
     // Help keys match the internal values, so 'recipe' explains RULES ONLY.
     segPal0: 'palette', segPal1: 'palette', segPal2: 'palette', segPalField: 'fieldPalette',
   };
@@ -5061,7 +5141,7 @@ function shapeWord(m, g) {
 }
 /* Names. Everything alive is named like a lab strain: a genus for its form, then a code. The code's letters are M, D or
    T for one, two or three species, with F when it carries a reaction field; a wild organism's code starts with W and a
-   body kept from the Incubator's is K. The number comes from the organism's seed and rules, so the same organism always
+   body kept from the Incubator's is K, or C when it was kept as a cell. The number comes from the organism's seed and rules, so the same organism always
    gets the same one, and moves on only if that name is taken. A cut adds the letter of the body it was, or "disc" for a
    round cut. A dish is named for how many strains live in it, with S, M or L for the size of the dish. */
 const GENUS_OF_SHAPE = {
@@ -5695,7 +5775,7 @@ function buildSpecimenCard(item) {
   img.alt = '';
   img.hidden = !item.url;
   if (item.url) img.src = item.url;
-  thumb.append(img, el('span', 'chip keep body', kilo(m.particles) + ' PARTICLES'));
+  thumb.append(img, el('span', 'chip keep body', m.cell ? `CELL · ${Math.round(m.cell.score * 100)}%` : kilo(m.particles) + ' PARTICLES'));
   thumb.dataset.help = 'lib.specimen';
   const info = el('div', 'lib-info'), stats = el('div', 'lib-stats'), origin = el('div', 'lib-origin');
   const t = m.traits || {}, row = (label, value) => stats.append(el('b', '', label), el('span', '', value));
@@ -5707,6 +5787,7 @@ function buildSpecimenCard(item) {
     row('SHAPE', `${m.shape === 'circle' ? 'circle' : 'body outline'} · ${m.g?.count || 1} species`);
     if (m.steady != null) row('AT HOME', m.steady ? 'held its shape' : 'kept changing');
   } else row('KEPT', `step ${kilo(m.keptAt)} · ${when}`);
+  if (m.cell) row('CELL', `${m.cell.name}${m.cell.dish ? ' in ' + m.cell.dish : ''} · ${Math.round(m.cell.score * 100)}% · lasted ${kilo(m.cell.age)} steps · ${m.cell.strains.toFixed(1)} strains inside`);
   if (m.formerName) row('FORMERLY', m.formerName);
   if (Number.isFinite(t.setpoint)) row('SET POINT', t.setpoint.toFixed(2));
   if (Number.isFinite(t.speed)) row('SPEED', t.speed.toFixed(2));
@@ -5902,7 +5983,9 @@ function libraryClosed() {
 /* ---------- Arena ---------- */
 // Specimens are cut at their own scale, so a body keeps the size its rules give it. Radii are fractions of the picture height.
 const ARENA = {
-  sizes: { s: .12, m: .18, l: .25 }, foodPalette: 'BIOLUME',
+  // A round cut on the bench, and the KEEP ring, start at this radius; the scroll wheel sizes either. Radii are
+  // fractions of DISH_UNIT.
+  circle: .18, keepSizes: [.05, .35], foodPalette: 'BIOLUME',
   // Gradients for chemicals whose species bring no colors, or whose colors another chemical already shows.
   palettes: ['ROSE', 'KELP', 'GLACIER', 'SOLAR', 'ORCHID', 'ABYSS', 'EMBER', 'VIOLET', 'BIOLUME', 'SUNSET', 'PRISM'],
   // A founder keeps its full density unless it would take more than 40% of the world. Thinning a body loosens it.
@@ -5947,7 +6030,7 @@ function setArenaSettings(values, message) {
   flash(message);
 }
 const arena = {
-  sim: null, d: null, dish: 's', seed: newSeed(), founders: [], params: defaults(ARENA_PARAMS), size: 'm', fcur: 0, busy: false,
+  sim: null, d: null, dish: 's', seed: newSeed(), founders: [], params: defaults(ARENA_PARAMS), keepRadius: .18, fcur: 0, busy: false,
   placing: null, keeping: false, history: [], census: null, censusPending: false, nextCensusAt: 0, channels: [], task: '',
   clearArmed: 0, chart: 'bodies', open: -1, rows: null,
   lit: -1, glow: 0, glowLineage: -1, // The strain pointed at in the list, and how far its highlight has faded in.
@@ -6041,6 +6124,7 @@ function destroyArena() {
   destroySim(arena.sim);
   for (const t of [...arena.trailB, ...arena.rd, ...arena.recA, ...arena.recB]) t.destroy();
   for (const k of ['depositB', 'econ', 'recipeBuf', 'chemBuf', 'viewBuf', 'uniform', 'genes', 'claims', 'censusBuf', 'censusRead', 'placeJob', 'stampJob', 'mark', 'markJob']) arena[k].destroy();
+  if (cellScope.gpu) { for (const b of ['light', 'sample', 'read', 'job']) cellScope.gpu[b].destroy(); cellScope.gpu = null; }
   arena.sim = null;
   arena.glowLineage = -1;
 }
@@ -6080,6 +6164,7 @@ function syncZoom() {
   const k = arena.zoom.k, zoomed = mode === 'arena' && !!arena.sim && !arena.bench && k > 1.01, b = $('dishZoom');
   b.hidden = !zoomed;
   if (zoomed) b.textContent = '×' + k.toFixed(1) + ' · SHOW ALL';
+  drawCellLayer();
   $('sim').classList.toggle('can-pan', zoomed && !arena.placing && !arena.keeping);
 }
 // An empty world full of food, with no reaction field anywhere. Every particle place starts parked, with its own random
@@ -6106,6 +6191,7 @@ function resetArena() {
   arena.history = [];
   arena.census = null;
   for (const f of arena.founders) { f.track = null; f.start = null; }
+  resetCells();
   s.colorBG = arena.colorBG[0];
 }
 // The number of a field recipe in the dish's table, adding it if it is new. A recipe is feed, kill, seeding and how far
@@ -6605,7 +6691,7 @@ async function cutFrom(src, shape) {
 // The best cut without asking, for wild organisms: the top body if it is convincing, otherwise the densest circle.
 async function autoCut(src) {
   const survey = await surveyBodies(src), top = survey.bodies[0];
-  const shape = top && top.score >= BENCH.autoScore ? top : densestCircle(src.sim.q, survey.counts, ARENA.sizes[arena.size]);
+  const shape = top && top.score >= BENCH.autoScore ? top : densestCircle(src.sim.q, survey.counts, ARENA.circle);
   return cutFrom({ ...src, pos: survey.pos }, shape);
 }
 
@@ -6622,7 +6708,7 @@ async function openBench(src) {
     return { ...survey, pixels };
   });
   if (!found) { if (src.own) destroySim(src.sim); return; }
-  const b = arena.bench = { ...src, ...found, pick: 0, hover: -1, ghost: null, circleR: ARENA.sizes[arena.size], circle: null };
+  const b = arena.bench = { ...src, ...found, pick: 0, hover: -1, ghost: null, circleR: ARENA.circle, circle: null };
   if (!b.bodies.length) { b.circle = densestCircle(b.sim.q, b.counts, b.circleR); b.pick = -1; }
   const pic = $('benchPic');
   pic.width = 960; pic.height = 540;
@@ -6923,7 +7009,8 @@ async function stampSpot(f, spot, index) {
   // A cut's trail already has its soft edge, so it is laid down whole. A kept body's crop is a plain square of the dish
   // it came from, so the ring's soft edge is laid on as it goes down.
   const job = new Float32Array(24);
-  job.set([cx, cy, sp.genes ? R : R + 2 * scale, sp.genes ? .15 : 0, sp.crop.cx, sp.crop.cy, scale, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
+  const ring = sp.genes && !sp.masked;
+  job.set([cx, cy, ring ? R : R + 2 * scale, ring ? .15 : 0, sp.crop.cx, sp.crop.cy, scale, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
   device.queue.writeBuffer(arena.stampJob, 0, job);
   const crops = planes.map(data => {
     const t = device.createTexture({ size: [cw, ch], format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
@@ -7390,7 +7477,7 @@ function buildFounderRows() {
     swatch.style.background = swatch.style.color = f.color;
     const name = el('b', '', f.specimen.name);
     head.append(swatch, name, info);
-    head.addEventListener('click', e => { arena.open = arena.open === i ? -1 : i; renderArenaPanel(); if (e.detail) head.blur(); });
+    head.addEventListener('click', e => { arena.open = arena.open === i ? -1 : i; showInDeck(f); renderArenaPanel(); if (e.detail) head.blur(); });
     // Pointing at a strain lights it up in the dish.
     row.addEventListener('pointerenter', () => lightStrain(i));
     row.addEventListener('pointerleave', () => lightStrain(-1));
@@ -7459,7 +7546,7 @@ function renderArenaPanel() {
       ? `${b.name} is on the cutting bench. The outlined ${b.bodies.length === 1 ? 'region is a body' : 'regions are bodies'} found in it, best first. Click one to choose it, or click anywhere else for a circle and scroll to size it. CUT takes it; Esc cancels.`
       : `${b.name} is on the cutting bench. No separate body was found, so a circle sits on its densest part. Click to move it and scroll to size it. CUT takes it; Esc cancels.`)
     : arena.placing ? `Click the dish to place ${arena.placing.name} at ×${(arena.placeSize || 1).toFixed(2)}. Scroll to size the next copy. Each click adds another copy, and the copies form one strain. ADD places one in an open spot. Esc stops.`
-    : arena.keeping ? 'Click a living body to keep it as a specimen. The ring shows what will be kept. Esc cancels.'
+    : arena.keeping ? 'Click a living body to keep it as a specimen. The ring shows what will be kept; scroll to size it. Esc cancels.'
     : !arena.founders.length ? 'Pick a card from the specimen deck beside the dish, then click the dish to place it. To cut something new, add from your SOLO organism, a slide in the ARCHIVE, or a WILD one.'
     : 'Each row is a strain: a placed specimen and all its descendants. Point at one to light it up in the dish, or click it to see its bodies and how its genes have drifted. Scroll on the dish to zoom in, and drag to look around.';
   markSeg($('segChart'), arena.chart);
@@ -7563,7 +7650,9 @@ async function specimenThumb(cx, cy, R) {
   ctx2.drawImage(full, cx - sw / 2, cy - sh / 2, sw, sh, 0, 0, THUMB.w, THUMB.h);
   return out.convertToBlob({ type: 'image/webp', quality: .86 });
 }
-async function keepAt(x, y, radius, from = '') {
+// Keeps the particles in a ring of `radius` around (x, y), or, with `shape`, those its inside(px, py) accepts, with the
+// trail beneath softened by its soft(px, py) edge: a cell kept along its own outline.
+async function keepAt(x, y, radius, from = '', shape = null) {
   if (!arena.sim || arena.busy) return;
   const kept = await arenaWork('KEEPING', async () => {
     const s = arena.sim, { w, h, agents } = s.q, R = radius * DISH_UNIT, cx = clamp(x, 0, 1) * w, cy = clamp(y, 0, 1) * h;
@@ -7571,11 +7660,16 @@ async function keepAt(x, y, radius, from = '') {
     const raw = await readBack(arena.genes, agents * 64), genes = new Float32Array(raw), gu = new Uint32Array(raw), inside = [];
     for (let i = 0; i < agents; i++) {
       const px = pos[i * 4], py = pos[i * 4 + 1];
-      if (px >= 0 && (px - cx) ** 2 + (py - cy) ** 2 <= R * R) inside.push(i);
+      if (px >= 0 && (shape ? shape.inside(px, py) : (px - cx) ** 2 + (py - cy) ** 2 <= R * R)) inside.push(i);
     }
     if (inside.length < 50) return null;
     const size = Math.min(Math.ceil(2 * R) + 4, w, h), x0 = clamp(Math.round(cx - size / 2), 0, w - size), y0 = clamp(Math.round(cy - size / 2), 0, h - size);
     const crop = { w: size, h: size, cx: cx - x0, cy: cy - y0, data: await readRegion(s.trail[s.cur], x0, y0, size, size), dataB: await readRegion(arena.trailB[s.cur], x0, y0, size, size) };
+    if (shape) for (let yy = 0; yy < size; yy++) for (let xx = 0; xx < size; xx++) {
+      const m = shape.soft(x0 + xx + .5, y0 + yy + .5), k = (yy * size + xx) * 4;
+      crop.data[k] *= m; crop.data[k + 1] *= m; crop.data[k + 2] *= m; crop.data[k + 3] = 1 - (1 - crop.data[k + 3]) * m;
+      crop.dataB[k] *= m; crop.dataB[k + 1] *= m; crop.dataB[k + 2] *= m;
+    }
     const n = inside.length, out = { dx: new Float32Array(n), dy: new Float32Array(n), angle: new Float32Array(n), rng: new Uint32Array(n), kind: new Uint8Array(n), mult: null };
     const keptGenes = new Float32Array(n * GENE_IN), byLineage = new Map(), emit = new Array(CHEM).fill(0), sums = { setpoint: 0, speed: 0, angle: 0, reach: 0 };
     // The field recipes the kept particles carry, numbered afresh for the specimen.
@@ -7614,14 +7708,16 @@ async function keepAt(x, y, radius, from = '') {
       const fw = clamp(Math.ceil((x0 + size) / cell), fx0 + 1, gw) - fx0, fh = clamp(Math.ceil((y0 + size) / cell), fy0 + 1, gh) - fy0;
       const data = await readRegion(arena.rd[0], fx0, fy0, fw, fh);
       for (let yy = 0; yy < fh; yy++) for (let xx = 0; xx < fw; xx++) {
-        const m = 1 - smoothstep(R * .85, R, Math.hypot((fx0 + xx + .5) * cell - cx, (fy0 + yy + .5) * cell - cy)), k = (yy * fw + xx) * 4;
+        const fxp = (fx0 + xx + .5) * cell, fyp = (fy0 + yy + .5) * cell, k = (yy * fw + xx) * 4;
+        const m = shape ? shape.soft(fxp, fyp) : 1 - smoothstep(R * .85, R, Math.hypot(fxp - cx, fyp - cy));
         data[k] = 1 + (data[k] - 1) * m; data[k + 1] *= m; data[k + 2] = m; data[k + 3] = 0;
       }
       const first = arena.founders.find(f => f.specimen.field)?.specimen.field;
       field = { w: fw, h: fh, cx: cx / cell - fx0, cy: cy / cell - fy0, cell, data, palette: first?.palette || 'ORCHID', light: first?.light ?? st.view.fieldLight };
     }
     const specimen = {
-      kind: 'kept', name: keptName(from || origin[0].name, `${arena.seed}:${s.step}:${n}:${Math.round(cx)}:${Math.round(cy)}`, new Set(drawer.items.map(x => x.meta.name))), srcH: DISH_UNIT, radius, crop, field, recipes, agents: out, counts: [n], genes: keptGenes,
+      kind: 'kept', name: freeName(genusFromName(from || origin[0].name), shape?.cell ? 'C' : 'K', `${arena.seed}:${s.step}:${n}:${Math.round(cx)}:${Math.round(cy)}`, new Set(drawer.items.map(x => x.meta.name))),
+      srcH: DISH_UNIT, radius, crop, field, recipes, agents: out, counts: [n], genes: keptGenes, masked: !!shape, cell: shape?.cell || null,
       meanEmit: emit, chem, origin, keptAt: s.step,
       traits: Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, +v.toFixed(3)])),
     };
@@ -7631,7 +7727,7 @@ async function keepAt(x, y, radius, from = '') {
   if (!kept) return;
   const again = kept.again;
   addToDrawer(kept);
-  flash(again ? 'ALREADY IN THE DECK' : kept.key ? 'KEPT ' + kilo(kept.meta.particles) + ' AS A SPECIMEN' : 'IN THE DECK FOR NOW · SET FOLDER TO KEEP');
+  flash(again ? 'ALREADY IN THE DECK' : !kept.key ? 'IN THE DECK FOR NOW · SET FOLDER TO KEEP' : kept.meta.cell ? 'KEPT CELL ' + kept.meta.cell.name : 'KEPT ' + kilo(kept.meta.particles) + ' AS A SPECIMEN');
   flashIcon('dish');
 }
 /* Specimen files. Version 3 holds both kinds: a cut, whose particles follow their species' rules (with any inherited
@@ -7720,7 +7816,7 @@ async function unpackSpecimen(blob, meta) {
     const chem = { decay: meta.chem?.decay || [.95, .95, .95], diffuse: meta.chem?.diffuse || [.4, .4, .4], palettes: meta.chem?.palettes || ['ROSE', 'KELP', 'GLACIER'] };
     const meanEmit = (meta.meanEmit || [1, 0, 0]).slice(0, chem.decay.length);
     const recipes = (Array.isArray(meta.recipes) ? meta.recipes : []).map(rc => ({ feed: +rc.feed || 0, kill: +rc.kill || .06, seeding: +rc.seeding || 0, spread: +rc.spread || 1 }));
-    return { ...base, kind: 'kept', counts: [n], genes, recipes, meanEmit, chem, origin: meta.origin, keptAt: meta.keptAt, traits: meta.traits };
+    return { ...base, kind: 'kept', counts: [n], genes, recipes, meanEmit, chem, origin: meta.origin, keptAt: meta.keptAt, traits: meta.traits, masked: !!meta.masked, cell: meta.cell || null };
   }
   const count = clamp(Number.isInteger(meta.g?.count) ? meta.g.count : 1, 1, 3), counts = [0, 0, 0];
   for (let j = 0; j < n; j++) { agents.kind[j] = Math.min(agents.kind[j], count - 1); counts[agents.kind[j]]++; }
@@ -7733,7 +7829,7 @@ function specimenMeta(sp, id) {
   };
   // A reaction field's place in the crop and its recipe. Its values are in the specimen file.
   const F = sp.field, field = F ? { cx: F.cx, cy: F.cy, cell: F.cell, palette: F.palette, light: F.light, ...(sp.kind === 'kept' ? {} : { feed: F.feed, kill: F.kill, seeding: F.seeding, pull: F.pull }) } : null;
-  if (sp.kind === 'kept') return { ...common, keptAt: sp.keptAt, chem: sp.chem, meanEmit: sp.meanEmit, origin: sp.origin, traits: sp.traits, field, recipes: sp.recipes || [] };
+  if (sp.kind === 'kept') return { ...common, keptAt: sp.keptAt, chem: sp.chem, meanEmit: sp.meanEmit, origin: sp.origin, traits: sp.traits, field, recipes: sp.recipes || [], ...(sp.masked ? { masked: true } : {}), ...(sp.cell ? { cell: sp.cell } : {}) };
   return { ...common, shape: sp.shape, source: sp.source, steady: sp.steady, field, refs: sp.refs, g: { count: sp.g.count, species: sp.g.species, life: sp.g.life, colors: sp.g.colors || null }, counts: sp.counts };
 }
 // Saves a specimen to the saves folder's "specimens" subfolder and returns its drawer item. With `ask`, the folder is
@@ -7798,6 +7894,8 @@ async function packDish(id) {
     dish: d.key, w, h, agents, particles: live.length, step: s.step, seed: arena.seed, params: { ...arena.params },
     food: c?.food ?? null, bodies: arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0), strains,
     recipes: arena.recipes, history: arena.history,
+    // The cells the dish was following, so their ages keep counting when it is opened again.
+    cells: { next: cellScope.next, step: cellScope.step, tracks: cellScope.tracks.map(tr => ({ id: tr.id, born: tr.born, last: tr.last, strains: tr.strains, mix: tr.mix, history: tr.history.slice(-CELLS.recent), runs: cellRuns(tr.r.cells) })) },
     founders: arena.founders.map((f, i) => ({
       name: f.specimen.name, kind: f.specimen.kind, radius: f.specimen.radius,
       field: f.specimen.field ? { palette: f.specimen.field.palette, light: f.specimen.field.light ?? null } : null,
@@ -7893,6 +7991,12 @@ async function restoreDish(meta, file) {
   arenaChemistry();
   s.step = meta.step;
   arena.origin = { meta, file, founders: arena.founders.length };
+  if (meta.cells?.tracks) {
+    const G = cellGrid();
+    cellScope.tracks = meta.cells.tracks.map(t => ({ ...t, r: cellShape(G, cellsFromRuns(t.runs)), members: null, seen: true }));
+    for (const tr of cellScope.tracks) Object.assign(tr, scoreCell(tr, meta.step));
+    Object.assign(cellScope, { next: meta.cells.next || 1, step: meta.step, nextStep: meta.step + CELLS.every });
+  }
   await device.queue.onSubmittedWorkDone();
 }
 async function openDish(item) {
@@ -7911,6 +8015,411 @@ async function openDish(item) {
   flash('DISH OPENED');
   flashIcon('dish');
 }
+
+/* ---------- Cells ---------- */
+/* Cells are structures nobody placed: closed membranes that form in a dish and hold a living inside. Every 150 steps
+   the dish looks for them (docs/RESEARCH.md, "Finding cells"). On a grid of 8-pixel squares it finds enclosures at
+   eight brightness levels, two ways: spaces the walls close off from the open broth, taken with their wall and the
+   bodies inside them, and closed outlines filled in with whatever they hold. Each is followed from one look to the next
+   by overlap and scored on five parts, multiplied so a cell needs all of them:
+     closure      closed at three or more levels, with a wall brighter than the broth outside and an inside unlike it;
+     homeostasis  its outline holds still, and its particles stay inside;
+     inner life   the particles that stay inside keep moving;
+     complexity   bodies inside it (organelles), several strains inside, and an inside that is neither flat nor noise;
+     persistence  how long it has lasted.
+   A cell with a body inside is EU (eukaryote-like), the others PR. The finder only reads the dish, so runs stay the
+   same whether it is shown or not. */
+const CELLS = {
+  every: 150, cell: 8, levels: [.15, .25, .35, .45, .55, .65, .75, .85], needLevels: 3,
+  minArea: 16, maxShare: .08, compact: .25, sample: 131072, recent: 6, lostAfter: 3, ageScale: 1500, green: .8, showFrom: .25,
+};
+const cellScope = { on: false, pending: false, nextStep: 0, tracks: [], next: 1, gpu: null, grid: null, prevSample: null, step: 0 };
+const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]], N8 = [...N4, [1, 1], [1, -1], [-1, 1], [-1, -1]];
+// A grid of squares with the ones inside a circle of radius R (in squares) marked as glass. The grid's outer squares
+// are never glass, so a glass square's neighbors are always on the grid; o4 and o8 are the steps to them.
+function makeCellGrid(gw, gh, R, key = '') {
+  const N = gw * gh, glass = new Uint8Array(N);
+  for (let k = 0; k < N; k++) {
+    const x = k % gw, y = (k - x) / gw;
+    glass[k] = x > 0 && y > 0 && x < gw - 1 && y < gh - 1 && Math.hypot(x + .5 - gw / 2, y + .5 - gh / 2) < R ? 1 : 0;
+  }
+  return { key, gw, gh, N, glass, stack: new Int32Array(N), o4: [1, -1, gw, -gw], o8: [1, -1, gw, -gw, gw + 1, gw - 1, 1 - gw, -1 - gw] };
+}
+// The dish's grid.
+function cellGrid() {
+  const { w, h } = arena.sim.q, key = arena.d.key;
+  if (cellScope.grid?.key !== key) cellScope.grid = makeCellGrid(Math.ceil(w / CELLS.cell), Math.ceil(h / CELLS.cell), (dishRadius(arena.sim.q) - 6) / CELLS.cell, key);
+  return cellScope.grid;
+}
+// Connected pieces of the glass squares where pick(k) holds, joined through the steps in offs (G.o4 or G.o8).
+function cellPieces(G, pick, offs) {
+  const { N, stack } = G, lab = new Int32Array(N).fill(-1), pieces = [];
+  for (let k = 0; k < N; k++) {
+    if (lab[k] !== -1 || !pick(k)) continue;
+    const id = pieces.length, list = [];
+    let top = 0; lab[k] = id; stack[top++] = k;
+    while (top) {
+      const p = stack[--top];
+      list.push(p);
+      for (const d of offs) { const q = p + d; if (lab[q] === -1 && pick(q)) { lab[q] = id; stack[top++] = q; } }
+    }
+    pieces.push(list);
+  }
+  return { lab, pieces };
+}
+// Every enclosure at one brightness level, each as a whole cell: wall, inside and the bodies within.
+function enclosuresAt(G, light, tau) {
+  const { N, glass, stack, o4, o8 } = G, wall = new Uint8Array(N), open = new Uint8Array(N), max = N * CELLS.maxShare;
+  let top = 0;
+  for (let k = 0; k < N; k++) { if (!glass[k]) { open[k] = 1; stack[top++] = k; } else if (light[k] >= tau) wall[k] = 1; }
+  // The open broth: every unwalled square that the glass's edge reaches. The rest is closed off.
+  while (top) { const p = stack[--top]; for (const d of o4) { const q = p + d; if (q >= 0 && q < N && !open[q] && !wall[q]) { open[q] = 1; stack[top++] = q; } } }
+  const holes = cellPieces(G, k => !wall[k] && !open[k], o4), walls = cellPieces(G, k => wall[k] === 1, o8), wl = walls.lab, W = walls.pieces.length;
+  // The wall pieces around each hole; for each wall piece, how many holes it borders and the last one.
+  const holeCount = new Int32Array(W), lastHole = new Int32Array(W).fill(-1), touches = new Uint8Array(W);
+  const borders = holes.pieces.map((list, i) => {
+    const out = [];
+    for (const p of list) for (const d of o8) { const q = p + d; if (!wall[q] || lastHole[wl[q]] === i) continue; lastHole[wl[q]] = i; holeCount[wl[q]]++; out.push(wl[q]); }
+    return out;
+  });
+  walls.pieces.forEach((list, wid) => { for (let j = 0; j < list.length && !touches[wid]; j++) for (const d of o8) if (open[list[j] + d]) { touches[wid] = 1; break; } });
+  // A wall piece that touches no open broth and borders one hole is a body inside that hole.
+  const inside = holes.pieces.map(() => []);
+  for (let wid = 0; wid < W; wid++) if (!touches[wid] && holeCount[wid] === 1) inside[lastHole[wid]].push(wid);
+  const stamp = new Int32Array(N), out = [];
+  // A hole as a cell: the hole, the bodies inside it, and the wall around it.
+  holes.pieces.forEach((list, i) => {
+    if (list.length > max) return;
+    const cell = list.slice(), mark = i + 1;
+    for (const p of list) stamp[p] = mark;
+    for (const wid of inside[i]) for (const p of walls.pieces[wid]) { stamp[p] = mark; cell.push(p); }
+    for (const p of list) for (const d of o8) { const q = p + d; if (wall[q] && stamp[q] !== mark) { stamp[q] = mark; cell.push(q); } }
+    out.push(cell);
+  });
+  // An outline as a cell: a wall piece that touches the open broth, filled with the holes only it borders and their bodies.
+  const owned = new Map();
+  borders.forEach((list, i) => { if (list.length === 1 && touches[list[0]]) { if (!owned.has(list[0])) owned.set(list[0], []); owned.get(list[0]).push(i); } });
+  for (const [wid, list] of owned) if (walls.pieces[wid].length <= max) out.push([...walls.pieces[wid], ...list.flatMap(i => [...holes.pieces[i], ...inside[i].flatMap(j => walls.pieces[j])])]);
+  return out;
+}
+// A cell filled in: whatever its outline closes off belongs to it, such as a smaller cell's inside.
+function fillCell(G, list) {
+  const { gw } = G;
+  let x0 = gw, x1 = 0, y0 = G.gh, y1 = 0;
+  for (const p of list) { const x = p % gw, y = (p - x) / gw; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  // Its box with a margin of one square, flooded from a corner: what the flood cannot reach is closed off.
+  const bw = x1 - x0 + 3, bh = y1 - y0 + 3, box = new Uint8Array(bw * bh), stack = [0];
+  for (const p of list) { const x = p % gw, y = (p - x) / gw; box[(y - y0 + 1) * bw + x - x0 + 1] = 1; }
+  box[0] = 2;
+  while (stack.length) {
+    const q = stack.pop();
+    for (const n of [q - 1, q + 1, q - bw, q + bw]) if (n >= 0 && n < box.length && !box[n]) { box[n] = 2; stack.push(n); }
+  }
+  const out = list.slice();
+  for (let i = 0; i < box.length; i++) if (!box[i]) { const x = i % bw; out.push(((i - x) / bw + y0 - 1) * gw + x + x0 - 1); }
+  return out;
+}
+function cellShape(G, list) {
+  const set = new Set(list), { gw } = G;
+  let x0 = G.gw, x1 = 0, y0 = G.gh, y1 = 0, edges = 0;
+  for (const p of list) { const x = p % gw, y = (p - x) / gw; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); for (const [dx, dy] of N4) if (!set.has((y + dy) * gw + x + dx)) edges++; }
+  return { cells: list, set, x0, x1, y0, y1, area: list.length, compact: 4 * Math.PI * list.length / (edges * edges) };
+}
+const cellOverlap = (a, b) => { let both = 0; for (const p of a.cells) if (b.set.has(p)) both++; return both / (a.area + b.area - both); };
+// How alike two outlines are: their overlap, or, for two of a like size (the smaller at least `like` of the larger), how
+// much of the smaller lies in the larger, so a cell that swells or thins between looks is still itself. A small cell
+// inside a big one stays apart from it.
+function cellNear(a, b, like = .25) {
+  if (a.x1 < b.x0 || b.x1 < a.x0 || a.y1 < b.y0 || b.y1 < a.y0) return 0;
+  const [sm, lg] = a.area <= b.area ? [a, b] : [b, a];
+  let both = 0;
+  for (const p of sm.cells) if (lg.set.has(p)) both++;
+  const iou = both / (a.area + b.area - both);
+  return sm.area / lg.area >= like ? Math.max(iou, both / sm.area * .8) : iou;
+}
+// A pause between pieces of a look until the next frame is drawn, so the dish keeps moving while its cells are found.
+const breathe = () => new Promise(res => requestAnimationFrame(() => setTimeout(res, 0)));
+function cellPace(ms = 6) {
+  let t = performance.now();
+  return async () => { if (performance.now() - t > ms) { await breathe(); t = performance.now(); } };
+}
+// The enclosures of a cell's size and shape, merged across levels.
+async function findCells(G, light, pace = async () => {}) {
+  const found = [];
+  for (const tau of CELLS.levels) {
+    for (const list of enclosuresAt(G, light, tau)) {
+      if (list.length < CELLS.minArea || list.length > G.N * CELLS.maxShare) continue;
+      const r = cellShape(G, fillCell(G, list));
+      if (r.area > G.N * CELLS.maxShare || Math.min(r.x1 - r.x0, r.y1 - r.y0) < 3 || r.compact < CELLS.compact) continue;
+      const same = found.find(c => cellNear(c.r, r, .5) > .5);
+      if (same) { same.levels.add(tau); if (r.area > same.r.area) same.r = r; } else found.push({ r, levels: new Set([tau]) });
+      await pace();
+    }
+    await pace();
+  }
+  // A cell's outline can grow as levels are added, so two that started apart may now be one.
+  for (let i = 0; i < found.length; i++) for (let j = found.length - 1; j > i; j--) {
+    if (cellNear(found[i].r, found[j].r, .5) <= .5) continue;
+    for (const t of found[j].levels) found[i].levels.add(t);
+    if (found[j].r.area > found[i].r.area) found[i].r = found[j].r;
+    found.splice(j, 1);
+  }
+  return found;
+}
+// How varied a cell's inside looks: entropy times disequilibrium (López-Ruiz, Mancini and Calbet), highest between flat and noise.
+function cellTexture(values) {
+  const bins = new Array(8).fill(0);
+  for (const v of values) bins[Math.min(7, Math.floor(v * 8))]++;
+  const n = values.length || 1;
+  let H = 0, D = 0;
+  for (const b of bins) { const p = b / n; if (p) H -= p * Math.log(p); D += (p - 1 / 8) ** 2; }
+  return (H / Math.log(8)) * D * 8;
+}
+// Measures one enclosure: its wall against the broth outside, what is inside it, and the particles that live there.
+function measureCell(G, light, strongest, c, members) {
+  const { gw, N, glass } = G, r = c.r, ring = [], outside = new Set();
+  for (const p of r.cells) {
+    const x = p % gw, y = (p - x) / gw;
+    if (N4.some(([dx, dy]) => !r.set.has((y + dy) * gw + x + dx))) ring.push(p);
+    for (const [dx, dy] of N8) for (const m of [1, 2]) { const q = (y + dy * m) * gw + x + dx * m; if (q >= 0 && q < N && !r.set.has(q) && glass[q]) outside.add(q); }
+  }
+  const edge = new Set(ring);
+  for (const p of ring) { const x = p % gw, y = (p - x) / gw; for (const [dx, dy] of N8) { const q = (y + dy) * gw + x + dx; if (r.set.has(q)) edge.add(q); } }
+  const edgeLight = [...edge].map(p => light[p]).sort((a, b) => b - a), half = edgeLight.slice(0, Math.max(1, edgeLight.length >> 1));
+  const wallLight = half.reduce((t, v) => t + v, 0) / half.length, outLight = outside.size ? [...outside].reduce((t, p) => t + light[p], 0) / outside.size : 0;
+  // Bodies deep inside, brighter than the level the cell closes at.
+  const ringSet = new Set(ring), deep = new Set();
+  for (const p of r.cells) { if (ringSet.has(p)) continue; const x = p % gw, y = (p - x) / gw; if (N4.every(([dx, dy]) => !ringSet.has((y + dy) * gw + x + dx))) deep.add(p); }
+  const tau = Math.min(...c.levels), organelles = cellPieces(G, k => deep.has(k) && light[k] >= tau + .1, G.o8).pieces.filter(b => b.length >= 2).length;
+  // How unlike the broth outside its inside is, by which chemical glows most.
+  const mix = list => { const v = new Array(6).fill(0); for (const p of list) v[strongest[p]]++; const n = list.length || 1; return v.map(x => x / n); };
+  const inMix = mix([...deep]), outMix = mix([...outside]);
+  const unlike = deep.size ? 1 - inMix.reduce((t, v, i) => t + Math.min(v, outMix[i]), 0) : 0;
+  return { closure: Math.min(1, c.levels.size / CELLS.needLevels), contrast: wallLight - outLight, unlike, organelles, texture: cellTexture(r.cells.map(p => light[p])), particles: members.length };
+}
+const clamp01 = v => Math.max(0, Math.min(1, v));
+// The five parts and the score, from a cell's recent looks.
+function scoreCell(tr, step) {
+  const recent = tr.history.slice(-CELLS.recent), avg = k => { const v = recent.map(x => x[k]).filter(x => x !== null && x !== undefined); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
+  const parts = {
+    closure: clamp01(avg('closure') * clamp01(avg('contrast') / .25 + .3) * (.75 + .25 * avg('unlike'))),
+    homeostasis: clamp01(avg('shape') * avg('retention')),
+    innerLife: clamp01(avg('stirring') / .3) * clamp01(avg('retention') / .5),
+    complexity: clamp01(.35 + .25 * Math.min(avg('organelles'), 3) / 3 + .25 * clamp01((tr.strains - 1) / 1.5) + .15 * clamp01(avg('texture') / .3)),
+    persistence: 1 - Math.exp(-(step - tr.born) / CELLS.ageScale),
+  };
+  const score = parts.closure ** .3 * parts.homeostasis ** .2 * parts.innerLife ** .2 * parts.complexity ** .15 * parts.persistence ** .15;
+  const eu = avg('organelles') >= .5;
+  return { parts, score, eu, name: (eu ? 'EU-' : 'PR-') + tr.id, green: eu && score >= CELLS.green };
+}
+// Buffers for the two GPU passes, made for the dish's size the first time they are needed.
+function cellBuffers() {
+  const G = cellGrid(), agents = arena.sim.q.agents, stride = Math.max(1, Math.ceil(agents / CELLS.sample)), count = Math.floor(agents / stride);
+  if (cellScope.gpu?.key === G.key) return cellScope.gpu;
+  const B = GPUBufferUsage, buf = (size, usage) => device.createBuffer({ size, usage }), s = arena.sim;
+  const g = { key: G.key, stride, count, light: buf(G.N * 8, B.STORAGE | B.COPY_SRC), sample: buf(count * 16, B.STORAGE | B.COPY_SRC), read: buf(G.N * 8 + count * 16, B.MAP_READ | B.COPY_DST), job: buf(16, B.UNIFORM | B.COPY_DST) };
+  device.queue.writeBuffer(g.job, 0, new Uint32Array([stride, count, 0, 0]));
+  const group = (layout, res) => device.createBindGroup({ layout, entries: res.map((r, binding) => ({ binding, resource: r.usage !== undefined ? { buffer: r } : r })) });
+  g.lightBG = [0, 1].map(t => group(P.L.cellLight, [arena.viewBuf, s.trailViews[t], arena.trailBViews[t], g.light]));
+  g.probeBG = group(P.L.cellProbe, [g.job, s.agentBuf, arena.genes, g.sample]);
+  return cellScope.gpu = g;
+}
+// One look at the dish: the light grid and the particle sample come back from the GPU, then cells are found, followed
+// and scored, in pieces of a few milliseconds between frames. It runs beside the simulation and is skipped while the
+// dish is busy.
+async function lookForCells() {
+  if (cellScope.pending || !arena.sim || arena.busy) return;
+  cellScope.pending = true;
+  const s = arena.sim, run = s.run, step = s.step, G = cellGrid(), g = cellBuffers();
+  try {
+    const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+    pass.setPipeline(P.cellLight); pass.setBindGroup(0, g.lightBG[s.cur]); pass.dispatchWorkgroups(Math.ceil(G.gw / 8), Math.ceil(G.gh / 8));
+    pass.setPipeline(P.cellProbe); pass.setBindGroup(0, g.probeBG); pass.dispatchWorkgroups(Math.ceil(g.count / 256));
+    pass.end();
+    enc.copyBufferToBuffer(g.light, 0, g.read, 0, G.N * 8);
+    enc.copyBufferToBuffer(g.sample, 0, g.read, G.N * 8, g.count * 16);
+    device.queue.submit([enc.finish()]);
+    await g.read.mapAsync(GPUMapMode.READ);
+    const data = new Float32Array(g.read.getMappedRange().slice(0));
+    g.read.unmap();
+    if (run !== s.run || s !== arena.sim) return; // The dish was replayed, emptied or resized meanwhile.
+    const light = new Float32Array(G.N), strongest = new Uint8Array(G.N);
+    for (let k = 0; k < G.N; k++) { light[k] = data[k * 2]; strongest[k] = data[k * 2 + 1]; }
+    if (!await followCells(G, light, strongest, data.subarray(G.N * 2), g.count, step, cellPace(), () => run !== s.run || s !== arena.sim)) return;
+    drawCellLayer();
+    renderCellPanel();
+  } catch (e) { console.error(e); }
+  finally { cellScope.pending = false; }
+}
+// Finds this look's cells and measures each, then matches them to the cells already followed, closest pairs first.
+// Returns false, changing nothing, if the dish was replayed or emptied while it worked.
+async function followCells(G, light, strongest, sample, count, step, pace = async () => {}, stale = () => false) {
+  const { gw, N } = G, where = new Int32Array(count);
+  // Which square each sampled particle is in, and the particles in each square.
+  const start = new Int32Array(N + 1);
+  for (let i = 0; i < count; i++) {
+    const x = sample[i * 4], y = sample[i * 4 + 1];
+    where[i] = x < 0 ? -1 : Math.min(N - 1, ((y / CELLS.cell) | 0) * gw + ((x / CELLS.cell) | 0));
+    if (where[i] >= 0) start[where[i] + 1]++;
+  }
+  for (let k = 0; k < N; k++) start[k + 1] += start[k];
+  const fill = start.slice(0, N), list = new Int32Array(start[N]);
+  for (let i = 0; i < count; i++) if (where[i] >= 0) list[fill[where[i]]++] = i;
+  const looks = [];
+  for (const c of await findCells(G, light, pace)) {
+    const members = [];
+    for (const p of c.r.cells) for (let j = start[p]; j < start[p + 1]; j++) members.push(list[j]);
+    // The strains living inside, as an effective number, and their shares.
+    const strains = new Map();
+    for (const i of members) { const l = sample[i * 4 + 2]; strains.set(l, (strains.get(l) || 0) + 1); }
+    let ent = 0;
+    for (const v of strains.values()) { const q = v / (members.length || 1); ent -= q * Math.log(q); }
+    looks.push({ c, m: measureCell(G, light, strongest, c, members), members: Int32Array.from(members), strains: Math.exp(ent),
+      mix: [...strains].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([l, n]) => ({ lineage: l, share: n / (members.length || 1) })) });
+    await pace();
+  }
+  if (stale()) return false;
+  const tracks = cellScope.tracks, pairs = [], prev = cellScope.prevSample?.length === count * 4 ? cellScope.prevSample : null;
+  looks.forEach((L, j) => tracks.forEach((tr, i) => { const v = cellNear(tr.r, L.c.r); if (v > .3) pairs.push([v, i, j]); }));
+  pairs.sort((a, b) => b[0] - a[0]);
+  const trackOf = new Array(looks.length).fill(null), taken = new Set();
+  for (const [, i, j] of pairs) if (!trackOf[j] && !taken.has(i)) { trackOf[j] = tracks[i]; taken.add(i); }
+  for (const tr of tracks) tr.seen = false;
+  looks.forEach((L, j) => {
+    const tr = trackOf[j] || { id: cellScope.next++, born: step, history: [] }, { r } = L.c, m = L.m;
+    if (!trackOf[j]) tracks.push(tr);
+    m.shape = tr.r ? cellOverlap(tr.r, r) : null;
+    m.retention = m.stirring = null;
+    // Of the particles inside at the last look, how many are still inside, and how far those moved meanwhile.
+    if (tr.members && prev) {
+      let kept = 0, moved = 0;
+      for (const i of tr.members) {
+        if (where[i] < 0 || !r.set.has(where[i])) continue;
+        kept++;
+        if (prev[i * 4] >= 0) moved += Math.hypot(sample[i * 4] - prev[i * 4], sample[i * 4 + 1] - prev[i * 4 + 1]);
+      }
+      m.retention = kept / Math.max(1, tr.members.length);
+      m.stirring = kept ? moved / kept / (Math.sqrt(r.area / Math.PI) * CELLS.cell) : 0;
+    }
+    Object.assign(tr, { r, members: L.members, strains: L.strains, mix: L.mix, seen: true, last: step });
+    tr.history.push(m);
+    if (tr.history.length > CELLS.recent * 2) tr.history.shift();
+  });
+  cellScope.prevSample = sample;
+  // A cell not seen for a while is gone.
+  cellScope.tracks = tracks.filter(tr => tr.seen || step - tr.last <= CELLS.every * CELLS.lostAfter);
+  for (const tr of cellScope.tracks) Object.assign(tr, scoreCell(tr, step));
+  cellScope.step = step;
+  return true;
+}
+// The cells worth showing: seen at least three times, best first. The top three are the dish's best cells.
+const shownCells = () => cellScope.tracks.filter(tr => tr.seen && tr.history.length >= 3).sort((a, b) => b.score - a.score);
+function resetCells() {
+  Object.assign(cellScope, { tracks: [], next: 1, nextStep: (arena.sim?.step || 0) + CELLS.every, step: 0, prevSample: null });
+  drawCellLayer();
+  renderCellPanel();
+}
+// Boxes over the dish's cells while CELLS is on: white, or green for an EU cell at 80% or more, each with its name and
+// score. The three best have a heavier outline. The layer sits under the porthole's rim, so nothing shows past the glass.
+function drawCellLayer() {
+  const cv = $('cellLayer'), show = cellScope.on && mode === 'arena' && !!arena.sim && !arena.bench;
+  if (!cv) return;
+  cv.hidden = !show;
+  if (!show) return;
+  const rect = $('sim').getBoundingClientRect(), dpr = devicePixelRatio || 1, W = Math.round(rect.width * dpr), H = Math.round(rect.height * dpr);
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, W, H);
+  if (!cellScope.grid || cellScope.grid.key !== arena.d.key) return;
+  const { w, h } = arena.sim.q, z = arena.zoom, X = gx => ((gx * CELLS.cell / w - z.x) * z.k + .5) * W, Y = gy => ((gy * CELLS.cell / h - z.y) * z.k + .5) * H;
+  const list = shownCells(), mono = getComputedStyle(document.body).getPropertyValue('--mono') || 'monospace';
+  c.font = `${10 * dpr}px ${mono}`;
+  // Best first, so the best cells get their labels where they want them: above the box's corner, else below it, else
+  // just inside its top. A label that fits nowhere is left off; its box still shows.
+  const placed = [], lh = 13 * dpr, free = (a, b, aw) => placed.every(([px, py, pw]) => a + aw <= px || px + pw <= a || b + lh <= py || py + lh <= b);
+  const boxes = list.filter(tr => tr.score >= CELLS.showFrom).slice(0, 30).map((tr, i) => {
+    const x = X(tr.r.x0) - 3 * dpr, y = Y(tr.r.y0) - 3 * dpr, bw = X(tr.r.x1 + 1) - X(tr.r.x0) + 6 * dpr, bh = Y(tr.r.y1 + 1) - Y(tr.r.y0) + 6 * dpr;
+    const label = `${tr.name} ${Math.round(tr.score * 100)}%`, lw = c.measureText(label).width + 6 * dpr;
+    const at = [[x, y - lh], [x, y + bh], [x, y]].find(([a, b]) => free(a, b, lw));
+    if (at) placed.push([at[0], at[1], lw]);
+    return { tr, i, x, y, bw, bh, label, lw, at };
+  });
+  for (const { tr, i, x, y, bw, bh, label, lw, at } of boxes.reverse()) {
+    const color = tr.green ? '#5dff9a' : 'rgba(255,255,255,.85)';
+    c.strokeStyle = color; c.lineWidth = (i < 3 ? 2 : 1.2) * dpr; c.strokeRect(x, y, bw, bh);
+    if (!at) continue;
+    c.fillStyle = 'rgba(3,6,7,.78)'; c.fillRect(at[0], at[1], lw, lh);
+    c.fillStyle = color; c.fillText(label, at[0] + 3 * dpr, at[1] + 10 * dpr);
+  }
+}
+// The dish's three best cells, with what they are made of. Clicking one zooms to it; KEEP CELL files it as a specimen.
+function renderCellPanel() {
+  const host = $('cellTop');
+  if (!host) return;
+  host.hidden = !cellScope.on || mode !== 'arena';
+  if (host.hidden) return;
+  const top = shownCells().slice(0, 3);
+  if (!top.length) {
+    host.replaceChildren(el('p', 'taste-note', cellScope.tracks.length
+      ? 'Watching ' + cellScope.tracks.length + ' enclosures. A cell is listed once it has been seen three times, about 450 steps.'
+      : 'No cells yet. Cells are closed membranes that form in the dish; let it run, and they appear here once seen three times.'));
+    return;
+  }
+  const strainName = l => arena.founders[l]?.specimen.name || 'strain ' + (l + 1);
+  host.replaceChildren(...top.map(tr => {
+    const row = el('div', 'cell-row' + (tr.green ? ' green' : '')), head = el('button', 'cell-head'), keep = el('button', 'cell-keep', 'KEEP CELL');
+    head.type = keep.type = 'button';
+    head.dataset.help = 'arena.cellTop';
+    keep.dataset.help = 'cell.keep';
+    head.append(el('b', '', tr.name), el('span', '', `${Math.round(tr.score * 100)}% · ${kilo(cellScope.step - tr.born)} steps`));
+    const made = el('small', '', tr.mix.map(m => `${strainName(m.lineage)} ${Math.round(m.share * 100)}%`).join(' · '));
+    head.addEventListener('click', e => {
+      if (e.detail) head.blur();
+      const { w, h } = arena.sim.q, cx = (tr.r.x0 + tr.r.x1 + 1) / 2 * CELLS.cell, cy = (tr.r.y0 + tr.r.y1 + 1) / 2 * CELLS.cell;
+      const span = Math.max(tr.r.x1 - tr.r.x0 + 1, tr.r.y1 - tr.r.y0 + 1) * CELLS.cell;
+      setZoom({ x: cx / w, y: cy / h, k: clamp(h / (span * 2.2), 1, maxZoom()) });
+      drawCellLayer();
+    });
+    keep.addEventListener('click', e => { if (e.detail) keep.blur(); keepCell(tr); });
+    keep.disabled = arena.busy;
+    row.append(head, made, keep);
+    return row;
+  }));
+}
+function setCellsShown(on) {
+  cellScope.on = on;
+  if (on && !cellScope.pending && arena.sim) lookForCells();
+  drawCellLayer();
+  renderCellPanel();
+  syncUi();
+}
+// KEEP CELL cuts a cell along its own outline, with its membrane softened at the edge, and files it as a specimen with
+// its cell record.
+function keepCell(tr) {
+  if (!arena.sim || arena.busy) return;
+  const G = cellScope.grid, { gw, gh } = G, { w, h } = arena.sim.q, C = CELLS.cell;
+  let sx = 0, sy = 0;
+  for (const p of tr.r.cells) { const x = p % gw; sx += x + .5; sy += (p - x) / gw + .5; }
+  const cx = sx / tr.r.area * C, cy = sy / tr.r.area * C;
+  let R = 0;
+  for (const p of tr.r.cells) { const x = p % gw, y = (p - x) / gw; R = Math.max(R, Math.hypot(Math.abs((x + .5) * C - cx) + C / 2, Math.abs((y + .5) * C - cy) + C / 2)); }
+  const mask = new Float32Array(G.N);
+  for (const p of tr.r.cells) mask[p] = 1;
+  const blurred = blurGrid(blurGrid(mask, gw, gh), gw, gh);
+  const record = { name: tr.name, score: +tr.score.toFixed(3), parts: Object.fromEntries(Object.entries(tr.parts).map(([k, v]) => [k, +v.toFixed(3)])), age: cellScope.step - tr.born, strains: +tr.strains.toFixed(2), eu: tr.eu, ...(arena.origin?.meta?.name ? { dish: arena.origin.meta.name } : {}) };
+  keepAt(cx / w, cy / h, R / DISH_UNIT, '', {
+    inside: (px, py) => tr.r.set.has(Math.min(gh - 1, (py / C) | 0) * gw + Math.min(gw - 1, (px / C) | 0)),
+    soft: (px, py) => clamp(gridAt(blurred, gw, gh, px / C - .5, py / C - .5) * 1.6, 0, 1),
+    cell: record,
+  });
+}
+// A cell's outline, stored compactly with a saved dish as runs of squares: start, length, start, length...
+function cellRuns(list) {
+  const sorted = [...list].sort((a, b) => a - b), runs = [];
+  for (const p of sorted) { if (runs.length && runs[runs.length - 2] + runs[runs.length - 1] === p) runs[runs.length - 1]++; else runs.push(p, 1); }
+  return runs;
+}
+const cellsFromRuns = runs => { const out = []; for (let i = 0; i < runs.length; i += 2) for (let k = 0; k < runs[i + 1]; k++) out.push(runs[i] + k); return out; };
 
 /* ---------- The specimen deck ---------- */
 /* Every specimen you have cut or kept, as a deck of cards beside the dish, newest in front. Scrolling over the deck
@@ -7980,6 +8489,7 @@ function renderDrawer() {
   drawer.front = clamp(drawer.front, 0, Math.max(0, count - 1));
   if (!count) {
     $('deckCount').textContent = '';
+    $('deckRemove').hidden = true;
     $('deckFoot').textContent = '';
     const note = el('div', 'deck-empty');
     note.append(el('b', '', 'NO SPECIMENS YET'));
@@ -8003,7 +8513,7 @@ function renderDrawer() {
       img.alt = '';
       if (item.url) img.src = item.url;
       // A cut says whether its body held its shape at home, the way the bench found it.
-      const tag = el('small', m.steady === false ? 'changes' : '', (m.kind === 'cut' ? 'CUT' : 'KEPT') + (m.steady === true ? ' · STEADY' : m.steady === false ? ' · CHANGES' : ''));
+      const tag = el('small', m.steady === false ? 'changes' : '', (m.kind === 'cut' ? 'CUT' : m.cell ? `CELL ${Math.round(m.cell.score * 100)}%` : 'KEPT') + (m.steady === true ? ' · STEADY' : m.steady === false ? ' · CHANGES' : ''));
       card.append(img, tag, el('i', '', kilo(m.particles)), el('b', '', m.name));
       card.addEventListener('click', e => { if (e.detail) card.blur(); pickCard(item); });
       item.card = card;
@@ -8021,6 +8531,7 @@ function layoutDeck() {
   const host = $('deckStack'), n = drawer.items.length;
   if (!host || !n) return;
   $('deckCount').textContent = `${drawer.front + 1} / ${n}`;
+  $('deckRemove').hidden = false;
   $('deckFoot').textContent = arena.placing ? 'CLICK THE DISH TO PLACE · ESC STOPS' : n > 1 ? 'SCROLL TO FLIP · CLICK TO PICK' : 'CLICK TO PICK';
   const W = host.clientWidth, H = host.clientHeight;
   if (!W || !H) return;
@@ -8042,6 +8553,13 @@ function layoutDeck() {
     });
     card.tabIndex = d === 0 ? 0 : -1;
   });
+}
+// Brings a strain's specimen card to the front of the deck, if it has one there. Strains from a saved dish or WILD don't.
+function showInDeck(f) {
+  const at = drawer.items.findIndex(x => x.specimen && x.specimen === f.specimen);
+  if (at < 0 || at === drawer.front) return;
+  drawer.front = at;
+  layoutDeck();
 }
 function flipDeck(step) {
   const to = clamp(drawer.front + step, 0, drawer.items.length - 1);
@@ -8953,8 +9471,10 @@ function syncUi() {
   $('segTab').hidden = inArena;
   $('tabArena').hidden = !inArena;
   document.querySelectorAll('[data-noarena]').forEach(row => { row.hidden = inArena; });
-  markSeg($('segSpecimen'), arena.size);
   markSeg($('segDish'), arena.dish);
+  markSeg($('segCells'), cellScope.on ? 'on' : 'off');
+  $('cellTop').hidden = !(cellScope.on && inArena);
+  drawCellLayer();
   // A dish opened from the Archive keeps the size it was saved at.
   for (const b of $('segDish').children) b.disabled = arena.busy || (!!arena.origin && b.dataset.value !== arena.dish);
   syncZoom();
@@ -9098,8 +9618,8 @@ function initUi() {
   VIEW_PARAMS.forEach(p => makeSlider($('viewSliders'), p, () => st.view));
   LIFE_PARAMS.forEach(p => makeSlider($('lifeSliders'), p, () => lifeOf(shownGenome()), null, commit));
   segmented($('segInherit'), Object.entries(INHERIT_MODES), v => { st.inherit = v; syncUi(); drawLcd(); flash('PASS ON ' + INHERIT_MODES[v]); });
-  segmented($('segSpecimen'), [['s', 'SMALL'], ['m', 'MEDIUM'], ['l', 'LARGE']], v => { arena.size = v; syncUi(); });
   segmented($('segDish'), Object.entries(DISHES).map(([k, d]) => [k, d.label]), setDishSize);
+  segmented($('segCells'), [['off', 'HIDE'], ['on', 'SHOW']], v => setCellsShown(v === 'on'));
   for (const b of $('arenaSettings').children) b.addEventListener('click', e => {
     if (e.detail) b.blur();
     if (b.dataset.do === 'random') {
@@ -9120,7 +9640,7 @@ function initUi() {
     return { x: z.x + ((e.clientX - r.left) / r.width - .5) / z.k, y: z.y + ((e.clientY - r.top) / r.height - .5) / z.k };
   };
   const showRing = () => {
-    const radius = !pointer || mode !== 'arena' || !arena.sim ? 0 : arena.placing ? arena.placing.radius * (arena.placeSize || 1) : arena.keeping ? ARENA.sizes[arena.size] : 0;
+    const radius = !pointer || mode !== 'arena' || !arena.sim ? 0 : arena.placing ? arena.placing.radius * (arena.placeSize || 1) : arena.keeping ? arena.keepRadius : 0;
     if (!radius) { placeRing.hidden = true; return; }
     const r = simCanvas.getBoundingClientRect(), size = r.height * arena.zoom.k * radius * DISH_UNIT / arena.sim.q.h * 2;
     placeRing.style.left = (pointer.clientX - r.left) + 'px';
@@ -9156,6 +9676,9 @@ function initUi() {
       arena.placeSize = clamp((arena.placeSize || 1) * (e.deltaY > 0 ? 1 / 1.08 : 1.08), PLACE_SIZES[0], maxPlaceSize(arena.placing));
       if (Math.abs(arena.placeSize - 1) < .03) arena.placeSize = 1;
       renderArenaPanel();
+    } else if (arena.keeping && !e.ctrlKey) {
+      // While keeping, the wheel sizes the ring.
+      arena.keepRadius = clamp(arena.keepRadius * (e.deltaY > 0 ? 1 / 1.08 : 1.08), ...ARENA.keepSizes);
     } else {
       const r = simCanvas.getBoundingClientRect(), u = (e.clientX - r.left) / r.width - .5, v = (e.clientY - r.top) / r.height - .5;
       const at = inDish(e), k = clamp(arena.zoom.k * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1) * .0015), 1, maxZoom());
@@ -9169,7 +9692,7 @@ function initUi() {
     if (mode !== 'arena' || arena.busy || !(arena.placing || arena.keeping)) return;
     const { x, y } = inDish(e);
     if (arena.placing) placeNow(x, y);
-    else { arena.keeping = false; placeRing.hidden = true; keepAt(x, y, ARENA.sizes[arena.size]); }
+    else { arena.keeping = false; placeRing.hidden = true; keepAt(x, y, arena.keepRadius); }
   });
   $('dishZoom').addEventListener('click', e => { setZoom({ ...WHOLE }); if (e.detail) e.currentTarget.blur(); });
   new ResizeObserver(drawArenaChart).observe($('arenaChart'));
@@ -9193,6 +9716,27 @@ function initUi() {
     if (flipDeck(step)) drawer.items[drawer.front].card?.focus();
   });
   new ResizeObserver(layoutDeck).observe(deckStack);
+  // REMOVE takes the card in front out of the deck: pressed twice, its files move to the removed folder, as in the Archive.
+  let removeArmed = 0;
+  $('deckRemove').addEventListener('click', async e => {
+    const b = e.currentTarget, item = drawer.items[drawer.front];
+    if (e.detail) b.blur();
+    if (!item || arena.busy) return;
+    if (!removeArmed) {
+      b.textContent = 'SURE?'; b.classList.add('armed');
+      removeArmed = setTimeout(() => { removeArmed = 0; b.textContent = 'REMOVE'; b.classList.remove('armed'); }, 3000);
+      return;
+    }
+    clearTimeout(removeArmed); removeArmed = 0; b.textContent = 'REMOVE'; b.classList.remove('armed');
+    try {
+      if (item.key) await removeStored(item, 'specimens', ['.json', '.dlspec', '.webp'], await savesFolder());
+      if (drawer.pick === item) cancelPlacing();
+      drawer.items.splice(drawer.items.indexOf(item), 1);
+      if (item.url) URL.revokeObjectURL(item.url);
+      renderDrawer();
+      flash('SPECIMEN REMOVED');
+    } catch (err) { console.error(err); flash('REMOVE FAILED'); }
+  });
   // The arena page's own buttons: where to add from, and what to do with the world.
   for (const b of $('arenaAdd').children) b.addEventListener('click', e => {
     if (e.detail) b.blur();

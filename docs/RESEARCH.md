@@ -362,6 +362,151 @@ Fourteen copies of one dish (four strains, two ×0.4 copies each) ran 3,000 step
 
 So the danger is one-sided, and drawing nearer the middle alone would not avoid it. **RANDOMIZE** draws each setting as the average of two random numbers within a range, which favours its middle: FOOD 0.45 to 1, METABOLISM 0.5 to 1.6, HOMEOSTASIS 0.2 to 0.85 and GENE DRIFT 0.1 to 0.65. Twelve dishes drawn that way all kept every strain and held their size, at 103 to 114% of what was placed.
 
+### Finding cells
+
+Dishes grown from several specimens sometimes form new structures nobody placed: rings with spiralling insides, chains of
+golden-walled chambers each holding a bright nucleus, a square body with a ring inside it. They are more complex than
+the specimens they came from and behave differently. A detector for them would let a dish notice its own individuals:
+how long each lasts, whether its inside stays alive, and later whether one becomes two.
+
+**What a cell is, for this purpose.** Several lines of work agree on the signature of an individual:
+
+- Autopoiesis (Maturana and Varela): a living unity maintains the very boundary that makes it a unity. Beer (2004, 2015)
+  made this operational in the Game of Life, defining an entity by a boundary of persistent structure that keeps itself
+  going while its parts turn over.
+- Krakauer et al. (2020): an individual is an aggregate whose own past predicts its future better than its surroundings
+  do. In practice: it persists, and what is inside stays inside.
+- Cabaret (2024) grew vesicles in a particle system that grow, repair and reproduce: a closed membrane around an active
+  inside.
+- López-Ruiz, Mancini and Calbet (1995) measure complexity as entropy times disequilibrium, which is low for both a
+  uniform pattern and pure noise and high in between.
+- Finding enclosures at many brightness levels at once, and keeping those that hold across levels, is the idea behind
+  persistent homology (Edelsbrunner and Harer, 2010).
+
+So a cell here is a **closed boundary that stays put, around material that stays inside while it moves about, with
+structure inside it, lasting over time.**
+
+**The detector**, a research prototype (`tests/research/cell-detector-prototype.js`) run on copies of three dishes for
+3,000 steps each, measured every 150 steps:
+
+1. The dish's glow is taken as it is shown, every chemical through its own exposure, and averaged over squares of 8
+   pixels. Averaging matters: a thick membrane stays bright, while the thin lines of a textured inside dim. Taking each
+   square's brightest pixel instead made L-743's square cell look solid and hid it.
+2. At eight brightness levels from 0.15 to 0.85, two kinds of enclosure are found: spaces the walls close off from the
+   open broth, taken with their wall and any bodies inside them, and closed outlines filled in with whatever they hold.
+   Membranes differ a lot in brightness, so a cell only has to close at three levels, not all of them. A cell is at least
+   16 squares (about 36 pixels across), at most 8% of the dish, and compact, so long corridors between membranes are not
+   cells.
+3. Each cell is followed from one measurement to the next by overlap, and measured on the particles themselves:
+   - **Closure:** closed at three or more levels, with its wall brighter than the broth just outside.
+   - **Homeostasis:** how steady its outline stays, times the share of its particles still inside 150 steps later.
+   - **Inner life:** how far the particles that stayed inside moved, against the cell's radius.
+   - **Complexity:** bodies inside it (organelles), how many strains live inside (the effective number, from the
+     particles' lineages), and how varied its inside looks (the López-Ruiz measure).
+   - **Persistence:** its age, saturating over about 1,500 steps.
+4. The score multiplies the five parts, each weighted, so a cell must have all of them: a closed ring with a dead inside,
+   or a busy patch with no wall, scores low. A cell with at least one body inside is marked EU (eukaryote-like), the rest
+   PR.
+
+| Dish | Followed | Lasted 3+ measurements | 60% or more | Best cells |
+|---|---|---|---|---|
+| L-848 | 82 | 32 | 16 | Spiral rings (91–92%), golden-chain cells with nuclei (83–90%), white rings with cores (89–92%) |
+| L-743 | 23 | 12 | 9 | The square cell, whole (96%), with its inner ring followed as a body of its own (88%) |
+| S-947 | 111 | 26 | 1 | Few closed membranes; it is mostly open networks (an earlier version of the detector) |
+
+<p align="center"><img src="research/cells-l848.webp" alt="Consortium L-848 with green boxes over its cells: four spiral rings, the golden-chain cells with blue nuclei, white rings with bright cores, and a small ring nested in the cell at the bottom, each labelled EU or PR with a score" width="49%"> <img src="research/cells-l743.webp" alt="Consortium L-743 with green boxes over the square cell (96%), its inner ring, two white bodies and a few loops in the maze" width="49%"></p>
+
+What the cells were like:
+
+- **The spiral rings** in L-848 are the most cell-like by these measures: closed at every level, outlines unchanged for
+  3,000 steps, 99% of their particles still inside after each 150 steps while moving about a whole radius, and four to
+  ten bodies inside. Each is made almost entirely of one strain.
+- **The golden-chain cells** are composites: each holds two to three strains (a golden wall around a blue nucleus), keeps
+  about 72% of its particles over 150 steps, and lasted the whole run. This supports the idea that structures grown from
+  several specimens are a different, sturdier kind of thing than the specimens themselves.
+- **L-743's square cell** has a thick bright membrane around a dimmer maze, with a ring inside it: an outer cell and an
+  inner body, both followed.
+
+What the detector still gets wrong:
+
+- **Dim tissue.** L-848's green chambers, each with a bright blue nucleus, are missed: their walls differ from their
+  insides in colour, not in brightness. Finding walls one chemical at a time, as a membrane made by one strain, should
+  find them.
+- **Loose loops.** A few large closed loops in a maze still score 55–60%. Comparing what is inside a cell with what is
+  just outside it (a cell's inside is different from its surroundings; a maze loop's is not) should separate them.
+- **Cost.** Reading the whole dish back takes about 2 seconds on a 2× dish. Building the brightness map in a small GPU
+  pass would read back only the 8-pixel grid, a few hundred kilobytes. (The app does this; see below.)
+
+**The design it pointed to:**
+
+- A **CELLS** switch in the Incubator shows boxes over cells with their score, white below the threshold and green above
+  it, labelled with a short name: EU or PR and a number, such as EU-7.
+- The score rewards what makes a cell: a steady closed membrane, an inside that moves but stays in, bodies and several
+  strains inside, and above all lasting. Persistence keeps growing with age, so a cell that has lasted 10,000 steps
+  outranks a new one.
+- The dish keeps its **top three cells** by score, with their age and what they are made of, and keeps them with the
+  saved dish.
+- **KEEP CELL** cuts a cell along its own outline, like a body on the cutting bench, and files it as a specimen with its
+  cell record: score, age and strains. The Archive marks it as a cell.
+- Following cells is also the first step toward division: when a followed cell becomes two that both last, the dish
+  can record it.
+
+**Built into the Incubator.** The CELLS switch, the top three, KEEP CELL and cells saved with a dish follow that design.
+Running it inside the app changed a few things:
+
+- **Cost.** Two small GPU passes build the 8-pixel brightness grid and sample up to 131,072 particles, so a look reads
+  back about 1.5 MB instead of the whole dish, and the finding is spread over several frames. On a 2× dish a look takes
+  150–300 ms in all, and the longest pause between frames during one was about 45 ms, against about 21 ms with nothing
+  running.
+- **Filled outlines.** A cell is filled in before it is measured, so whatever it closes off is part of it. A smaller cell
+  inside then counts as a body inside, which makes L-848's double rings, a pink membrane around a golden one, cells
+  holding cells (91%).
+- **One name per cell.** An outline can grow as levels are added, so a last pass merges cells that ended up the same;
+  L-743's white ring had been followed twice. Matching between looks takes the closest pairs first, and a cell less
+  than a quarter the size of another is never taken for it, so an inner cell keeps its own name.
+- **Inside unlike outside.** Closure now includes how unlike the broth outside a cell's inside is, by which chemical
+  glows most there. L-743's maze loops stay at 55–61%, below the threshold.
+- **Inner movement is mostly a gate.** In L-848 and L-743 particles move a radius or more inside nearly every
+  enclosure, so this part is 100% for almost every cell there, while the glow inside changes by only 0.1–1% between
+  looks: these cells are steady patterns that particles flow through. Across all eight dishes it held back only a few
+  cells whose insides had slowed, such as L-662's best (49%, so it stayed at 78%) and S-947's (37%). Telling a busy
+  inside from a calm one among the rest needs another signal, such as particles crossing between the bodies inside,
+  or circulation around a ring.
+
+Every saved dish was then run for 3,000 steps from its save, on copies:
+
+| Dish | Size | Step | Strains placed | Followed | Listed (seen 3+ times) | Green | Best |
+|---|---|---|---|---|---|---|---|
+| M-690 | 1.5× | 157K | 12 | 17 | 12 | 2 | A white membrane with a curled body inside (95%); a white ring with a hook inside (94%) |
+| L-848 | 2× | 52K | 13 | 46 | 28 | 11 | A white ring with a cyan core (94%); a pink membrane around a golden ring (91%) |
+| L-743 | 2× | 144K | 8 | 13 | 9 | 4 | The square cell (91%), with its inner ring followed as a cell of its own (86%) |
+| M-804 | 1.5× | 479K | 10 | 15 | 11 | 3 | A room of the dish's membrane web (90%); a golden ring with a bright nucleus (89%) |
+| M-637 | 1.5× | 200K | 10 | 36 | 17 | 1 | A pink ring with little inside (89%); a large swirl inside is split into many small pieces |
+| S-206 | 1× | 30K | 8 | 8 | 6 | 1 | A white loop around a cluster of dots (87%) |
+| L-662 | 2× | 32K | 7 | 14 | 8 | 0 | A ring whose inside had slowed (78%) |
+| S-947 | 1× | 260K | 14 | 9 | 4 | 0 | Mostly open networks; the best closed space scores 54% |
+
+What the eight dishes add:
+
+- **Green cells are mixtures.** Of the 22 green cells, the two best of each dish (ten in all) held 2.0 to 3.5 strains
+  inside by effective number. The score rewards several strains, so this is partly by design, and a few single-strain
+  rings do reach green, such as L-743's inner ring. It fits the idea that the structures a dish grows out of several specimens are a sturdier,
+  different kind of thing.
+- **Age of the dish is not age of the cell.** M-804 had run 479,000 steps and S-947 260,000, yet S-947 has no cells and
+  M-804's best are no better than those of L-848 at 52,000. Cells form in some dishes and not others; long runs do not
+  make them on their own.
+- **Rooms in a web.** In M-804 a single long membrane winds through the dish, and the closed rooms it makes score as
+  cells (90%). They close and hold their particles like cells, but the wall belongs to the web, not to the cell. Asking
+  that a cell's wall be its own, mostly closed around it alone, would separate them.
+- **Large swirls break up.** M-637's biggest structure, a bright swirl most of the dish across, is cut into a dozen
+  small overlapping pieces, each at 44–76%: it is too large and too open to close as one cell.
+- **Cost by size.** A look takes about 35–65 ms on a 1× dish, 130–170 ms on 1.5× and 165–310 ms on 2×, all spread
+  across frames.
+
+Three cells were kept for the Archive, the best of the three best dishes: **Amoeba C-674** (M-690, 95%, 366,000
+particles, three strains), **Fluvia C-493** (L-848, 94%) and **Reticulum C-389** (L-743's square cell, 91%, 281,000
+particles). L-743's square cell was placed back in a dish in a test and laid down whole.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
@@ -415,3 +560,9 @@ They were calibrated on each save's thumbnail, because thumbnails show exactly w
 - Gore, J., Youk, H., & van Oudenaarden, A. (2009). Snowdrift game dynamics and facultative cheating in yeast. *Nature*, 459, 253-256.
 - Reid, C. R., et al. (2012). Slime mold uses an externalized spatial "memory" to navigate in complex environments. *PNAS*, 109(43), 17490-17494.
 - Waddington, C. H. (1953). Genetic assimilation of an acquired character. *Evolution*, 7(2), 118-126.
+- Maturana, H. R., & Varela, F. J. (1980). *Autopoiesis and Cognition: The Realization of the Living*. D. Reidel.
+- Beer, R. D. (2004). Autopoiesis and cognition in the game of life. *Artificial Life*, 10(3), 309-326.
+- Beer, R. D. (2015). Characterizing autopoiesis in the game of life. *Artificial Life*, 21(1), 1-19.
+- Krakauer, D., Bertschinger, N., Olbrich, E., Flack, J. C., & Ay, N. (2020). The information theory of individuality. *Theory in Biosciences*, 139, 209-223.
+- López-Ruiz, R., Mancini, H. L., & Calbet, X. (1995). A statistical measure of complexity. *Physics Letters A*, 209(5-6), 321-326.
+- Edelsbrunner, H., & Harer, J. (2010). *Computational Topology: An Introduction*. American Mathematical Society.
