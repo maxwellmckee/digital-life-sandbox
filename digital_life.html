@@ -106,6 +106,10 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .ihud i u{display:block;height:100%;background:var(--lumen);box-shadow:0 0 8px var(--lumen)}
 .ihud-title{font-size:clamp(14px,2.6cqh,26px);color:#c9f7ea}
 .ihud-trio{display:flex;gap:16px}
+.eco-parts{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center;margin-top:2px}
+.eco-parts span{display:contents;font-size:7.5px;letter-spacing:.12em;color:#4f7a72}
+.eco-parts i{display:block;height:3px;border-radius:2px;background:#13282a;overflow:hidden}
+.eco-parts i u{display:block;height:100%;width:0;background:var(--lumen);box-shadow:0 0 6px var(--lumen)}
 
 /* The specimen deck: a card file beside the dish. The card in front is the one you pick; the rest stand behind it
    above and below, each a little smaller and further back, with a gap between them. Scrolling flips through. */
@@ -547,6 +551,14 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
             <div class="ihud" data-help="hud.bodies"><small>BODIES</small><b id="ihudBodies"></b><em>in all strains</em></div>
             <div class="ihud" data-help="hud.step"><small>STEP</small><b id="ihudStep"></b><em>time so far</em></div>
           </div>
+          <div class="ihud" data-help="hud.eco"><small>ECOSYSTEM</small><b id="ihudEco"></b>
+            <div class="eco-parts">
+              <span data-help="hud.eco.coexist">COEXIST<i><u id="ecoCoexist"></u></i></span>
+              <span data-help="hud.eco.persist">PERSIST<i><u id="ecoPersist"></u></i></span>
+              <span data-help="hud.eco.exchange">EXCHANGE<i><u id="ecoExchange"></u></i></span>
+              <span data-help="hud.eco.balance">BALANCE<i><u id="ecoBalance"></u></i></span>
+            </div>
+            <em id="ihudEcoNote">last 3,000 steps</em></div>
         </div>
       </div>
       <div class="deck" id="deck" hidden>
@@ -3358,6 +3370,47 @@ function syncSlide() {
   }
   setDots($('slideMag'), OBJECTIVES[st.quality] || '40X');
 }
+/* The ECOSYSTEM score: how much the dish behaves like an ecosystem over its last 3,000 steps, from the strain counts its
+   census already keeps (docs/RESEARCH.md, "Judging a dish"). Four parts, multiplied so a dish needs all of them:
+     coexist   strains alive of those placed, weighted by how evenly they share the dish (effective strains);
+     persist   how long its oldest bodies have lasted, nearing 1 after about 12,000 steps;
+     exchange  strains trading ground: their numbers move, and their step-to-step changes offset each other rather than
+               rising and falling together (low synchrony, after Loreau and de Mazancourt);
+     balance   the dish as a whole steady: no crash or boom over the window.
+   It only reads what the census counted, so it never changes the dish. */
+const ECO = { window: 3000, minSpan: 2500, minSamples: 8, ageScale: 5000, move: .02, trend: .3, cv: .15 };
+const clamp01e = v => Math.max(0, Math.min(1, v));
+// history: [{ step, counts }], oldest: the age of the dish's oldest bodies, placed: how many strains were placed.
+function ecoScore(history, oldest, placed) {
+  const end = history.at(-1);
+  if (!end || !placed) return null;
+  const w = history.filter(h => h.step > end.step - ECO.window);
+  if (w.length < ECO.minSamples || end.step - w[0].step < ECO.minSpan) return null;
+  const mean = v => v.reduce((a, b) => a + b, 0) / (v.length || 1), sd = v => { const m = mean(v); return Math.sqrt(mean(v.map(x => (x - m) ** 2))); };
+  const k = end.counts.length, total = end.counts.reduce((a, b) => a + b, 0), alive = end.counts.filter(Boolean).length;
+  let H = 0;
+  for (const n of end.counts) if (n > 0) { const q = n / total; H -= q * Math.log(q); }
+  const coexist = alive ? alive / placed * Math.sqrt(Math.exp(H) / alive) : 0;
+  const persist = 1 - Math.exp(-Math.max(0, oldest) / ECO.ageScale);
+  // How much each strain's numbers move, and how its changes line up with the others', per step between censuses.
+  const series = Array.from({ length: k }, (_, i) => w.map(h => h.counts[i] || 0)), totals = w.map(h => h.counts.reduce((a, b) => a + b, 0));
+  const living = series.filter(v => mean(v) > 0), move = mean(living.map(v => sd(v) / mean(v)));
+  const change = v => v.slice(1).map((x, j) => (x - v[j]) / Math.max(1, w[j + 1].step - w[j].step));
+  const sds = series.map(v => sd(change(v))), sumSd = sds.reduce((a, b) => a + b, 0);
+  const sync = sumSd > 0 ? sd(change(totals)) ** 2 / sumSd ** 2 : 1;
+  const exchange = clamp01e(move / ECO.move) * clamp01e(1 - sync);
+  const balance = clamp01e(1 - Math.abs(totals.at(-1) / Math.max(1, totals[0]) - 1) / ECO.trend) * clamp01e(1 - sd(totals) / Math.max(1, mean(totals)) / ECO.cv);
+  const parts = { coexist: clamp01e(coexist), persist, exchange, balance };
+  return { score: Math.round((parts.coexist * parts.persist * parts.exchange * parts.balance) ** .25 * 100), parts, span: end.step - w[0].step };
+}
+// The open dish's score: its census history, and the median age of its three oldest bodies.
+function dishEcosystem() {
+  if (!arena.sim || !arena.founders.length) return null;
+  const step = arena.history.at(-1)?.step ?? arena.sim.step;
+  const ages = arena.founders.flatMap(f => (f.track?.bodies || []).map(b => step - b.born)).sort((a, b) => b - a);
+  return ecoScore(arena.history, ages.length ? ages[Math.min(1, ages.length - 1)] : 0, arena.founders.length);
+}
+
 // Readouts beside the Incubator porthole, refreshed with each census.
 function syncIncubatorHud() {
   if (mode !== 'arena' || !arena.sim) return;
@@ -3371,6 +3424,10 @@ function syncIncubatorHud() {
   setDots($('ihudStrains'), alive + '/' + arena.founders.length);
   setDots($('ihudBodies'), String(bodies));
   setDots($('ihudStep'), kilo(arena.sim.step));
+  const eco = dishEcosystem();
+  setDots($('ihudEco'), eco ? String(eco.score) : '--');
+  $('ihudEcoNote').textContent = eco ? 'last 3,000 steps' : 'after 3,000 steps of history';
+  for (const [k, id] of [['coexist', 'ecoCoexist'], ['persist', 'ecoPersist'], ['exchange', 'ecoExchange'], ['balance', 'ecoBalance']]) $(id).style.width = (eco ? eco.parts[k] * 100 : 0) + '%';
 }
 
 /* Afterglow: a pressed control lights up and the light fades the way trail does. Nothing moves, so the eye stays on
@@ -4456,6 +4513,11 @@ const HELP = {
   'hud.strains': { t: 'STRAINS', d: 'Strains still alive, of all you placed. A strain is one placed specimen and all its descendants.' },
   'hud.bodies': { t: 'BODIES', d: 'Separate bodies across all strains: each connected patch where a strain is dense. Counted twice a second.' },
   'hud.step': { t: 'STEP', d: 'How many steps the dish has run. In each step every particle senses, turns, moves, eats, and may divide or die.' },
+  'hud.eco': { t: 'ECOSYSTEM', d: 'How much the dish behaves like an ecosystem over its last 3,000 steps, from 0 to 100. Its four parts are multiplied, so a dish needs all of them.', tip: 'It only reads what the dish already counts, so it never changes what happens. It is saved with the dish and shown on its Archive card.' },
+  'hud.eco.coexist': { t: 'COEXIST', d: 'How many of the strains you placed are still alive, and how evenly they share the dish.' },
+  'hud.eco.persist': { t: 'PERSIST', d: 'How long the dish\'s oldest bodies have lasted. Near full after about 12,000 steps.' },
+  'hud.eco.exchange': { t: 'EXCHANGE', d: 'Whether strains trade ground: their numbers move, and when one rises another falls, as competitors for the same food do, rather than all rising and falling together.' },
+  'hud.eco.balance': { t: 'BALANCE', d: 'Whether the dish as a whole holds steady, without crashing or booming.' },
   'arena.cells': { t: 'CELLS', d: 'Cells are structures nobody placed: closed membranes around a living inside. SHOW boxes each one with a name and score; green means an EU cell (one with a body inside, like a nucleus) at 80% or more.', tip: 'The score needs all five: a closed wall, an outline that holds its particles, movement inside, bodies and strains inside, and age. Cells are followed every 150 steps, shown or not.' },
   'arena.cellTop': { t: 'BEST CELLS', d: 'The three best cells, with score, age and the strains inside. Point at one to light it up in the dish; click it to zoom to it.', tip: 'The list holds still while you point at it, so KEEP CELL takes the cell you aimed at. EU cells have a body inside; PR cells do not.' },
   'cell.keep': { t: 'KEEP CELL', d: 'Cuts this cell along its own outline, with every gene its particles evolved, and files it as a specimen marked CELL.' },
@@ -5918,6 +5980,7 @@ function buildDishCard(item) {
   row('DISH', `${DISHES[m.dish].label} · ${kilo(m.particles)} of ${m.agents >= 1e6 ? +(m.agents / 1e6).toFixed(1) + 'M' : kilo(m.agents)} places`);
   row('STRAINS', `${m.strains.filter(x => x.particles).length} living of ${m.strains.length} · ${m.bodies} ${m.bodies === 1 ? 'body' : 'bodies'}`);
   if (Number.isFinite(m.food)) row('BROTH', Math.round(m.food * 100) + '%');
+  if (m.ecosystem) { const e = m.ecosystem.parts; row('ECOSYSTEM', `${m.ecosystem.score} · coexist ${Math.round(e.coexist * 100)} · persist ${Math.round(e.persist * 100)} · exchange ${Math.round(e.exchange * 100)} · balance ${Math.round(e.balance * 100)}`); }
   if (m.formerName) row('FORMERLY', m.formerName);
   const total = m.strains.reduce((t, x) => t + x.particles, 0) || 1;
   for (const x of [...m.strains].sort((a, b) => b.particles - a.particles).filter(x => x.particles).slice(0, 4)) {
@@ -7923,6 +7986,7 @@ async function packDish(id) {
     name: dishName(alive.length, d.key, id),
     dish: d.key, w, h, agents, particles: live.length, step: s.step, seed: arena.seed, params: { ...arena.params }, regrow: ARENA.regrow,
     food: c?.food ?? null, bodies: arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0), strains,
+    ecosystem: (eco => eco && { score: eco.score, parts: Object.fromEntries(Object.entries(eco.parts).map(([k, v]) => [k, +v.toFixed(2)])) })(dishEcosystem()),
     recipes: arena.recipes, history: arena.history,
     // The cells the dish was following, so their ages keep counting when it is opened again.
     cells: { next: cellScope.next, step: cellScope.step, tracks: cellScope.tracks.map(tr => ({ id: tr.id, born: tr.born, last: tr.last, strains: tr.strains, mix: tr.mix, history: tr.history.slice(-CELLS.recent), runs: cellRuns(tr.r.cells) })) },

@@ -356,6 +356,23 @@ What this shows:
 
 Building it needs one change first: the size limit should hold bodies, not strains, or be set near 0.2 for an ecosystem run, because at 0.5 no strain can gain or lose ground.
 
+**Built (2026-11-26),** once the strain cap was gone and energy came only from food. Over the dish's last 3,000 steps
+of census history:
+
+- **Coexist** = strains alive ÷ strains placed × √(effective strains ÷ strains alive).
+- **Persist** = 1 − e^(−age ÷ 5,000), with age that of the dish's second-oldest body (of its three oldest).
+- **Exchange** = how much strain numbers move (their mean coefficient of variation ÷ 0.02, at most 1) × (1 − synchrony),
+  with synchrony taken on step-to-step changes, so a dish that is simply growing does not look as if its strains move
+  together.
+- **Balance** = (1 − |change in the total| ÷ 30%) × (1 − the total's coefficient of variation ÷ 15%), each at least 0.
+- **ECOSYSTEM** = 100 × the geometric mean of the four.
+
+Strain numbers now move 3 to 39% over 3,000 steps, against under 0.01% with the cap. On copies under the corrected
+energy, settled dishes where strains trade ground score 70 to 85 (S-206 83, M-804 82, a fresh four-strain dish at
+FOOD 0.75 85 by 12,000 steps), and dishes in the middle of a crash score 0 (L-848 while it fell to 42% of its places;
+M-690 while it fell from 88% to 59%). A dish saved under the cap opens with a low EXCHANGE, since its saved history was
+recorded while strains were held at their size; M-804 opened at 25 and scored 70 after 3,000 new steps.
+
 ### Random settings that keep a dish alive
 
 Fourteen copies of one dish (four strains, two ×0.4 copies each) ran 3,000 steps under settings drawn evenly from each slider's whole range. No strain died, but every dish with **FOOD** below about 0.45 was shrinking: FOOD 0.13 kept 34% of its particles and was still halving, 0.31 kept 72%, and 0.19 kept 91% only because its low METABOLISM slowed everything down. Every dish with FOOD 0.45 or more held or grew. HOMEOSTASIS near 0 let bodies sprawl, and GENE DRIFT up to 0.98 harmed nothing in that time.

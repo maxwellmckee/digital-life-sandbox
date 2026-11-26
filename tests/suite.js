@@ -281,6 +281,32 @@
       return { ok: opened === .6 && kept === .3, detail: `older dish at FOOD 0.3 opens at ${opened}; a new one stays at ${kept}` };
     },
 
+    // The ECOSYSTEM score. On made-up histories: strains trading ground in a steady dish score high; a crashing dish, one
+    // whose strains never move, and one too short to judge do not. On a real dish: once 3,000 steps of census history
+    // exist, it shows beside the dish and is saved with it.
+    async 'Ecosystem score'() {
+      const wrong = [], make = (n, f) => Array.from({ length: n }, (_, j) => ({ step: j * 150, counts: f(j) }));
+      const trading = ecoScore(make(25, j => [1000 + 200 * Math.sin(j / 2), 1000 - 200 * Math.sin(j / 2), 1000 + 150 * Math.cos(j / 3), 1000 - 150 * Math.cos(j / 3)]), 12000, 4);
+      const crash = ecoScore(make(25, j => [1000 * (1 - j / 30), 900 * (1 - j / 30), 800, 700]), 12000, 4);
+      const frozen = ecoScore(make(25, () => [1000, 1000, 1000, 1000]), 12000, 4);
+      const short = ecoScore(make(5, j => [1000 + j, 1000 - j, 1000, 1000]), 12000, 4);
+      if (!(trading?.score >= 80)) wrong.push('trading dish scored ' + trading?.score);
+      if (!(crash?.score < 30)) wrong.push('crashing dish scored ' + crash?.score);
+      if (frozen?.score !== 0) wrong.push('frozen dish scored ' + frozen?.score);
+      if (short !== null) wrong.push('a short history was scored');
+      await freshDish('s', 31);
+      await foundAt(fx.a, .5, .5, 1); await idle();
+      await foundAt(fx.b, .3, .45, .5); await idle();
+      for (let i = 0; i < 24; i++) { await DL.arenaAdvance(150); await census(); }
+      const eco = dishEcosystem(), shown = $('ihudEco').textContent.trim();
+      if (!eco) wrong.push('no score after 3,600 steps');
+      await saveDish(); await idle();
+      const meta = JSON.parse(await (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('dishes')).getFileHandle(arena.dishId + '.json')).getFile()).text());
+      if (!meta.ecosystem || !Number.isFinite(meta.ecosystem.score)) wrong.push('not saved with the dish');
+      arena.dishId = null;
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `made-up dishes: trading ${trading.score}, crashing ${crash.score}, frozen 0; real dish ${eco.score} (shown ${shown}), saved` };
+    },
+
     async 'Every help label has its text'() {
       const keys = new Set(), take = () => document.querySelectorAll('[data-help]').forEach(e => keys.add(e.dataset.help));
       DL.goRoom('lab'); await sleep(200); take();

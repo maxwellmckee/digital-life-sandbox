@@ -4,6 +4,9 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **ECOSYSTEM score.** Beside the dish, under STRAINS / BODIES / STEP: 0 to 100 over the last 3,000 steps, with four
+  bars for its parts (COEXIST, PERSIST, EXCHANGE, BALANCE), multiplied so a dish needs all of them. It is computed from
+  the census the dish already keeps, never changes the dish, is saved with it, and shows on its Archive card.
 - **Energy only comes from food.** The Incubator had a leak: food cells shared out food using the previous step's
   eaters, so particles moving into fresh food took more than there was, and overdrawn food was rounded back up to zero.
   About 60% of what particles spent living came from nowhere. Each step, particles now report how much they can digest
