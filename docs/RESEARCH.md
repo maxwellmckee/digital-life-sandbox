@@ -356,6 +356,12 @@ What this shows:
 
 Building it needs one change first: the size limit should hold bodies, not strains, or be set near 0.2 for an ecosystem run, because at 0.5 no strain can gain or lose ground.
 
+### Random settings that keep a dish alive
+
+Fourteen copies of one dish (four strains, two ×0.4 copies each) ran 3,000 steps under settings drawn evenly from each slider's whole range. No strain died, but every dish with **FOOD** below about 0.45 was shrinking: FOOD 0.13 kept 34% of its particles and was still halving, 0.31 kept 72%, and 0.19 kept 91% only because its low METABOLISM slowed everything down. Every dish with FOOD 0.45 or more held or grew. HOMEOSTASIS near 0 let bodies sprawl, and GENE DRIFT up to 0.98 harmed nothing in that time.
+
+So the danger is one-sided, and drawing nearer the middle alone would not avoid it. **RANDOMIZE** draws each setting as the average of two random numbers within a range, which favours its middle: FOOD 0.45 to 1, METABOLISM 0.5 to 1.6, HOMEOSTASIS 0.2 to 0.85 and GENE DRIFT 0.1 to 0.65. Twelve dishes drawn that way all kept every strain and held their size, at 103 to 114% of what was placed.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.

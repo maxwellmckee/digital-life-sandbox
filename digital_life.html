@@ -185,7 +185,7 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .founder-keep{grid-column:1/-1;height:24px;margin-top:4px;border:0;border-radius:5px;background:var(--chassis);box-shadow:inset 0 0 0 1px #24383b;cursor:pointer;font-size:9.5px}
 .founder-keep:hover{box-shadow:inset 0 0 0 1px #6ff0cf66}
 .founder-keep:disabled{opacity:.5;cursor:default}
-#arenaWorld .armed{background:#8a3b1e;color:#fff3ec}
+.pad.armed{background:#8a3b1e;color:#fff3ec}
 #drawGrow.ready{background:var(--teal);color:#eafff8}
 .fault{position:absolute;inset:0;display:grid;place-items:center;padding:32px;text-align:center;
   color:var(--seafoam);font-size:13px;line-height:1.6;background:#030607}
@@ -234,7 +234,8 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
   box-shadow:inset 0 -1px 0 #16262a}
 .lib-head h2{margin:0;font-size:17px;font-weight:400;color:#e8f7f2}
 #libCount{color:#6f8d88;white-space:nowrap}
-#libSearch{flex:1 1 200px;min-width:140px;height:32px;padding:0 10px;border:0;border-radius:7px;background:#0f1d1f;color:#d9fff2;
+#libCount:empty{display:none}
+#libSearch{flex:1 1 140px;min-width:110px;height:32px;padding:0 10px;border:0;border-radius:7px;background:#0f1d1f;color:#d9fff2;
   font:inherit;box-shadow:inset 0 0 0 1px #1f3537}
 #libSearch::placeholder{color:#4f6f69}
 #libSort{flex:none;width:210px}
@@ -246,6 +247,9 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .lib-thumb:focus-visible{outline:2px solid var(--seafoam);outline-offset:-3px}
 .lib-thumb img{display:block;width:100%;height:100%;object-fit:cover}
 .lib-thumb img[hidden]{display:none}
+/* A dish's card shows it round, as through its porthole. */
+.lib-thumb.round{display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 50%,#0b1416 0 40%,#04080a 75%)}
+.lib-thumb.round img{width:auto;height:88%;aspect-ratio:1;border-radius:50%;box-shadow:0 0 0 2px #2a4a4a,0 0 0 7px #0b1416,0 0 0 8px #1f3537,0 0 24px 6px #2ff0c40f}
 .lib-thumb .chip{position:absolute;left:7px;bottom:7px}
 .lib-thumb .chip.bad{color:#ffc79e}
 .lib-thumb .chip.keep{left:auto;right:7px;color:#c9c4b8}
@@ -265,8 +269,36 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .lib-actions .remove.armed{background:#8a3b1e;color:#fff3ec}
 .lib-empty{flex:none;margin:0;padding:48px 24px;text-align:center;color:#a9d8cc;font-size:13px}
 .lib-empty[hidden]{display:none}
-.lib-grid[hidden],.lib-tree[hidden],.tree-bar[hidden],.tree-loose[hidden],.tree-note[hidden],.lib-head .seg[hidden]{display:none}
-#libView{flex:none;width:310px}
+.lib-grid[hidden],.lib-tree[hidden],.tree-bar[hidden],.tree-loose[hidden],.tree-note[hidden],.slides-bar[hidden],.slides-bar .seg[hidden]{display:none}
+.tree-note{margin:0 0 16px;color:#a9d8cc;font-size:13px}
+.tree-loose{margin-top:26px;padding-top:12px;border-top:1px solid #86dcc322}
+.tree-loose h3{margin:0 0 10px;color:#a9d8cc;font-size:10px;font-weight:400}
+#treeLooseGrid{display:flex;flex-wrap:wrap;gap:14px}
+#treeLooseGrid .tree-node{position:relative}
+.tree-bar{flex:none;display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--chassis);color:var(--ink)}
+.tree-bar-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.tree-bar-text b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.tree-bar-text span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft)}
+/* SLIDES has its own bar: how the slides are shown, and for the grid how they are sorted. */
+.slides-bar{flex:none;display:flex;align-items:center;gap:12px;padding:8px 14px;background:#0a1416;box-shadow:inset 0 -1px 0 #16262a}
+#slidesView{flex:none;width:170px}
+.lib-views{flex:none;display:flex;align-items:center;gap:10px}
+.lib-views button{display:flex;align-items:center;gap:6px;height:30px;border-radius:6px;font:inherit;font-size:10px;letter-spacing:.12em;cursor:pointer}
+.lib-views button b{font-weight:400;opacity:.55}
+.lib-views button b:not(:empty)::before{content:"·";margin-right:5px}
+/* SLIDES is the explorer's shelf of saved slides: a plain outlined key. */
+.view-slides{padding:0 12px;border:1px dashed #2f4d4f;background:transparent;color:#9fb9b3}
+.view-slides:hover{color:#e6fff8;border-color:#4f7a72}
+.view-slides[aria-pressed=true]{border-style:solid;border-color:#86dcc3;color:#e8f7f2;background:#0f1d1f}
+/* The living things share a lit well, each with a status light. */
+.living{display:flex;align-items:center;gap:3px;padding:3px 3px 3px 10px;border-radius:9px;background:var(--chassis-lo);box-shadow:inset 0 1px 3px #000c,0 0 0 1px #6ff0cf33,0 0 18px #2ff0c418}
+.living > span{font-size:8.5px;letter-spacing:.2em;color:#4f9a88;margin-right:5px}
+.living button{padding:0 10px;border:0;background:transparent;color:#8fbfb3}
+.living button:hover{color:#e6fff8;background:#121f22}
+.living button[aria-pressed=true]{background:#113032;color:var(--lumen);box-shadow:inset 0 0 0 1px #2ff0c440}
+.led{width:6px;height:6px;border-radius:50%;background:#6ff0cf;box-shadow:0 0 6px #2ff0c4cc,0 0 0 1px #0b1416}
+.living button[aria-pressed=true] .led{background:#e8fff7;box-shadow:0 0 9px #6ff0cf,0 0 0 1px #0b1416}
+
 .lib-stats{display:grid;grid-template-columns:auto 1fr;gap:2px 9px;color:#a9d8cc;font-size:10px;line-height:1.45}
 .lib-stats b{font-weight:400;color:#7fa79d}
 .lib-origin{display:flex;flex-wrap:wrap;gap:3px 8px;color:#a9d8cc;font-size:10px}
@@ -274,7 +306,6 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .lib-title{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib-tree{flex:1;min-height:0;overflow:auto;padding:16px;cursor:grab}
 .lib-tree.panning{cursor:grabbing;user-select:none}
-.tree-note{margin:0 0 16px;color:#a9d8cc;font-size:13px}
 .tree-stage{position:relative}
 #treeEdges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
 .tree-edge{fill:none;stroke:#3b7f7c;stroke-width:1.6;transition:opacity .12s}
@@ -296,14 +327,6 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .tree-node.on{box-shadow:inset 0 0 0 1px var(--seafoam)}
 .tree-node.selected{box-shadow:inset 0 0 0 2px var(--active),0 0 14px #2ff0c44d}
 .tree-node.faded{opacity:.16}
-.tree-loose{margin-top:26px;padding-top:12px;border-top:1px solid #86dcc322}
-.tree-loose h3{margin:0 0 10px;color:#a9d8cc;font-size:10px;font-weight:400}
-#treeLooseGrid{display:flex;flex-wrap:wrap;gap:14px}
-#treeLooseGrid .tree-node{position:relative}
-.tree-bar{flex:none;display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--chassis);color:var(--ink)}
-.tree-bar-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.tree-bar-text b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-.tree-bar-text span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft)}
 .dlg-btn:disabled{opacity:.45;cursor:default}
 #segExport kbd{font:inherit;font-size:9px;opacity:.6}
 #segExport button.active{background:#8a3b1e;color:#fff3ec}
@@ -316,11 +339,14 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 #tasteReset:disabled{opacity:.5;cursor:default}
 #tasteReset.armed{background:#8a3b1e;color:#fff3ec}
 
-#helpToggle{flex:none;margin-left:8px;height:24px;padding:0 9px;border:0;border-radius:6px;background:#0b1719;color:#a9d8cc;
+/* Fullscreen shows only the stage, so it has its own help key. */
+.help-float{display:none;position:absolute;z-index:6;right:14px;top:12px}
+#stage:fullscreen .help-float{display:block}
+#helpToggle,.help-toggle{flex:none;margin-left:8px;height:24px;padding:0 9px;border:0;border-radius:6px;background:#0b1719;color:#a9d8cc;
   box-shadow:inset 0 0 0 1px #86dcc340;cursor:pointer;font-size:10px;transition:color .15s,box-shadow .15s}
-#helpToggle:hover{color:#d9fff2;box-shadow:inset 0 0 0 1px #6ff0cf80}
-#helpToggle kbd{font:inherit;font-size:9px;opacity:.65}
-#helpToggle[aria-pressed=true]{background:var(--teal);color:#eafff8;box-shadow:0 0 12px #6ff0cf55}
+#helpToggle:hover,.help-toggle:hover{color:#d9fff2;box-shadow:inset 0 0 0 1px #6ff0cf80}
+#helpToggle kbd,.help-toggle kbd{font:inherit;font-size:9px;opacity:.65}
+#helpToggle[aria-pressed=true],.help-toggle[aria-pressed=true]{background:var(--teal);color:#eafff8;box-shadow:0 0 12px #6ff0cf55}
 .help-on [data-help]:hover{outline:1px dashed var(--teal);outline-offset:1px}
 .help-on #sim:hover{outline:none}
 #helpCard{position:fixed;z-index:30;width:310px;padding:12px 14px;border-radius:10px;background:#0b1719;color:#d9fff2;
@@ -478,6 +504,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
     <div class="roombar-end"><i class="led" id="led"></i><button type="button" id="helpToggle" aria-pressed="false">HELP <kbd>H</kbd></button></div>
   </header>
   <section class="stage" id="stage" aria-label="Simulation">
+    <button type="button" class="help-toggle help-float" id="stageHelp" data-help="help" aria-pressed="false">HELP <kbd>H</kbd></button>
     <div class="screen" id="screen">
       <canvas id="sim"></canvas>
       <div class="slide-hud" id="slideHud">
@@ -565,13 +592,12 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         <button type="button" data-add="library" data-help="arena.add.library">LIBRARY</button>
         <button type="button" data-add="wild" data-help="arena.add.wild">WILD</button>
       </div></div>
-      <div class="row wide"><span>WORLD</span><div class="seg" id="arenaWorld">
-        <button type="button" data-do="keep" data-help="arena.keep">KEEP</button>
-        <button type="button" data-do="replay" data-help="arena.replay">REPLAY</button>
-        <button type="button" data-do="clear" data-help="arena.clear">CLEAR</button>
-      </div></div>
       <div class="row wide"><span>DISH</span><div class="seg" id="segDish"></div></div>
       <div class="row wide"><span>CIRCLE</span><div class="seg" id="segSpecimen"></div></div>
+      <div class="row wide"><span>SETTINGS</span><div class="seg" id="arenaSettings">
+        <button type="button" data-do="random" data-help="arena.randomize">RANDOMIZE</button>
+        <button type="button" data-do="default" data-help="arena.defaults">DEFAULT</button>
+      </div></div>
       <div id="arenaSliders"></div>
       <div class="row wide"><span>CHART</span><div class="seg" id="segChart"></div></div>
       <canvas id="arenaChart" data-help="arena.chart"></canvas>
@@ -638,16 +664,26 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
     <nav class="rooms" aria-label="Rooms"></nav>
     <span id="libCount"></span>
     <input type="search" id="libSearch" placeholder="Search names, tags, colors, hybrid..." aria-label="Search your saves" data-help="lib.search">
-    <div class="seg" id="libView" role="group" aria-label="Library view" data-help="lib.view"></div>
-    <div class="seg" id="libSort" role="group" aria-label="Sort saves" data-help="lib.sort"></div>
+    <div class="lib-views" id="libView" role="group" aria-label="Archive sections">
+      <button type="button" class="view-slides" data-value="slides" data-help="lib.view.slides">SLIDES<b></b></button>
+      <div class="living" data-help="lib.view.living"><span>LIVING</span>
+        <button type="button" data-value="specimens" data-help="lib.view.living"><i class="led"></i>SPECIMENS<b></b></button>
+        <button type="button" data-value="dishes" data-help="lib.view.living"><i class="led"></i>DISHES<b></b></button>
+      </div>
+    </div>
     <button type="button" class="dlg-btn" id="libFile" data-help="lib.file">OPEN FILE</button>
+    <button type="button" class="help-toggle" id="libHelp" data-help="help" aria-pressed="false">HELP <kbd>H</kbd></button>
     <button type="button" class="dlg-btn primary" id="libClose">CLOSE</button>
   </header>
-  <div class="lib-grid" id="libGrid"></div>
+  <div class="slides-bar" id="slidesBar">
+    <div class="seg" id="slidesView" role="group" aria-label="Show slides as" data-help="lib.slides.view"></div>
+    <div class="seg" id="libSort" role="group" aria-label="Sort saves" data-help="lib.sort"></div>
+  </div>
   <div class="lib-grid" id="specGrid" hidden></div>
   <div class="lib-grid" id="dishGrid" hidden></div>
+  <div class="lib-grid" id="libGrid"></div>
   <div class="lib-tree" id="libTree" hidden>
-    <p class="tree-note" id="treeNote" hidden>Nothing is connected yet. Save a tile, breed from it, then save one of its children to start a family.</p>
+    <p class="tree-note" id="treeNote" hidden>Nothing is connected yet. Save a slide, breed from it, then save one of its children to start a family.</p>
     <div class="tree-stage" id="treeStage"><svg id="treeEdges" aria-hidden="true"></svg></div>
     <section class="tree-loose" id="treeLoose" hidden><h3>NO RELATIVES YET</h3><div id="treeLooseGrid"></div></section>
   </div>
@@ -3239,7 +3275,7 @@ function syncIncubatorHud() {
 
 /* Afterglow: a pressed control lights up and the light fades the way trail does. Nothing moves, so the eye stays on
    the simulation. Changing rooms lights the edge of the stage the same way. */
-const GLOW_TARGETS = '.pad, .seg button, .room, .menu button, .lib-actions button, .dlg-btn, #savesChange, #helpToggle, .founder-head, .founder-keep, #tasteReset, .deck-card, .tile-acts button';
+const GLOW_TARGETS = '.pad, .seg button, .room, .menu button, .lib-actions button, .dlg-btn, #savesChange, #helpToggle, .help-toggle, .founder-head, .founder-keep, #tasteReset, .deck-card, .tile-acts button';
 function afterglow(target) {
   if (!target) return;
   if (!target.classList.contains('stage')) target.classList.add('glows');
@@ -4277,9 +4313,9 @@ const HELP = {
 
   'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'In ARENA this is ADD: it cuts a living specimen from your SOLO organism for you to place. Press it again for an open spot.' },
   'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen: species count, rules, field, start and colors. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'In ARENA it grows a wild organism out of sight and places a specimen of it in an open spot.' },
-  'pad.reroll': { t: 'REROLL / EMPTY', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'In ARENA this is EMPTY, the same as CLEAR on the ARENA page: press it twice to remove every founder.' },
+  'pad.reroll': { t: 'REROLL / EMPTY', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'In the Incubator this is EMPTY: press it twice to remove every strain and start an empty dish. Kept specimens and saved dishes are not affected.' },
   'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.', tip: 'In ARENA it places the same founders again, which replays the same history. A dish opened from the Archive goes back to the moment it was saved.' },
-  'pad.save': { t: 'SAVE', d: 'Always stores the body and the rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked. In the Incubator, saves the whole dish: every strain, particle, trail and the broth, under DISHES in the Archive.', tip: 'Saving the same organism again updates its library entry instead of adding a copy. It is named automatically, and you can rename it in the library.' },
+  'pad.save': { t: 'SAVE', d: 'Always stores the body and the rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked. In the Incubator, saves the whole dish: every strain, particle, trail and the broth, under DISHES in the Archive. Saving the same dish again updates its entry and adds a snapshot.', tip: 'Saving the same organism again updates its library entry instead of adding a copy. It is named automatically, and you can rename it in the library.' },
   'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation.' },
   'pad.undo': { t: 'UNDO', d: 'In SOLO, reverses the last settings change. In BATCH, returns to the previous generation. In ARENA, removes the last copy placed and replays the rest. In a dish opened from the Archive, only copies placed since it was opened can be removed.' },
   'pad.load': { t: 'LIBRARY', d: 'Browse all your saved organisms as pictures. Open one, name it, or breed from it.' },
@@ -4287,14 +4323,16 @@ const HELP = {
   'tile.cut': { t: 'CUT', d: 'Puts this slide on the cutting bench in the Incubator, with its bodies outlined, so you can cut one into your specimen deck.', tip: 'Coming back to the Microscope returns you to this tray.' },
   'lib.search': { t: 'SEARCH', d: 'Filters by name, tags, color, species count, or the word hybrid.' },
   'lib.sort': { t: 'SORT', d: 'Newest first, highest LIFE score first, or alphabetical by name.' },
-  'lib.view': { t: 'GRID, TREE, SPECIMENS OR DISHES', d: 'GRID shows every save as a card. TREE shows your family history, with parents on the left and children on the right. SPECIMENS shows living bodies you cut or kept. DISHES shows whole Incubator dishes you saved.' },
+  'lib.view.slides': { t: 'SLIDES', d: 'Every organism you saved from the Microscope, to explore and breed from, as a grid of cards or as your family tree.' },
+  'lib.slides.view': { t: 'GRID OR TREE', d: 'GRID shows every save as a card, sorted as you choose. TREE shows your families, parents on the left and children on the right.', tip: 'In the tree, click a slide to light up its family and get OPEN, CUT and BREED for it at the bottom. Double-click to open it.' },
+  'lib.view.living': { t: 'LIVING', d: 'What lives in the Incubator. SPECIMENS are bodies you cut or kept, ready to place in a dish. DISHES are whole dishes you saved, which open exactly as they were.', tip: 'The number beside each is how many you have.' },
   'lib.life': { t: 'LIFE SCORE', d: 'How this save scored when it was saved, broken down into its parts below.' },
   'lib.specimen': { t: 'SPECIMEN', d: 'A living body cut from a slide, or kept from the Incubator: its particles with their rules, and the trail beneath. A kept body carries every gene its particles evolved.', tip: 'The same specimens are the cards in the specimen deck beside the Incubator dish.' },
   'lib.specimen.add': { t: 'ADD TO ARENA', d: 'Opens the Incubator and lets you place copies of this specimen.' },
-  'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as it was when you pressed SAVE: every strain, particle and gene, the trails, the broth and any reaction field. Below the picture are its strains and their share of it.', tip: 'The size badge is the dish size it was saved at. A saved dish always opens at that size.' },
-  'lib.dish.open': { t: 'OPEN', d: 'Opens this dish in the Incubator exactly as it was saved, and it carries on from there.', tip: 'You can add more specimens to it. REPLAY returns to the moment it was saved, and SAVE keeps it again as a new dish.' },
+  'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as it was when you last pressed SAVE: every strain, particle and gene, the trails, the broth and any reaction field. Below the picture are its strains and their share of it.', tip: 'Point at the picture to watch a snapshot from each save, from the first to the newest. Saving the same dish again keeps one entry with its newest state. The 1×, 1.5× or 2× badge is the dish size, and a saved dish always opens at that size.' },
+  'lib.dish.open': { t: 'OPEN', d: 'Opens this dish in the Incubator exactly as it was last saved, and it carries on from there.', tip: 'You can add more specimens to it. REPLAY returns to its last save, and SAVE updates this entry and adds a snapshot.' },
   'lib.origin': { t: 'ORIGIN', d: 'Which founder lineages the kept particles came from, and their share. A body can hold more than one lineage, like a membrane around another lineage inside it.' },
-  'tree.node': { t: 'FAMILY MEMBER', d: 'Point at it to light up its ancestors and descendants. Click to select it, or double-click to open it.', tip: 'A label like +3 GEN on a line is not a copy. It means 3 generations were bred in between without being saved.' },
+  'tree.node': { t: 'FAMILY MEMBER', d: 'Point at it to light up its ancestors and descendants. Click it to find its card below, or double-click to open it.', tip: 'A label like +3 GEN on a line is not a copy. It means 3 generations were bred in between without being saved.' },
   'lib.file': { t: 'OPEN FILE', d: 'Opens a save from anywhere on your computer.' },
   'lib.thumb': { t: 'OPEN', d: 'Click the picture to open this organism at the moment you saved it.' },
   'lib.keep.body': { t: 'BODY + RULES', d: 'This save holds the grown body itself, so it opens exactly as saved. When you breed from it, children can start inside this body.' },
@@ -4313,6 +4351,8 @@ const HELP = {
   'view.arena': { t: 'ARENA', d: 'A shared world where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to place your SOLO organism, or ADD on a save in the LIBRARY.' },
   'arena.dish': { t: 'DISH SIZE', d: 'How much room the dish has. At 1.5× it holds about 2¼ times as much, and at 2× four times as much. Every specimen keeps its true size, so a larger dish holds more copies, not larger ones.', tip: 'Changing the size places the strains again where they were and starts the run over. Larger dishes need more of the GPU, so the fastest speeds may slow down. Scroll on the dish to zoom in and drag to look around.' },
   'arena.zoom': { t: 'ZOOM', d: 'How far the dish is magnified. Scroll on the dish to zoom toward the pointer, and drag to look around. Click here to see the whole dish again.', tip: 'While placing a specimen, scrolling sizes the copy instead; hold Ctrl or pinch to zoom. IMAGE always saves the whole dish at full size, and CLIP and RECORD film what you see, framed by the porthole and readouts.' },
+  'arena.randomize': { t: 'RANDOMIZE', d: 'Sets FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT at random, more often near the middle of each, and never with so little food that the dish starves.', tip: 'It changes the settings of the dish as it runs. In tests, FOOD below about 0.45 was the one setting that made every dish shrink, so RANDOMIZE keeps it above that.' },
+  'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
   'arena.specimen': { t: 'CIRCLE', d: 'How large a round cut starts: on the cutting bench when no body is found or you click outside the outlined bodies, and for KEEP. Bodies found on the bench are cut along their own outline instead.', tip: 'On the bench, scroll to resize a circle.' },
   bench: { t: 'CUTTING BENCH', d: 'The organism you are adding, with the bodies found in it outlined, best first. Click a body to choose it. Click anywhere else for a circle, and scroll to size it. Everything outside the cut is dimmed.', rows: [['STEADY', 'Out of sight, the organism ran on for 900 more steps, and this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it pulled together, spread or reshaped on its own, so it will keep changing in the dish too.']], tip: 'A body is where particles gather more densely than around it, and keeps together as the threshold loosens. It is cut along its own outline, so passing strands stay behind.' },
   'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle, files it in your specimen deck and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
@@ -4328,9 +4368,6 @@ const HELP = {
   'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Puts the organism you last had in SOLO on the cutting bench, with its bodies outlined, so you can choose what to cut and then place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
   'arena.add.library': { t: 'ADD FROM LIBRARY', d: 'Opens the Library. Press ADD on any save, or switch to SPECIMENS and press ADD TO ARENA on a kept body.' },
   'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight, cuts its best body (or its densest part if it has none) and places it in the most open spot.' },
-  'arena.keep': { t: 'KEEP', d: 'Click a living body in the arena to keep it as a specimen. Everything inside the ring is saved, with every gene it evolved.', tip: 'Kept specimens appear in the Library under SPECIMENS. The ring size follows SPECIMEN.' },
-  'arena.replay': { t: 'REPLAY', d: 'Places the same founders again from the start, which replays exactly the same history. A dish opened from the Archive goes back to the moment it was saved, with any copies placed since placed again.' },
-  'arena.clear': { t: 'CLEAR', d: 'Removes every founder and starts an empty world. Press it twice to confirm.', tip: 'Kept specimens and saved dishes are not affected.' },
   'arena.keepBody': { t: 'KEEP LARGEST BODY', d: "Keeps this lineage's largest body as a specimen, with a ring fitted around it." },
   strength: { t: 'MUTATION', d: 'How different children are from their parents.' },
   'strength.subtle': { t: 'SUBTLE MUTATION', d: 'Small refinements of what you already like.' },
@@ -4446,12 +4483,16 @@ const el = (name, className, text) => {
   if (text) n.textContent = text;
   return n;
 };
-function setHelp(on) {
+// Help can be switched on from the room bar, the Archive's bar, the fullscreen stage, or H anywhere. Every help key
+// shows the same state.
+const helpKeys = () => document.querySelectorAll('#helpToggle, .help-toggle');
+function setHelp(on, from = null) {
   helpOn = on;
   document.body.classList.toggle('help-on', on);
-  $('helpToggle').setAttribute('aria-pressed', String(on));
+  for (const b of helpKeys()) b.setAttribute('aria-pressed', String(on));
   try { localStorage.setItem('dl-help', on ? 'on' : 'off'); } catch { /* the choice just isn't remembered */ }
-  if (on) showHelp($('helpToggle')); else hideHelp();
+  const near = from || (lib.open ? $('libHelp') : document.fullscreenElement ? $('stageHelp') : $('helpToggle'));
+  if (on) showHelp(near); else hideHelp();
 }
 function hideHelp() {
   helpTarget = null;
@@ -4528,7 +4569,7 @@ function initHelp() {
   $('lcd').dataset.help = 'lcd';
   $('sim').dataset.help = 'canvas';
   $('helpToggle').dataset.help = 'help';
-  $('helpToggle').addEventListener('click', e => { setHelp(!helpOn); if (e.detail) e.currentTarget.blur(); });
+  for (const b of helpKeys()) b.addEventListener('click', e => { setHelp(!helpOn, b); if (e.detail) e.currentTarget.blur(); });
   addEventListener('pointerover', e => {
     if (!helpOn) return;
     const target = e.target.closest?.('[data-help]');
@@ -4980,7 +5021,7 @@ async function applySave(d, regrow = true) {
 
 /* ---------- Library ---------- */
 const THUMB = { w: 480, h: 270 };
-const lib = { open: false, loading: false, status: '', dir: null, thumbs: null, items: [], removed: [], sort: 'new', view: 'grid', tree: null, selected: null, query: '', run: 0, sim: null, growth: Promise.resolve() };
+const lib = { open: false, loading: false, status: '', dir: null, thumbs: null, items: [], removed: [], sort: 'new', view: 'slides', slides: 'grid', tree: null, selected: null, query: '', run: 0, sim: null, growth: Promise.resolve() };
 
 async function renderThumb(sim, genome, view) {
   const pixels = await renderPixels([{ sim, genome, view, rect: null }], THUMB.w, THUMB.h);
@@ -5505,7 +5546,7 @@ function selectTreeNode(id) {
     kids ? kids + (kids === 1 ? ' saved child' : ' saved children') : 'No saved children yet',
     node.state === 'missing' ? 'This file is no longer in your saves' : '',
   ].filter(Boolean).join(' · ');
-  $('treeOpen').disabled = $('treeBreed').disabled = node.state !== 'saved';
+  $('treeOpen').disabled = $('treeBreed').disabled = $('treeCut').disabled = node.state !== 'saved';
 }
 function applyTreeSearch() {
   const words = searchWords(), tree = lib.tree;
@@ -5515,17 +5556,29 @@ function applyTreeSearch() {
     b.classList.toggle('faded', words.length > 0 && !(item && libMatches(item, words)));
   }
 }
-function setLibView(view) {
+// The Archive has SLIDES, your saved organisms shown as a grid of cards or as their family tree, and the LIVING things:
+// specimens and dishes.
+function setLibView(view, slides = lib.slides) {
   lib.view = view;
+  lib.slides = slides;
   lib.tree = null;
   lib.selected = null;
+  const onSlides = view === 'slides';
   $('treeBar').hidden = true;
-  $('libGrid').hidden = view !== 'grid';
-  $('libTree').hidden = view !== 'tree';
+  $('slidesBar').hidden = !onSlides;
+  $('libGrid').hidden = !onSlides || slides !== 'grid';
+  $('libTree').hidden = !onSlides || slides !== 'tree';
+  $('libSort').hidden = slides !== 'grid';
   $('specGrid').hidden = view !== 'specimens';
   $('dishGrid').hidden = view !== 'dishes';
-  $('libSort').hidden = view !== 'grid';
   renderLibrary();
+}
+function markView() {
+  const counts = { slides: lib.items.length, specimens: (lib.specimens || []).length, dishes: (lib.dishes || []).length };
+  for (const b of $('libView').querySelectorAll('button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.value === lib.view));
+    b.querySelector('b').textContent = lib.open || counts[b.dataset.value] ? counts[b.dataset.value] : '';
+  }
 }
 function renderLibrary() {
   if (lib.view === 'specimens') { renderSpecimens(); return; }
@@ -5538,12 +5591,14 @@ function renderLibrary() {
   }[lib.sort];
   const shown = lib.items.filter(matches).sort(order);
   $('libGrid').replaceChildren(...shown.map(x => x.card));
-  $('libCount').textContent = (shown.length === lib.items.length ? `${lib.items.length} saved` : `${shown.length} of ${lib.items.length}`) + (lib.note || '');
-  $('libEmpty').hidden = lib.view === 'tree' ? lib.items.length > 0 : shown.length > 0;
+  // The section keys show how many there are, so the count here only appears while a search narrows them.
+  $('libCount').textContent = ((shown.length === lib.items.length ? '' : `${shown.length} of ${lib.items.length}`) + (lib.note || '')).replace(/^ · /, '');
+  $('libEmpty').hidden = lib.slides === 'tree' ? lib.items.length > 0 : shown.length > 0;
   $('libEmpty').textContent = lib.items.length ? 'Nothing matches that search.' : 'No saves yet. Press SAVE on an organism you love and it will appear here.';
   markSeg($('libSort'), lib.sort);
-  markSeg($('libView'), lib.view);
-  if (lib.view === 'tree') {
+  markSeg($('slidesView'), lib.slides);
+  markView();
+  if (lib.slides === 'tree') {
     if (!lib.tree) renderTree();
     applyTreeSearch();
   }
@@ -5649,9 +5704,9 @@ async function openLibrary() {
     if (lib.specimens.duplicates) lib.note += ` · ${lib.specimens.duplicates} duplicate specimen${lib.specimens.duplicates === 1 ? '' : 's'} moved to removed`;
     lib.dishes = await readDishes(dir).catch(e => { console.error(e); return []; });
     lib.dishes.forEach(buildDishCard);
+    if (lib.dishes.folded) lib.note += ` · ${lib.dishes.folded} earlier dish save${lib.dishes.folded === 1 ? '' : 's'} folded into ${lib.dishes.folded === 1 ? 'its dish' : 'their dishes'}`;
     const run = ++lib.run;
     $('libSearch').value = '';
-    $('treeBar').hidden = true;
     kept.forEach(buildCard);
     for (const item of kept) {
       try { setThumb(item, await readFile(await thumbs.getFileHandle(item.key + '.webp'))); }
@@ -5661,7 +5716,8 @@ async function openLibrary() {
     $('library').append($('helpCard'));
     lib.open = true;
     $('library').showModal();
-    renderLibrary();
+    // SLIDES opens on its grid each time.
+    setLibView(lib.view, 'grid');
     if (late) flash(late + ' FILES STILL DOWNLOADING');
     flashIcon('book');
     syncRooms();
@@ -5767,10 +5823,10 @@ function renderSpecimens() {
   const words = searchWords(), list = (lib.specimens || []).filter(x => words.every(w => [x.meta.name, x.meta.formerName || '', x.meta.source?.name || '', ...(x.meta.origin || []).map(o => o.name)].join(' ').toLowerCase().includes(w)));
   $('specGrid').replaceChildren(...list.map(x => x.card));
   const all = (lib.specimens || []).length;
-  $('libCount').textContent = list.length === all ? `${all} ${all === 1 ? 'specimen' : 'specimens'}` : `${list.length} of ${all}`;
+  $('libCount').textContent = list.length === all ? '' : `${list.length} of ${all}`;
   $('libEmpty').hidden = list.length > 0;
   $('libEmpty').textContent = all ? 'Nothing matches that search.' : 'No specimens yet. Press CUT on a save to cut a body from it, or in the Incubator press KEEP and click a living body.';
-  markSeg($('libView'), lib.view);
+  markView();
 }
 async function useSpecimen(item) {
   closeLibrary();
@@ -5790,30 +5846,98 @@ async function useSpecimen(item) {
 async function readDishes(dir) {
   const store = await dir.getDirectoryHandle('dishes').catch(e => { if (e.name === 'NotFoundError') return null; throw e; });
   if (!store) return [];
-  const out = [];
+  let out = [];
   for await (const [name, handle] of store.entries()) {
     if (handle.kind !== 'file' || !name.endsWith('.json')) continue;
     try {
       const meta = JSON.parse(await readText(handle));
       if (meta.format !== 'digital-life-dish' || !DISHES[meta.dish] || !Array.isArray(meta.founders)) continue;
-      const item = { name, handle, meta, key: name.slice(0, -5), store, url: null, card: null };
-      try { item.url = URL.createObjectURL(await readFile(await store.getFileHandle(item.key + '.webp'))); } catch { /* no picture */ }
-      out.push(item);
+      out.push({ name, handle, meta, key: name.slice(0, -5), store, url: null, card: null });
     } catch { /* a damaged file just won't appear */ }
   }
-  return out.sort((a, b) => new Date(b.meta.createdAt) - new Date(a.meta.createdAt));
+  let folded = 0;
+  try { folded = await foldDishes(dir, store, out); } catch (e) { console.error(e); }
+  out = out.filter(x => !x.folded);
+  for (const item of out) try { item.url = URL.createObjectURL(await readFile(await store.getFileHandle(item.key + '.webp'))); } catch { /* no picture */ }
+  out.sort((a, b) => saveTime(b.meta) - saveTime(a.meta));
+  out.folded = folded;
+  return out;
+}
+/* Dishes saved before each dish had one entry: a dish saved several times left an entry for each save. They are one
+   dish when they share their size and random seed, which is set when a dish is emptied and kept through every save
+   and reopening. They fold into the newest entry, which keeps the first one's name and gains a round snapshot from each;
+   the older entries move to the removed folder. An entry from before snapshots gets one from its picture. */
+async function foldDishes(dir, store, items) {
+  const write = async (name, data) => { const w = await (await store.getFileHandle(name, { create: true })).createWritable(); await w.write(data); await w.close(); };
+  for (const item of items) {
+    if (Array.isArray(item.meta.snapshots)) continue;
+    item.meta.snapshots = [];
+    try {
+      const bmp = await createImageBitmap(await readFile(await store.getFileHandle(item.key + '.webp'))), side = Math.min(bmp.width, bmp.height);
+      const round = await roundPicture(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side), file = `${item.key}.s${item.meta.step}.webp`;
+      bmp.close();
+      await write(file, round);
+      await write(item.key + '.webp', round);
+      item.meta.snapshots.push({ step: item.meta.step, createdAt: item.meta.createdAt, file });
+    } catch { /* no picture to start from */ }
+    item.changed = true;
+  }
+  const groups = new Map();
+  for (const item of items) { const k = item.meta.dish + ':' + item.meta.seed; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(item); }
+  let folded = 0;
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => saveTime(a.meta) - saveTime(b.meta));
+    const first = group[0], keep = group.at(-1), m = keep.meta, seen = new Set();
+    m.snapshots = group.flatMap(x => x.meta.snapshots).sort((a, b) => a.step - b.step).filter(x => !seen.has(x.step) && seen.add(x.step));
+    Object.assign(m, { name: first.meta.name, createdAt: first.meta.createdAt, updatedAt: m.updatedAt || m.createdAt });
+    if (first.meta.formerName) m.formerName = first.meta.formerName;
+    keep.changed = true;
+    for (const item of group.slice(0, -1)) {
+      await removeStored(item, 'dishes', ['.json', '.dldish', '.webp'], dir);
+      item.folded = true;
+      folded++;
+    }
+  }
+  for (const item of items) if (item.changed && !item.folded) await writeJson(item.handle, item.meta);
+  return folded;
 }
 function buildDishCard(item) {
-  const m = item.meta, card = el('article', 'lib-card'), thumb = el('div', 'lib-thumb'), img = el('img');
+  const m = item.meta, card = el('article', 'lib-card'), thumb = el('div', 'lib-thumb round'), img = el('img');
   img.alt = '';
   img.hidden = !item.url;
   if (item.url) img.src = item.url;
-  thumb.append(img, el('span', 'chip keep body', `${DISHES[m.dish].label} DISH`));
+  const stage = el('span', 'chip'), shots = m.snapshots || [];
+  stage.textContent = 'STEP ' + kilo(m.step) + (shots.length > 1 ? ` · ${shots.length} SAVES` : '');
+  thumb.append(img, stage, el('span', 'chip keep body', `${DISHES[m.dish].label} DISH`));
   thumb.dataset.help = 'lib.dish';
+  // Pointing at the picture plays the dish's snapshots from its first save to its newest, then holds on the newest.
+  let playing = 0;
+  thumb.addEventListener('pointerenter', async () => {
+    if (shots.length < 2 || playing) return;
+    playing = -1;
+    if (!item.snapUrls) item.snapUrls = await Promise.all(shots.map(x => item.store.getFileHandle(x.file).then(readFile).then(b => URL.createObjectURL(b), () => null)));
+    if (playing !== -1) return;
+    let k = 0;
+    const show = () => {
+      const at = k % (shots.length + 2), i = Math.min(at, shots.length - 1);
+      if (item.snapUrls[i]) img.src = item.snapUrls[i];
+      stage.textContent = `STEP ${kilo(shots[i].step)} · ${i + 1} OF ${shots.length}`;
+      k++;
+    };
+    show();
+    playing = setInterval(show, 650);
+  });
+  thumb.addEventListener('pointerleave', () => {
+    if (playing > 0) clearInterval(playing);
+    playing = 0;
+    if (item.url) img.src = item.url;
+    stage.textContent = 'STEP ' + kilo(m.step) + (shots.length > 1 ? ` · ${shots.length} SAVES` : '');
+  });
   const info = el('div', 'lib-info'), stats = el('div', 'lib-stats'), origin = el('div', 'lib-origin');
   const row = (label, value) => stats.append(el('b', '', label), el('span', '', value));
-  const when = new Date(m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  row('SAVED', `step ${kilo(m.step)} · ${when}`);
+  const when = new Date(m.updatedAt || m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  row('SAVED', shots.length > 1 ? `${shots.length} times · last ${when}` : when);
   row('DISH', `${DISHES[m.dish].label} · ${kilo(m.particles)} of ${m.agents >= 1e6 ? +(m.agents / 1e6).toFixed(1) + 'M' : kilo(m.agents)} places`);
   row('STRAINS', `${m.strains.filter(x => x.particles).length} living of ${m.strains.length} · ${m.bodies} ${m.bodies === 1 ? 'body' : 'bodies'}`);
   if (Number.isFinite(m.food)) row('BROTH', Math.round(m.food * 100) + '%');
@@ -5832,7 +5956,7 @@ function buildDishCard(item) {
   open.addEventListener('click', () => openDish(item));
   let armed = 0;
   remove.addEventListener('click', () => {
-    if (armed) { clearTimeout(armed); removeStored(item, 'dishes', ['.json', '.dldish', '.webp']).then(() => { lib.dishes = lib.dishes.filter(x => x !== item); renderLibrary(); }).catch(e => { console.error(e); remove.textContent = 'FAILED'; }); return; }
+    if (armed) { clearTimeout(armed); removeStored(item, 'dishes', ['.json', '.dldish', '.webp'], lib.dir, (m.snapshots || []).map(x => x.file)).then(() => { lib.dishes = lib.dishes.filter(x => x !== item); renderLibrary(); }).catch(e => { console.error(e); remove.textContent = 'FAILED'; }); return; }
     remove.classList.add('armed');
     remove.textContent = 'SURE?';
     armed = setTimeout(() => { armed = 0; remove.classList.remove('armed'); remove.textContent = 'REMOVE'; }, 3000);
@@ -5848,20 +5972,20 @@ function renderDishes() {
   const words = searchWords(), list = (lib.dishes || []).filter(x => words.every(w => [x.meta.name, x.meta.formerName || '', ...x.meta.strains.map(s => s.name)].join(' ').toLowerCase().includes(w)));
   $('dishGrid').replaceChildren(...list.map(x => x.card));
   const all = (lib.dishes || []).length;
-  $('libCount').textContent = list.length === all ? `${all} ${all === 1 ? 'dish' : 'dishes'}` : `${list.length} of ${all}`;
+  $('libCount').textContent = list.length === all ? '' : `${list.length} of ${all}`;
   $('libEmpty').hidden = list.length > 0;
   $('libEmpty').textContent = all ? 'Nothing matches that search.' : 'No dishes yet. In the Incubator, press SAVE to keep the whole dish as it is, every strain and trail, and it will appear here.';
-  markSeg($('libView'), lib.view);
+  markView();
 }
 // Removed specimens and dishes move to the "removed" folder like saves, so they can be brought back.
-async function removeStored(item, kind, extensions, dir = lib.dir) {
+async function removeStored(item, kind, extensions, dir = lib.dir, files = []) {
   const bin = await (await dir.getDirectoryHandle('removed', { create: true })).getDirectoryHandle(kind, { create: true });
-  for (const ext of extensions) {
+  for (const name of [...extensions.map(ext => item.key + ext), ...files]) {
     try {
-      const source = await item.store.getFileHandle(item.key + ext), w = await (await bin.getFileHandle(item.key + ext, { create: true })).createWritable();
+      const source = await item.store.getFileHandle(name), w = await (await bin.getFileHandle(name, { create: true })).createWritable();
       await w.write(await source.getFile());
       await w.close();
-      await item.store.removeEntry(item.key + ext);
+      await item.store.removeEntry(name);
     } catch (e) { if (e.name !== 'NotFoundError') throw e; }
   }
 }
@@ -5872,7 +5996,7 @@ async function removeSpecimen(item) {
 }
 function libraryClosed() {
   const items = lib.items, removed = lib.removed;
-  [...(lib.specimens || []), ...(lib.dishes || [])].forEach(x => { if (x.url) URL.revokeObjectURL(x.url); });
+  [...(lib.specimens || []), ...(lib.dishes || [])].forEach(x => { if (x.url) URL.revokeObjectURL(x.url); (x.snapUrls || []).forEach(u => u && URL.revokeObjectURL(u)); });
   lib.specimens = [];
   lib.dishes = [];
   lib.open = false;
@@ -5933,6 +6057,18 @@ const ARENA_PARAMS = [
   { k:'homeo',  label:'HOMEOSTASIS', min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
   { k:'drift',  label:'GENE DRIFT',  min:0,  max:1, step:.01, def:.35, fmt:v=>v.toFixed(2) },
 ];
+/* RANDOMIZE draws each of the settings above from a range where dishes were seen to live, more often near its middle
+   (the average of two random numbers). FOOD is the one that kills: with less than about 0.45, every dish tried was
+   shrinking, so food is drawn from 0.45 up (docs/RESEARCH.md, "Random settings that keep a dish alive"). */
+const SAFE_SETTINGS = { food: [.45, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65] };
+function safeSettings(rf = Math.random) {
+  return Object.fromEntries(ARENA_PARAMS.map(p => { const [lo, hi] = SAFE_SETTINGS[p.k]; return [p.k, snapTo(lo + (rf() + rf()) / 2 * (hi - lo), p)]; }));
+}
+function setArenaSettings(values, message) {
+  Object.assign(arena.params, values);
+  syncUi();
+  flash(message);
+}
 const arena = {
   sim: null, d: null, dish: 's', seed: newSeed(), founders: [], params: defaults(ARENA_PARAMS), size: 'm', fcur: 0, busy: false,
   placing: null, keeping: false, history: [], census: null, censusPending: false, nextCensusAt: 0, channels: [], task: '',
@@ -5940,6 +6076,7 @@ const arena = {
   lit: -1, glow: 0, glowLineage: -1, // The strain pointed at in the list, and how far its highlight has faded in.
   zoom: { ...WHOLE }, // The part of the dish shown: its middle, as fractions of the picture, and how far it is magnified.
   origin: null, // A dish opened from the Archive: its file and how many of the strains came with it. REPLAY returns to it.
+  dishId: null, // The Archive entry this dish saves into, once it has been saved or opened.
 };
 // Fades the highlight in and out, and marks where the highlighted strain's particles are for this frame.
 function markStrain(enc, dt) {
@@ -6038,6 +6175,7 @@ async function setDishSize(key) {
   if (arena.origin) { flash('A SAVED DISH KEEPS ITS SIZE'); syncUi(); return; }
   const old = arena.sim?.q, offsets = old ? arena.founders.map(f => f.spots.map(p => [(p.x - .5) * old.w, (p.y - .5) * old.h])) : [];
   arena.dish = key;
+  arena.dishId = null; // A dish of another size is a new dish.
   ensureArena();
   const { w, h } = arena.sim.q;
   arena.founders.forEach((f, i) => f.spots.forEach((p, k) => {
@@ -7225,26 +7363,24 @@ async function arenaUndo() {
   flash('REMOVED LAST COPY');
 }
 // Clearing asks twice, from the EMPTY pad or the CLEAR button, because the founders and their history are gone after.
+// Emptying asks twice: the EMPTY pad turns to SURE? for a moment.
 function arenaClear() {
   if (arena.busy) return;
-  const button = $('arenaWorld').querySelector('[data-do=clear]');
   if (!arena.clearArmed) {
     flash('PRESS AGAIN TO CLEAR');
-    button.textContent = 'SURE?';
-    button.classList.add('armed');
-    arena.clearArmed = setTimeout(() => { arena.clearArmed = 0; button.textContent = 'CLEAR'; button.classList.remove('armed'); }, 2500);
+    arena.clearArmed = setTimeout(() => { arena.clearArmed = 0; syncUi(); }, 2500);
+    syncUi();
     return;
   }
   clearTimeout(arena.clearArmed);
   arena.clearArmed = 0;
-  button.textContent = 'CLEAR';
-  button.classList.remove('armed');
   arena.founders = [];
   arena.rows = null;
   arena.open = -1;
   arena.placing = null;
   arena.keeping = false;
   arena.origin = null;
+  arena.dishId = null;
   arena.seed = newSeed();
   arenaChemistry();
   resetArena();
@@ -7795,14 +7931,20 @@ async function packDish(id) {
   };
   return { meta, parts };
 }
-// A picture of the whole dish for its card.
-async function dishThumb() {
-  const W = 1920, H = 1080, pixels = await renderPixels([{ sim: arena.sim, genome: arenaGenome, rect: null }], W, H);
-  const full = new OffscreenCanvas(W, H), out = new OffscreenCanvas(THUMB.w, THUMB.h), c = out.getContext('2d');
-  full.getContext('2d').putImageData(new ImageData(pixels, W, H), 0, 0);
+// A round snapshot of the whole dish, as seen through its porthole, for its card.
+const SNAPSHOT = 320;
+async function roundPicture(source, sx, sy, side) {
+  const out = new OffscreenCanvas(SNAPSHOT, SNAPSHOT), c = out.getContext('2d');
+  c.beginPath(); c.arc(SNAPSHOT / 2, SNAPSHOT / 2, SNAPSHOT / 2, 0, Math.PI * 2); c.clip();
   c.imageSmoothingQuality = 'high';
-  c.drawImage(full, 0, 0, THUMB.w, THUMB.h);
+  c.drawImage(source, sx, sy, side, side, 0, 0, SNAPSHOT, SNAPSHOT);
   return out.convertToBlob({ type: 'image/webp', quality: .86 });
+}
+async function dishSnapshot() {
+  const W = 1920, H = 1080, pixels = await renderPixels([{ sim: arena.sim, genome: arenaGenome, rect: null }], W, H);
+  const full = new OffscreenCanvas(W, H);
+  full.getContext('2d').putImageData(new ImageData(pixels, W, H), 0, 0);
+  return roundPicture(full, (W - H) / 2, 0, H);
 }
 async function saveDish() {
   if (!arena.sim || arena.busy || arena.bench || capture) return;
@@ -7811,17 +7953,29 @@ async function saveDish() {
   const dir = await savesFolder();
   if (!dir) { flash('SAVE CANCELLED'); return; }
   const meta = await arenaWork('SAVING DISH', async () => {
-    const id = `dish-${timeStamp(new Date())}-${hashText([arena.seed, arena.sim.step, arena.founders.length, Date.now()].join()).toLowerCase()}`;
-    const { meta, parts } = await packDish(id), thumb = await dishThumb();
     const store = await dir.getDirectoryHandle('dishes', { create: true }), open = async name => (await store.getFileHandle(name, { create: true })).createWritable();
-    // The description goes last, so a dish only shows in the Archive once all of it is written.
+    // A dish saved before, in this session or since it was opened, is saved over: only its newest state is kept. Each
+    // save adds a round snapshot, so its card can show how it grew.
+    let before = null;
+    if (arena.dishId) try { before = JSON.parse(await readText(await store.getFileHandle(arena.dishId + '.json'))); } catch { before = null; }
+    const id = before ? arena.dishId : `dish-${timeStamp(new Date())}-${hashText([arena.seed, arena.sim.step, arena.founders.length, Date.now()].join()).toLowerCase()}`;
+    const { meta, parts } = await packDish(id), snapshot = await dishSnapshot(), now = meta.createdAt;
+    const snapshots = (before?.snapshots || []).filter(x => x.step !== meta.step);
+    snapshots.push({ step: meta.step, createdAt: now, file: `${id}.s${meta.step}.webp` });
+    if (before) Object.assign(meta, { name: before.name, createdAt: before.createdAt, updatedAt: now, ...(before.formerName ? { formerName: before.formerName } : {}) });
+    meta.snapshots = snapshots;
+    // Each file is swapped in whole when it closes, and the description goes last, so a dish only shows in the Archive
+    // once all of it is written, and a save that fails leaves the one before.
     await new Blob(parts).stream().pipeThrough(new CompressionStream('gzip')).pipeTo(await open(id + '.dldish'));
-    let w = await open(id + '.webp'); await w.write(thumb); await w.close();
-    w = await open(id + '.json'); await w.write(JSON.stringify(meta, null, 2)); await w.close();
+    for (const name of [snapshots.at(-1).file, id + '.webp']) { const w = await open(name); await w.write(snapshot); await w.close(); }
+    const w = await open(id + '.json'); await w.write(JSON.stringify(meta, null, 2)); await w.close();
+    arena.dishId = id;
+    // A dish opened from the Archive now replays from this save.
+    if (arena.origin) arena.origin = { meta, file: await (await store.getFileHandle(id + '.dldish')).getFile(), founders: arena.founders.length };
     return meta;
   });
   if (!meta) return;
-  flash('DISH SAVED');
+  flash(meta.snapshots.length > 1 ? `DISH SAVED · ${meta.snapshots.length} SNAPSHOTS` : 'DISH SAVED');
   flashIcon('save');
 }
 /* Puts a saved dish back. A strain that came with the dish keeps its name, color, chemistry and size limit, but not the
@@ -7872,6 +8026,7 @@ async function openDish(item) {
   if (arena.keeping) cancelKeeping();
   const done = await arenaWork('OPENING DISH', async () => {
     await restoreDish(item.meta, await (await item.store.getFileHandle(item.key + '.dldish')).getFile());
+    arena.dishId = item.meta.id || item.key;
     return true;
   });
   if (!done) return;
@@ -8926,9 +9081,10 @@ function syncUi() {
   // A dish opened from the Archive keeps the size it was saved at.
   for (const b of $('segDish').children) b.disabled = arena.busy || (!!arena.origin && b.dataset.value !== arena.dish);
   syncZoom();
-  $('arenaWorld').querySelector('[data-do=keep]').setAttribute('aria-pressed', String(arena.keeping));
-  for (const b of [...$('arenaAdd').children, ...$('arenaWorld').children]) b.disabled = arena.busy;
-  setDots($('rerollLabel'), inArena ? 'EMPTY' : 'REROLL');
+  for (const b of $('arenaAdd').children) b.disabled = arena.busy;
+  $('cutPad').setAttribute('aria-pressed', String(inArena && arena.keeping));
+  document.querySelector('.pad[data-act=reroll]').classList.toggle('armed', inArena && !!arena.clearArmed);
+  setDots($('rerollLabel'), inArena ? (arena.clearArmed ? 'SURE?' : 'EMPTY') : 'REROLL');
   $('savePad').disabled = inArena && (arena.busy || !!arena.bench || !arena.founders.length);
   // CUT takes a specimen from what is on screen. In the Incubator that is KEEP: a living body cut out of the dish.
   setDots($('cutLabel'), inArena ? 'KEEP' : 'CUT');
@@ -9067,6 +9223,12 @@ function initUi() {
   segmented($('segInherit'), Object.entries(INHERIT_MODES), v => { st.inherit = v; syncUi(); drawLcd(); flash('PASS ON ' + INHERIT_MODES[v]); });
   segmented($('segSpecimen'), [['s', 'SMALL'], ['m', 'MEDIUM'], ['l', 'LARGE']], v => { arena.size = v; syncUi(); });
   segmented($('segDish'), Object.entries(DISHES).map(([k, d]) => [k, d.label]), setDishSize);
+  for (const b of $('arenaSettings').children) b.addEventListener('click', e => {
+    if (e.detail) b.blur();
+    if (b.dataset.do === 'random') {
+      setArenaSettings(safeSettings(), 'RANDOM SETTINGS');
+    } else setArenaSettings(defaults(ARENA_PARAMS), 'DEFAULT SETTINGS');
+  });
   ARENA_PARAMS.forEach(p => {
     makeSlider($('arenaSliders'), p, () => arena.params);
     $('arenaSliders').lastElementChild.dataset.help = 'arena.' + p.k;
@@ -9162,12 +9324,6 @@ function initUi() {
     else if (b.dataset.add === 'library') openLibrary();
     else arenaRandom();
   });
-  for (const b of $('arenaWorld').children) b.addEventListener('click', e => {
-    if (e.detail) b.blur();
-    if (b.dataset.do === 'keep') arena.keeping ? cancelKeeping() : beginKeeping();
-    else if (b.dataset.do === 'replay') actions.replay();
-    else arenaClear();
-  });
   segmented($('segChart'), [['bodies', 'BODIES'], ['particles', 'PARTICLES']], v => { arena.chart = v; renderArenaPanel(); });
   segmented($('segLife'), Object.entries(LIFE_MODES), setLifeMode);
   segmented($('segTab'), Object.entries(TABS).map(([k, [label]]) => [k, label]), v => { activeTab = v; syncUi(); });
@@ -9202,7 +9358,8 @@ function initUi() {
   $('libFile').addEventListener('click', () => { closeLibrary(); loadSave(); });
   $('libClose').addEventListener('click', closeLibrary);
   $('library').addEventListener('close', libraryClosed);
-  segmented($('libView'), [['grid', 'GRID'], ['tree', 'TREE'], ['specimens', 'SPECIMENS'], ['dishes', 'DISHES']], setLibView);
+  for (const b of $('libView').querySelectorAll('button')) b.addEventListener('click', e => { setLibView(b.dataset.value); if (e.detail) b.blur(); });
+  segmented($('slidesView'), [['grid', 'GRID'], ['tree', 'TREE']], v => setLibView('slides', v));
   const selectedItem = () => { const node = lib.tree?.nodes.get(lib.selected); return node?.state === 'saved' ? node.entry.item : null; };
   $('treeOpen').addEventListener('click', () => { const item = selectedItem(); if (item) useSave(item, false); });
   $('treeBreed').addEventListener('click', () => { const item = selectedItem(); if (item) useSave(item, true); });

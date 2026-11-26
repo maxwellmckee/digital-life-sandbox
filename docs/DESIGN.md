@@ -54,7 +54,7 @@ An earlier version sent motes of light crawling around the edges of controls and
 |---|---|---|---|
 | Microscope | SOLO and BATCH | A glass slide with corner brackets, scale bar and label. BATCH is a tray of nine slides, each with its own brackets and frosted SLIDE label | Clinical, bright, focused |
 | Incubator | Arena | A round porthole in dark machinery with readouts around the rim | Warm, alive, slightly dangerous |
-| Archive | Library | Drawers of photographs, the family chart, specimen files, saved dishes | Quiet, cold, orderly |
+| Archive | Library | SLIDES: the family chart above drawers of photographs. LIVING: specimen files and saved dishes | Quiet, cold, orderly |
 
 Rooms are chosen from the room bar at the top of the screen. Each room shows only the controls it needs.
 
@@ -72,7 +72,8 @@ Rooms are chosen from the room bar at the top of the screen. Each room shows onl
 - **Specimen deck:** a card file standing to the right of the dish. The card in front is full size and the rest stand behind it above and below, smaller and tilted back, with a gap between each. Scrolling flips one card per notch. The cards move only while you scroll, and only briefly, so the rule below still holds.
 - **History display:** the Incubator's chart is an LED bar display. Each column of dots is a moment, stacked in each strain's color, and unlit dots stay faintly visible.
 - **Zoom key:** while the dish is magnified, a small key in the machinery below the readouts shows how far, such as `×3.3 · SHOW ALL`, and returns to the whole dish. The porthole stays put; only what is seen through it moves, as under a real lens.
-- **Dish cards:** a saved dish's card in the Archive shows the whole dish, a size badge, its step, its strains with their color and share, and OPEN and REMOVE, like a specimen file.
+- **Archive sections:** SLIDES, the explorer's shelf, is a plain outlined key on its own, with a GRID / TREE switch on a bar of its own beneath the top bar. SPECIMENS and DISHES sit together in a lit well labelled LIVING, each with a small status light and its count, because they are what is alive in the lab. Nothing pulses: the lights are steady.
+- **Dish cards:** a saved dish is shown round, as through its porthole, with its step, a size badge, its strains with their color and share, and OPEN and REMOVE. Pointing at the picture plays its snapshots from the first save to the newest; like the deck, it moves only while you point at it.
 - **Strain highlight:** the dish rests calmly, with a soft bloom. Pointing at a strain in the list lifts its trails to full glow and dims the others, and its dots stay bright on the history display. Moving away returns the dish to rest.
 
 ## Pixel icons
