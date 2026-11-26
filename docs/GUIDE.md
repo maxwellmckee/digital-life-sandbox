@@ -5,7 +5,7 @@ works inside, see [ARCHITECTURE.md](ARCHITECTURE.md); for the science, [RESEARCH
 
 ## The three rooms
 
-<p align="center"><img src="screenshots/incubator-room.webp" alt="The Incubator room: a 2× dish of green broth inside a ringed porthole holding eighteen copies of two organisms, four round cell-filled bodies and fourteen glowing leaf-shaped ones, large and small, with dot-matrix readouts on the left, a deck of specimen cards standing beside the dish, and the dark control console on the right with the DISH switch set to 2×" width="80%"></p>
+<p align="center"><img src="screenshots/incubator-room.webp" alt="The Incubator room showing Consortium L-848, a 2× dish of thirteen strains: pink and yellow rings, a chain of golden cells, glowing blue nuclei in green chambers and long white membranes, inside a ringed porthole, with readouts on the left, the specimen deck beside the dish and the control console on the right" width="80%"></p>
 
 You work the night shift in a culture lab (the story is in [WORLD.md](WORLD.md)). The room bar at the top of the screen moves between three rooms:
 
@@ -97,7 +97,7 @@ Breeding never changes a save file. Children are new organisms until you save th
 
 ## The Incubator
 
-<p align="center"><img src="screenshots/incubator-zoom.webp" alt="The Incubator zoomed in 3.3 times on a 2× dish: a cell-filled round body with a membrane and tail, beside a leaf-shaped body with green, pink and white rims, seen through the round porthole with the SHOW ALL key at the bottom left" width="80%"></p>
+<p align="center"><img src="screenshots/incubator-cells.webp" alt="The Incubator zoomed in 2.4 times on Consortium L-848: a chain of golden cell walls around glowing blue nuclei, among green chambers, with a bright white ring at the right and the SHOW ALL key at the bottom left" width="80%"></p>
 
 The two pages are two levels of selection. In Solo and Batch you choose bodies for their structure. In the Incubator, specimens of those bodies compete for food, and only the ones that can sustain themselves last.
 

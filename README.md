@@ -29,18 +29,18 @@ life that holds together as individuals.
 
 ## The lab
 
-<p align="center"><img src="docs/screenshots/incubator-room.webp" alt="The Incubator room: a 2× dish of green broth inside a ringed porthole holding eighteen copies of two organisms, four round cell-filled bodies and fourteen glowing leaf-shaped ones, large and small, with dot-matrix readouts on the left, a deck of specimen cards standing beside the dish, and the dark control console on the right with the DISH switch set to 2×" width="80%"></p>
+<p align="center"><img src="docs/screenshots/incubator-room.webp" alt="The Incubator room showing Consortium L-848, a 2× dish of thirteen strains at step 52,000: pink and yellow rings, a chain of golden cells, glowing blue nuclei in green chambers and long white membranes, inside a ringed porthole, with dot-matrix readouts on the left, the specimen deck beside the dish and the control console on the right" width="80%"></p>
 
 <table>
   <tr>
     <td><img src="docs/screenshots/cutting-bench.webp" alt="The cutting bench with six bodies of an organism outlined, one ring-shaped body chosen" width="100%"></td>
-    <td><img src="docs/screenshots/incubator-zoom.webp" alt="The Incubator zoomed in on a cell-filled body and a leaf-shaped body" width="100%"></td>
-    <td><img src="docs/screenshots/archive-dishes.webp" alt="The Archive's DISHES view: three saved dishes shown round, each with its strains and saves" width="100%"></td>
+    <td><img src="docs/screenshots/incubator-zoom.webp" alt="A close-up of Consortium L-743 at step 144,000: a glowing square body with a small ring inside, in a maze of magenta and orange trails" width="100%"></td>
+    <td><img src="docs/screenshots/archive-dishes.webp" alt="The Archive's DISHES view: five saved dishes shown round, each with its step, size, strains and saves" width="100%"></td>
   </tr>
   <tr>
     <td align="center"><em>Cutting a body</em></td>
-    <td align="center"><em>Zoomed into a dish</em></td>
-    <td align="center"><em>Saved dishes</em></td>
+    <td align="center"><em>A square body in Consortium L-743</em></td>
+    <td align="center"><em>Saved dishes in the Archive</em></td>
   </tr>
 </table>
 
