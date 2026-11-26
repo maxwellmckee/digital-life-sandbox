@@ -156,13 +156,17 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 #cellLayer[hidden]{display:none}
 #cellTop{display:flex;flex-direction:column;gap:6px;margin:2px 0 10px}
 #cellTop[hidden]{display:none}
-.cell-row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;padding:6px 8px;border-radius:7px;background:#0b1719;box-shadow:inset 0 0 0 1px #86dcc322}
+.cell-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;align-items:center;height:44px;box-sizing:border-box;padding:6px 8px;border-radius:7px;background:#0b1719;box-shadow:inset 0 0 0 1px #86dcc322}
 .cell-row.green{box-shadow:inset 0 0 0 1px #5dff9a66}
-.cell-head{display:flex;gap:8px;align-items:baseline;padding:0;border:0;background:none;color:var(--ink);font:inherit;cursor:pointer;text-align:left}
+.cell-row.lit{background:#10272a;box-shadow:inset 0 0 0 1px #9ff5dc88}
+.cell-row.empty,.cell-row.gone{background:transparent;box-shadow:inset 0 0 0 1px #86dcc314}
+.cell-row.empty .cell-head,.cell-row.gone .cell-head{cursor:default}
+.cell-row.empty b,.cell-row.empty span,.cell-row.gone b,.cell-row.gone span{color:#4f6965}
+.cell-head{display:flex;gap:8px;align-items:baseline;min-width:0;padding:0;border:0;background:none;color:var(--ink);font:inherit;cursor:pointer;text-align:left;white-space:nowrap}
 .cell-head b{color:#e8f7f2}
 .cell-row.green .cell-head b{color:#5dff9a}
 .cell-head span{color:#8fbfb3}
-.cell-row small{grid-column:1;color:#6f8d88;font-size:9.5px}
+.cell-row small{grid-column:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#6f8d88;font-size:9.5px}
 .cell-keep{grid-column:2;grid-row:1 / span 2;padding:4px 8px;border:0;border-radius:5px;background:#113032;color:var(--lumen);font:inherit;font-size:9.5px;cursor:pointer}
 .cell-keep:disabled{opacity:.4;cursor:default}
 #brushLayer{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}
@@ -611,13 +615,13 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         <button type="button" data-add="wild" data-help="arena.add.wild">WILD</button>
       </div></div>
       <div class="row wide"><span>DISH</span><div class="seg" id="segDish"></div></div>
-      <div class="row wide"><span>CELLS</span><div class="seg" id="segCells"></div></div>
-      <div id="cellTop" hidden></div>
       <div class="row wide"><span>SETTINGS</span><div class="seg" id="arenaSettings">
         <button type="button" data-do="random" data-help="arena.randomize">RANDOMIZE</button>
         <button type="button" data-do="default" data-help="arena.defaults">DEFAULT</button>
       </div></div>
       <div id="arenaSliders"></div>
+      <div class="row wide"><span>CELLS</span><div class="seg" id="segCells"></div></div>
+      <div id="cellTop" hidden></div>
       <div class="row wide"><span>CHART</span><div class="seg" id="segChart"></div></div>
       <canvas id="arenaChart" data-help="arena.chart"></canvas>
       <div id="arenaFounders"></div>
@@ -4438,7 +4442,7 @@ const HELP = {
   'arena.dish': { t: 'DISH SIZE', d: 'How much room the dish has. At 1.5× it holds about 2¼ times as much, and at 2× four times as much. Every specimen keeps its true size, so a larger dish holds more copies, not larger ones.', tip: 'Changing the size places the strains again where they were and starts the run over. Larger dishes need more of the GPU, so the fastest speeds may slow down. Scroll on the dish to zoom in and drag to look around.' },
   'arena.zoom': { t: 'ZOOM', d: 'How far the dish is magnified. Scroll on the dish to zoom toward the pointer, and drag to look around. Click here to see the whole dish again.', tip: 'While placing a specimen, scrolling sizes the copy instead; hold Ctrl or pinch to zoom. IMAGE always saves the whole dish at full size, and CLIP and RECORD film what you see, framed by the porthole and readouts.' },
   'arena.cells': { t: 'CELLS', d: 'Cells are structures nobody placed: closed membranes that form in the dish around a living inside. SHOW puts a box over each one scoring 25% or more, with its name and score. A box turns green for an EU cell (one with a body inside, like a nucleus) scoring 80% or more.', tip: 'The score multiplies five parts: a closed wall, an outline that holds and keeps its particles in, particles that keep moving inside, bodies and several strains inside, and age. The dish looks every 150 steps and keeps following its cells whether or not they are shown.' },
-  'arena.cellTop': { t: 'BEST CELLS', d: 'The dish\'s three best cells: name, score, how long each has lasted, and the strains living inside. Click one to zoom to it.', tip: 'EU cells hold a body inside them; PR cells do not. The number is the order the dish first saw them in.' },
+  'arena.cellTop': { t: 'BEST CELLS', d: 'The dish\'s three best cells: name, score, how long each has lasted, and the strains living inside. Point at one to light it up in the dish; click it to zoom to it. While you point at the list it holds its order, so KEEP CELL takes the cell you aimed at.', tip: 'EU cells hold a body inside them; PR cells do not. The number is the order the dish first saw them in.' },
   'cell.keep': { t: 'KEEP CELL', d: 'Cuts this cell along its own outline, with every gene its particles evolved, and files it as a specimen. The Archive marks it as a cell, with its score and age.' },
   'arena.randomize': { t: 'RANDOMIZE', d: 'Sets FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT at random, more often near the middle of each, and never with so little food that the dish starves.', tip: 'It changes the settings of the dish as it runs. In tests, FOOD below about 0.45 was the one setting that made every dish shrink, so RANDOMIZE keeps it above that.' },
   'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
@@ -8033,7 +8037,7 @@ const CELLS = {
   every: 150, cell: 8, levels: [.15, .25, .35, .45, .55, .65, .75, .85], needLevels: 3,
   minArea: 16, maxShare: .08, compact: .25, sample: 131072, recent: 6, lostAfter: 3, ageScale: 1500, green: .8, showFrom: .25,
 };
-const cellScope = { on: false, pending: false, nextStep: 0, tracks: [], next: 1, gpu: null, grid: null, prevSample: null, step: 0 };
+const cellScope = { on: false, pending: false, nextStep: 0, tracks: [], next: 1, gpu: null, grid: null, prevSample: null, step: 0, listed: [], held: false, lit: null };
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]], N8 = [...N4, [1, 1], [1, -1], [-1, 1], [-1, -1]];
 // A grid of squares with the ones inside a circle of radius R (in squares) marked as glass. The grid's outer squares
 // are never glass, so a glass square's neighbors are always on the grid; o4 and o8 are the steps to them.
@@ -8315,7 +8319,7 @@ async function followCells(G, light, strongest, sample, count, step, pace = asyn
 // The cells worth showing: seen at least three times, best first. The top three are the dish's best cells.
 const shownCells = () => cellScope.tracks.filter(tr => tr.seen && tr.history.length >= 3).sort((a, b) => b.score - a.score);
 function resetCells() {
-  Object.assign(cellScope, { tracks: [], next: 1, nextStep: (arena.sim?.step || 0) + CELLS.every, step: 0, prevSample: null });
+  Object.assign(cellScope, { tracks: [], next: 1, nextStep: (arena.sim?.step || 0) + CELLS.every, step: 0, prevSample: null, listed: [], lit: null });
   drawCellLayer();
   renderCellPanel();
 }
@@ -8335,56 +8339,83 @@ function drawCellLayer() {
   const list = shownCells(), mono = getComputedStyle(document.body).getPropertyValue('--mono') || 'monospace';
   c.font = `${10 * dpr}px ${mono}`;
   // Best first, so the best cells get their labels where they want them: above the box's corner, else below it, else
-  // just inside its top. A label that fits nowhere is left off; its box still shows.
+  // just inside its top, always inside the glass. A label that fits nowhere is left off; its box still shows. The cell
+  // pointed at in the list is drawn last, fully lit and always labelled, and the others dim.
+  const R = dishRadius(arena.sim.q) - 4, ox = ((.5 - z.x) * z.k + .5) * W, oy = ((.5 - z.y) * z.k + .5) * H, rx = R / w * z.k * W, ry = R / h * z.k * H;
   const placed = [], lh = 13 * dpr, free = (a, b, aw) => placed.every(([px, py, pw]) => a + aw <= px || px + pw <= a || b + lh <= py || py + lh <= b);
+  const glass = (a, b, aw) => [[a, b], [a + aw, b], [a, b + lh], [a + aw, b + lh]].every(([px, py]) => ((px - ox) / rx) ** 2 + ((py - oy) / ry) ** 2 < 1);
   const boxes = list.filter(tr => tr.score >= CELLS.showFrom).slice(0, 30).map((tr, i) => {
     const x = X(tr.r.x0) - 3 * dpr, y = Y(tr.r.y0) - 3 * dpr, bw = X(tr.r.x1 + 1) - X(tr.r.x0) + 6 * dpr, bh = Y(tr.r.y1 + 1) - Y(tr.r.y0) + 6 * dpr;
-    const label = `${tr.name} ${Math.round(tr.score * 100)}%`, lw = c.measureText(label).width + 6 * dpr;
-    const at = [[x, y - lh], [x, y + bh], [x, y]].find(([a, b]) => free(a, b, lw));
+    const label = `${tr.name} ${Math.round(tr.score * 100)}%`, lw = c.measureText(label).width + 6 * dpr, spots = [[x, y - lh], [x, y + bh], [x, y]].filter(([a, b]) => glass(a, b, lw));
+    const at = spots.find(([a, b]) => free(a, b, lw)) || (cellScope.lit === tr.id ? spots[0] || [x, y] : null);
     if (at) placed.push([at[0], at[1], lw]);
     return { tr, i, x, y, bw, bh, label, lw, at };
-  });
-  for (const { tr, i, x, y, bw, bh, label, lw, at } of boxes.reverse()) {
+  }).reverse();
+  const lit = boxes.findIndex(b => b.tr.id === cellScope.lit);
+  if (lit >= 0) boxes.push(boxes.splice(lit, 1)[0]);
+  for (const { tr, i, x, y, bw, bh, label, lw, at } of boxes) {
     const color = tr.green ? '#5dff9a' : 'rgba(255,255,255,.85)';
-    c.strokeStyle = color; c.lineWidth = (i < 3 ? 2 : 1.2) * dpr; c.strokeRect(x, y, bw, bh);
+    c.globalAlpha = cellScope.lit == null || cellScope.lit === tr.id ? 1 : .25;
+    c.strokeStyle = color; c.lineWidth = (cellScope.lit === tr.id ? 3 : i < 3 ? 2 : 1.2) * dpr; c.strokeRect(x, y, bw, bh);
     if (!at) continue;
     c.fillStyle = 'rgba(3,6,7,.78)'; c.fillRect(at[0], at[1], lw, lh);
     c.fillStyle = color; c.fillText(label, at[0] + 3 * dpr, at[1] + 10 * dpr);
   }
+  c.globalAlpha = 1;
 }
-// The dish's three best cells, with what they are made of. Clicking one zooms to it; KEEP CELL files it as a specimen.
+// The dish's three best cells, in three slots of one height, so nothing below them moves as cells come and go. While
+// the pointer is over the list each slot keeps its cell and only its numbers change, so KEEP CELL takes the cell you
+// aimed at; the list sorts again when the pointer leaves. Pointing at a slot lights its cell in the dish. Clicking one
+// zooms to it.
 function renderCellPanel() {
   const host = $('cellTop');
   if (!host) return;
   host.hidden = !cellScope.on || mode !== 'arena';
   if (host.hidden) return;
-  const top = shownCells().slice(0, 3);
-  if (!top.length) {
-    host.replaceChildren(el('p', 'taste-note', cellScope.tracks.length
-      ? 'Watching ' + cellScope.tracks.length + ' enclosures. A cell is listed once it has been seen three times, about 450 steps.'
-      : 'No cells yet. Cells are closed membranes that form in the dish; let it run, and they appear here once seen three times.'));
-    return;
-  }
-  const strainName = l => arena.founders[l]?.specimen.name || 'strain ' + (l + 1);
-  host.replaceChildren(...top.map(tr => {
-    const row = el('div', 'cell-row' + (tr.green ? ' green' : '')), head = el('button', 'cell-head'), keep = el('button', 'cell-keep', 'KEEP CELL');
-    head.type = keep.type = 'button';
-    head.dataset.help = 'arena.cellTop';
-    keep.dataset.help = 'cell.keep';
-    head.append(el('b', '', tr.name), el('span', '', `${Math.round(tr.score * 100)}% · ${kilo(cellScope.step - tr.born)} steps`));
-    const made = el('small', '', tr.mix.map(m => `${strainName(m.lineage)} ${Math.round(m.share * 100)}%`).join(' · '));
-    head.addEventListener('click', e => {
-      if (e.detail) head.blur();
-      const { w, h } = arena.sim.q, cx = (tr.r.x0 + tr.r.x1 + 1) / 2 * CELLS.cell, cy = (tr.r.y0 + tr.r.y1 + 1) / 2 * CELLS.cell;
-      const span = Math.max(tr.r.x1 - tr.r.x0 + 1, tr.r.y1 - tr.r.y0 + 1) * CELLS.cell;
-      setZoom({ x: cx / w, y: cy / h, k: clamp(h / (span * 2.2), 1, maxZoom()) });
-      drawCellLayer();
+  if (!host.slots) {
+    host.slots = [0, 1, 2].map(() => {
+      const slot = { tr: null, row: el('div', 'cell-row'), head: el('button', 'cell-head'), name: el('b'), info: el('span'), made: el('small'), keep: el('button', 'cell-keep', 'KEEP CELL') };
+      slot.head.type = slot.keep.type = 'button';
+      slot.head.dataset.help = 'arena.cellTop';
+      slot.keep.dataset.help = 'cell.keep';
+      slot.head.append(slot.name, slot.info);
+      slot.row.append(slot.head, slot.made, slot.keep);
+      slot.head.addEventListener('click', e => {
+        const tr = slot.tr;
+        if (e.detail) slot.head.blur();
+        if (!tr || !arena.sim) return;
+        const { w, h } = arena.sim.q, cx = (tr.r.x0 + tr.r.x1 + 1) / 2 * CELLS.cell, cy = (tr.r.y0 + tr.r.y1 + 1) / 2 * CELLS.cell;
+        const span = Math.max(tr.r.x1 - tr.r.x0 + 1, tr.r.y1 - tr.r.y0 + 1) * CELLS.cell;
+        setZoom({ x: cx / w, y: cy / h, k: clamp(h / (span * 2.2), 1, maxZoom()) });
+        drawCellLayer();
+      });
+      slot.keep.addEventListener('click', e => { if (e.detail) slot.keep.blur(); if (slot.tr?.seen && cellScope.tracks.includes(slot.tr)) keepCell(slot.tr); });
+      slot.row.addEventListener('pointerenter', () => { cellScope.lit = slot.tr?.id ?? null; renderCellPanel(); drawCellLayer(); });
+      slot.row.addEventListener('pointerleave', () => { cellScope.lit = null; renderCellPanel(); drawCellLayer(); });
+      return slot;
     });
-    keep.addEventListener('click', e => { if (e.detail) keep.blur(); keepCell(tr); });
-    keep.disabled = arena.busy;
-    row.append(head, made, keep);
-    return row;
-  }));
+    host.replaceChildren(...host.slots.map(x => x.row));
+    host.addEventListener('pointerenter', () => { cellScope.held = true; });
+    host.addEventListener('pointerleave', () => { cellScope.held = false; renderCellPanel(); });
+  }
+  if (!cellScope.held) cellScope.listed = shownCells().slice(0, 3);
+  const strainName = l => arena.founders[l]?.specimen.name || 'strain ' + (l + 1);
+  host.slots.forEach((slot, i) => {
+    const tr = slot.tr = cellScope.listed[i] || null, gone = !!tr && (!tr.seen || !cellScope.tracks.includes(tr));
+    slot.row.className = 'cell-row' + (!tr ? ' empty' : gone ? ' gone' : tr.green ? ' green' : '') + (tr && cellScope.lit === tr.id ? ' lit' : '');
+    if (!tr) {
+      slot.name.textContent = '—';
+      slot.info.textContent = i ? '' : cellScope.tracks.length ? `watching ${cellScope.tracks.length} outlines` : 'no cells yet';
+      slot.made.textContent = i ? '' : 'a cell is listed once seen three times';
+      slot.made.title = '';
+    } else {
+      slot.name.textContent = tr.name;
+      slot.info.textContent = gone ? 'gone' : `${Math.round(tr.score * 100)}% · ${kilo(cellScope.step - tr.born)} steps`;
+      slot.made.textContent = slot.made.title = tr.mix.map(m => `${strainName(m.lineage)} ${Math.round(m.share * 100)}%`).join(' · ');
+    }
+    slot.head.disabled = !tr;
+    slot.keep.disabled = !tr || gone || arena.busy;
+  });
 }
 function setCellsShown(on) {
   cellScope.on = on;

@@ -206,6 +206,34 @@
       return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `3 drawn cells found, arc ignored; dish unchanged by looking (${followed} outlines followed)` };
     },
 
+    // The Incubator console holds still: with no cells, one or three, and with CELLS on or off, the sliders and the chart
+    // stay where they are; while pointed at, the cell list keeps its cells even when the ranking changes.
+    async 'Console holds still'() {
+      await freshDish('s', 31);
+      const wrong = [], top = id => Math.round($(id).getBoundingClientRect().top);
+      const fake = (id, score) => ({ id, name: 'EU-' + id, score, born: 0, seen: true, green: score >= .8, eu: true, history: [{}, {}, {}], strains: 1, mix: [{ lineage: 0, share: 1 }], r: { x0: 10 + id * 8, x1: 14 + id * 8, y0: 10, y1: 14, area: 25 } });
+      const sliders = top('arenaSliders');
+      setCellsShown(true); cellScope.nextStep = Infinity; cellScope.step = 600;
+      if (top('arenaSliders') !== sliders) wrong.push('turning CELLS on moved the sliders');
+      const chart = [];
+      for (const n of [0, 1, 3]) {
+        cellScope.tracks = [fake(1, .9), fake(2, .7), fake(3, .5)].slice(0, n);
+        renderCellPanel(); await sleep(30);
+        chart.push(top('arenaChart'));
+      }
+      if (new Set(chart).size !== 1) wrong.push(`the chart moved: ${chart.join(', ')}`);
+      const host = $('cellTop'), names = () => [...host.querySelectorAll('.cell-head b')].map(b => b.textContent).join(',');
+      host.dispatchEvent(new PointerEvent('pointerenter'));
+      const held = names();
+      cellScope.tracks[2].score = .99; renderCellPanel();
+      if (names() !== held) wrong.push('the list re-sorted while pointed at');
+      host.dispatchEvent(new PointerEvent('pointerleave'));
+      if (!names().startsWith('EU-3')) wrong.push('the list did not sort again after the pointer left');
+      resetCells(); setCellsShown(false);
+      if (top('arenaSliders') !== sliders) wrong.push('turning CELLS off moved the sliders');
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `sliders and chart still with 0, 1 and 3 cells; list held while pointed at (${held})` };
+    },
+
     async 'Every help label has its text'() {
       const keys = new Set(), take = () => document.querySelectorAll('[data-help]').forEach(e => keys.add(e.dataset.help));
       DL.goRoom('lab'); await sleep(200); take();

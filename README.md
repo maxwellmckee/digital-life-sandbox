@@ -44,6 +44,9 @@ life that holds together as individuals.
   </tr>
 </table>
 
+<p align="center"><img src="docs/screenshots/incubator-cells-found.webp" alt="Consortium L-848 with CELLS shown: boxes over 23 cells that formed in the dish, each labelled with a name and score, the 11 green ones EU cells with a body inside scoring 80% or more, among them double rings, golden cells with blue nuclei and a white ring at the right labelled EU-12 94%" width="60%"></p>
+<p align="center"><em>Cells found in Consortium L-848: each box has a name and score, and green marks a cell with a body inside at 80% or more</em></p>
+
 You work the night shift in a culture lab. Three rooms:
 
 - **MICROSCOPE.** Slides of slime-mold organisms: one large (SOLO) or a tray of nine to breed from (BATCH). Pick the

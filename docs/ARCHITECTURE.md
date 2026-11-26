@@ -116,6 +116,7 @@ your saves, and prints PASS or FAIL for each check. It takes about half a minute
 | Specimens: file and duplicates | A specimen survives its file, and cutting the same body twice files it once |
 | Old names renamed once | Old names become strain names, a typed name stays, and a second pass changes nothing |
 | Cells: found, kept apart, read only | On a drawn grid the finder finds three closed cells, one inside another, and not an open arc, and sees the bodies inside; looking for cells leaves a real dish's run unchanged |
+| Console holds still | With no cells, one or three, and CELLS on or off, the Incubator's sliders and chart stay put; the cell list keeps its order while pointed at |
 | Every help label has its text | Every control that offers help, in every room and Archive view, has its text |
 
 The test organisms are grown from fixed seeds in the browser's private storage. The fingerprints were recorded on an

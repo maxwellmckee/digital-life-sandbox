@@ -4,22 +4,30 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
-- **Cells in the Incubator.** CELLS: SHOW boxes the cell-like structures that form in a dish, each with an EU or PR
-  name and a score that rewards a closed wall, an inside that keeps its particles and keeps moving, bodies and strains
-  inside, and age; a box turns green for an EU cell at 80% or more. The dish lists its three best cells, follows its
+- **A steadier Incubator console.** Controls come first and live readouts after: CELLS and its list now sit below the
+  settings sliders. The best-cells list keeps three slots of one height, so nothing below it moves as cells come and
+  go, and while you point at it the list holds its order. Pointing at a slot lights its cell in the dish; cell labels
+  stay inside the glass. The README shows the cells found in Consortium L-848.
+
+## 2026-11-26
+
+- **Find cells in the Incubator, keep them as specimens** (1ed840b). CELLS: SHOW boxes the cell-like structures that
+  form in a dish, each with an EU or PR name and a score that rewards a closed wall, an inside that keeps its particles
+  and keeps moving, bodies and strains inside, and age; a box turns green for an EU cell at 80% or more. The dish lists its three best cells, follows its
   cells whether or not they are shown, and keeps them with a saved dish. KEEP CELL files a cell as a specimen cut along
-  its own outline.
-- The KEEP ring is sized with the scroll wheel, and the CIRCLE row is gone. Clicking a strain row flips the deck to its
-  card. REMOVE, above the deck, takes out the card in front.
-- Cleanup, with no change to how anything runs: the test suite moved into the repo (`tests/run.ps1`), the screen uses one
-  set of names (Incubator, Archive, strain, deck) and the code keeps a glossary of its older ones, the README split into
-  a front page, a guide, an architecture note and this changelog, the format upgrades sit in one section, and the old
-  colour-word naming code is gone.
-- Fixed: cutting the same body from an unsaved organism twice could file it twice; the menu's underline had a help
-  label with no text.
+  its own outline. The KEEP ring is sized with the scroll wheel, and the CIRCLE row is gone. Clicking a strain row
+  flips the deck to its card. REMOVE, above the deck, takes out the card in front.
 
 ## 2026-11-25
 
+- **Show real dishes in the README's pictures** (f37c2c8).
+- **Clean up: tests in the repo, one vocabulary, split docs, new pictures** (405afd7), with no change to how anything
+  runs: the test suite moved into the repo (`tests/run.ps1`), the screen uses one set of names (Incubator, Archive,
+  strain, deck) and the code keeps a glossary of its older ones, the README split into a front page, a guide, an
+  architecture note and this changelog, the format upgrades sit in one section, and the old colour-word naming code is
+  gone.
+- Fixed: cutting the same body from an unsaved organism twice could file it twice; the menu's underline had a help
+  label with no text.
 - **Keep one Archive entry per dish, split the Archive into SLIDES and LIVING** (061a658). Saving a dish again updates
   its entry and adds a round snapshot that plays on hover; earlier separate saves of one dish fold together. SLIDES has
   a GRID / TREE switch; SPECIMENS and DISHES are grouped as LIVING. The Incubator lost its WORLD row, help works
