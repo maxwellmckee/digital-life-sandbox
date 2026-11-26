@@ -91,7 +91,7 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 | View | `B`, `A` | `B` switches Solo and Batch. `A` opens or leaves the Arena |
 | Help | `H` | Hover over anything for an explanation |
 | Draw page | `D` | Opens the brushes |
-| Export | `I`, `C`, `V` | PNG image, seamless 6-second loop, 1080p recording. In Arena the image is the whole dish at full size, and clips film what you see |
+| Export | `I`, `C`, `V` | PNG image, seamless 6-second loop, 1080p recording. In Arena the image is the whole dish at full size, and clips film what you see through the porthole, with its bezel and the readouts beside it |
 | Speed | `[`, `]` | 1x to 8x |
 | Tiles | `1`-`9`, `Shift`+`1`-`9` | Pick a tile, or open it |
 
@@ -133,7 +133,13 @@ Every organism has two parts. The **rules** are its settings. The **body** is th
 - **SAVE always stores the body and the rules**, so a save reopens exactly as it looked. Each save uses about 5 to 20 MB. With CELLS on, expect about 7 MB at LOW or from a Batch tile, 27 MB at MED and 49 MB at HIGH.
 - **No duplicates.** Saving the same organism again updates its existing entry, keeping its name, tags and family links. "Same organism" means the same seed, start, rules, biology, barriers and painting. Colors don't count.
 - Opening the Library folds any older duplicate saves into their newest copy. The kept save takes over their names, tags and family links, and the copies move to `saves/removed/`.
-- **Automatic names.** A new save is named from its picture's main colors and its measured shape, such as "Dense Amber-Azure Lace". Repeats get II, III and so on. Unnamed older saves are named when the Library opens. Typing a name replaces it.
+- **Automatic names.** Everything alive is named like a lab strain: a genus for its form, then a code, such as "Reticulum T-182".
+  - The genus comes from the measured shape: Reticulum (web), Retiola (lace), Favella (honeycomb), Amoeba (islands), Hypha (branches), Fluvia (rivers), Vitta (ribbons), Filum (threads), Coccus (spores), Volvox (living cells) and Plasmodium (not yet measured).
+  - The code's letters are **M**, **D** or **T** for one, two or three species, with **F** when it carries a reaction field. The number comes from the seed and rules, so the same organism always gets the same one; it moves on only if the name is taken.
+  - A cut adds its body letter ("Reticulum T-182 A", or "disc" for a round cut). A wild organism's code starts with **W**, and a body kept from the Incubator is **K** in the genus of the strain it mostly came from ("Reticulum K-499").
+  - A saved dish is a **Monoculture**, **Coculture** or **Consortium** by how many strains live in it, with **S**, **M** or **L** for its size ("Coculture S-718").
+  - Typing a name replaces it. Unnamed older saves are named when the Library opens.
+- **Older names were renamed once.** The first time the saves folder is read, every save with an automatic name, every specimen and every saved dish takes a name in the new form, together with the names they hold of each other: the save a cut came from, a kept body's origins and a dish's strains. A name you typed stays. Each keeps its old name as `formerName`: searching for it still finds it, specimen and dish cards show it as FORMERLY, and pointing at a save's name shows it.
 - Each Library card shows **BODY + RULES** or **RULES ONLY**. RULES ONLY marks an older save that regrows from settings. Open it and SAVE again to store its body.
 - Library **BREED** passes on whatever PASS ON says, so with BODY + RULES the children start inside the saved body.
 - Library **CUT** puts a save on the Incubator's cutting bench, so a body cut from it goes into the specimen deck. Every card shows OPEN, BREED and CUT, whichever room you came from. See [The Arena](#the-arena). The save itself is never changed.
@@ -158,7 +164,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
    - Click anywhere else for a round cut, and scroll to size it. **CIRCLE** sets its starting size.
    - **Steady at home.** While the bench opens, the organism runs on out of sight for 900 more steps, and each body is checked: did it keep its shape and size? The info bar says **STEADY AT HOME** or **CHANGES AT HOME**, and a changing body's letter is amber. A save is one moment, and some bodies change on their own even at home, such as a ring that pulls into a knot. Those will keep changing in the dish too. The cut's card in the deck says STEADY or CHANGES.
    - **CUT** (`Enter`, or the ADD pad) takes it. Esc cancels. The Incubator holds still while the bench is open.
-   - The cut goes to the front of the **specimen deck**, named after its save and body, such as "Silver Web V (A)", and placing begins. One save can give several specimens.
+   - The cut goes to the front of the **specimen deck**, named after its save and body, such as "Reticulum T-182 A", and placing begins. One save can give several specimens.
 4. **The specimen deck** stands beside the dish. It holds every specimen you have cut or kept, as cards with a picture, newest in front. The card in front is full size, and the others stand behind it above and below, smaller and tilted back, with a gap between each. **Scroll over the deck** to flip through it, one card per notch; the arrow keys work too. The counter shows which card is in front. Specimens are saved in `saves/specimens/`, so they are there next session. Without a folder, cuts stay for the session and their count shows in orange.
 5. **Placing.** Click a card to pick it (a card behind comes to the front), then click the dish. Placing stays on, so each click adds another copy. Press **ADD** (`M`) for the most open spot. Esc, or clicking the card again, stops.
    - **Scroll over the dish** to size the next copy, from ×0.33 up to ×2 or what fits the dish. A copy's sensing reach and speed are scaled with it, so a larger copy behaves as a true larger version of the organism. Bold bodies hold together down to about a third of their size.
@@ -174,7 +180,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 
 **How bodies are found on the bench.** Particle density is measured on a 240x135 grid. Dense regions are followed from the tightest threshold to the loosest, and a region that keeps its own identity over several thresholds stands apart from its surroundings: that is a body. Each body is filled in, so a membrane keeps whatever it holds, and ranked by how well it stands apart, how steady it is, whether it encloses space or has a brighter rim, and its size. Trail piled along the frame is ranked down. The cut follows the body's own outline with a small margin, so strands of network passing by stay behind.
 
-**What carries over.** A specimen keeps its particles where they were, the trail and veins beneath them, and each particle's own rules. Living cells keep their inherited multipliers. It is cut at its own scale. Only a body too big for the dish, wider than about 84% of the picture height, is shrunk evenly to fit, and the bench says so. A body keeps its full density unless it would take more than 40% of the world. A body from an organism with a reaction field takes the field from under it too, with the same soft edge, along with the field's recipe and how strongly each species follows or flees it.
+**What carries over.** A specimen keeps its particles where they were, the trail and veins beneath them, and each particle's own rules. Living cells keep their inherited multipliers. It is cut at its own scale, with the trail cropped to the box around the body's outline, so a long body keeps both ends. Only a body too big for the dish, wider than about 84% of the picture height, is shrunk evenly to fit, and the bench says so. A body keeps its full density unless it would take more than 40% of the world. A body from an organism with a reaction field takes the field from under it too, with the same soft edge, along with the field's recipe and how strongly each species follows or flees it.
 
 **What each particle carries:**
 
@@ -205,7 +211,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - **How bodies are found:** where a lineage is dense on a grid of 20-pixel cells (96x54 in a 1× dish), each connected patch is a body. Bodies are followed by overlap between counts, twice a second. One body becoming two counts as a division. The counts are approximate, since a thin bridge that flickers can look like a split.
 - Each species shows in its organism's own colors, unless another species already shows in them, in which case it borrows a free gradient. A strain's swatch blends the colors of the chemicals it gives off.
 
-**Specimens.** A cut specimen holds the particles inside its outline with their species' rules, and the trail beneath. A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. Both are saved in `saves/specimens/`, appear as cards in the specimen deck, and are listed in the Archive under **SPECIMENS**, where each card shows where it came from. Specimens can be removed there. Added back to an Incubator, a kept specimen's particles keep their own genes and set points.
+**Specimens.** A cut specimen holds the particles inside its outline with their species' rules, and the trail beneath. A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath. Both are saved in `saves/specimens/`, appear as cards in the specimen deck, and are listed in the Archive under **SPECIMENS**, where each card shows where it came from. Specimens can be removed there. Cutting the same body from the same moment twice brings the existing card to the front instead of making a second one, and duplicates already in the folder move to `removed/specimens/` when the deck or Archive reads them. Added back to an Incubator, a kept specimen's particles keep their own genes and set points.
 - The world is round: the largest circle that fits the picture. Particles, food, trail and placed specimens all stay inside the glass.
 - The dish sizes, measured on an RTX 4070 with a well-filled dish. Each holds 60 frames a second; a larger dish costs more per step, so its fastest speed is lower. Up to 16 founders, each thinned to at most 40% of the dish's particle places.
 
@@ -262,6 +268,7 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 - `paint`, a fingerprint of `spawns`.
 - `updatedAt`, set when a save is updated.
 - `autoName`, set while the name is automatic.
+- `formerName`, the name it had before names became strain codes.
 - `startShape`, the shape a SHAPE start began from, for reading. Replays take it from the seed.
 
 The organism's colors are stored in `view.palettes` and `view.fieldPalette`. Older versions still load. When changing the format, keep them loading.
@@ -294,7 +301,7 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 - A browser without folder access can only download the rules.
 - After a save is reopened, REPLAY returns to the saved moment rather than the organism's birth.
 - A body file is compressed with very slightly rounded trail values. Agents, genes and chemical are exact.
-- Automatic names are simple word choices from color and measurements, so similar organisms can get similar names.
+- An automatic name's genus comes from a few measurements of form, so organisms of the same form share a genus and differ only in their code. Colors no longer appear in names.
 - Undo and old generations may fall back to their recipe once the 1.5 GB body memory fills.
 - A child inherits one parent's body. In the Arena, separate bodies share a world, but they never fuse into one organism.
 - Arena membranes are rings of particles held by density preferences. Their wall is not built from a material the cell makes itself.
@@ -302,6 +309,7 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 - An Arena's founders and history are lost when the page closes unless the dish is saved with SAVE. A saved dish rounds its trails very slightly, like a body file; everything else is exact.
 - A strain that came with a saved dish can't be placed again from scratch, because the dish keeps the strain, not the specimen it grew from. KEEP a body to make a new specimen of it. A saved dish always opens at the size it was saved at.
 - A saved dish file is large: about 19 MB for a 1× dish and 30 MB for a lightly filled 2× dish.
+- Specimens cut before the crop fix keep their cropped trail: a body wider than its slide was tall lost the trail at its ends. Its particles are all there and lay new trail, but cutting it again gives a clean copy.
 - Body counts, divisions and deaths in the Arena are measured on a coarse grid, so they are approximate.
 - The cutting bench finds bodies from particle density on a grid of 8-pixel cells (4 pixels on a Batch tile), so outlines are stepped, and a faint body in a dense network can be missed. A round cut is always available.
 - WILD specimens are placed but not filed in the specimen deck. KEEP a wild body you like to save it.
@@ -336,6 +344,6 @@ A changed hash means the simulation's behavior changed. That is only acceptable 
 
 **Notes 3 progress:** done: body-aware cutting with a preview, the specimen drawer with MAKE SPECIMEN (the Archive's CUT), colors per organism rolled by RANDOM, and the SHAPE start.
 
-**Latest changes:** the Incubator's dish comes in three sizes, 1×, 1.5× and 2×, with every specimen at its true size, so a large dish holds many copies of each organism. Scroll to zoom in and drag to look around. Copies can be placed down to a third of their size. SAVE in the Incubator keeps the whole dish in the Archive under DISHES, and OPEN puts it back exactly. Before that: CUT from anywhere, the specimen deck, a chemical of its own for each species, food that reaches dense bodies, strains that keep their size, and reaction fields carried into the dish.
+**Latest changes:** saves, specimens and dishes are named like lab strains, such as "Reticulum T-182", and older names were renamed once and kept as former names. Long bodies are no longer cropped when cut, duplicate specimens are removed automatically, and Incubator recordings show the porthole and readouts. Before that, the Incubator's dish came in three sizes, 1×, 1.5× and 2×, with every specimen at its true size, so a large dish holds many copies of each organism. Scroll to zoom in and drag to look around. Copies can be placed down to a third of their size. SAVE in the Incubator keeps the whole dish in the Archive under DISHES, and OPEN puts it back exactly. Before that: CUT from anywhere, the specimen deck, a chemical of its own for each species, food that reaches dense bodies, strains that keep their size, and reaction fields carried into the dish.
 
 **Other ideas from the Project Notes:** first-run preset gallery, parameter locks for RANDOM, a replay timeline with scrubbing, mutating only part of a body, and small evolvable brains.

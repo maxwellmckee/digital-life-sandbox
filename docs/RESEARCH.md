@@ -51,6 +51,8 @@ Living cells were then run for 3,000 steps on 8 random organisms:
 
 ## The Arena
 
+Organisms in these notes are named as they were when each test ran, such as "Silver Web V". They have since been renamed like lab strains ("Reticulum T-182"), and each keeps its old name, so searching the Archive for a name used here still finds it.
+
 ### The question
 
 How can bodies grown in the sandbox, with their structure and the way they behave, become building blocks for a particle-life world where they interact and evolve?
@@ -313,6 +315,46 @@ At 8×, a full 2× dish first fell to 12 frames a second: the speed control took
 **Smaller copies.** Copies can now be placed down to ×⅓, where the bold bodies above keep 88 to 93% of their likeness.
 
 **Saved dishes.** A saved dish holds every particle place (position, heading and random state), the genes of the living particles, both trail maps, the broth, the reaction field and both recipe maps, and each strain's chemistry, size limit, history and body map. Trails drop their 13 least visible bits, keeping about three significant digits, as body files do; everything else is exact. The test rounds the live trails the same way before saving, then runs the original 300 more steps, opens the saved dish and runs it 300 steps: trails, broth, field and every particle came out bit-for-bit the same, in a 1× and a 2× dish. Body identities carry over too, so a body's age keeps counting. With two strains, the file was 18.6 MB for a 1× dish and 29.9 MB for a 2× dish, saved in about 3 and 5 seconds and opened in 0.5 and 0.9.
+
+### Long bodies cut short
+
+Flowing Blue Islands' body E is a ring with a long tail, 888 pixels wide on a 960×540 slide. A cut kept its trail in a square no larger than the slide's height, centred on the body, so 44% of its particles landed in the dish with no trail beneath them, and placing smeared the square's edge pixels sideways into streaks. A cut's trail is now cropped to the box around its outline, every particle has trail beneath it, and placing leaves nothing outside the crop. A cut's trail already carries its soft edge, so it is no longer faded a second time at the edge of its circle; a kept body, cropped as a plain square of the dish, still is.
+
+### Judging a dish
+
+A dish could be judged the way ecologists judge a community: whether its kinds **coexist**, how **steady** it is, whether its kinds **trade ground** with each other, and whether its individuals **persist**. Four candidate measures were taken over the last 3,000 of 6,000 steps, counted every 100:
+
+- **Effective strains:** e to the power of the Shannon entropy of the strains' shares, which is the number of equally common strains that would be as diverse.
+- **Steadiness:** a population's mean divided by its standard deviation (Tilman's invariability), for the whole dish and for each strain.
+- **Synchrony:** the variance of the total divided by the square of the summed standard deviations of the strains (Loreau and de Mazancourt). 1 means strains rise and fall together; 0 means one gains what another loses, which is how competitors sharing a resource behave.
+- **Bodies:** how many, and their divisions and deaths.
+
+Four strains, three ×0.4 copies each, mixed in a 1× dish, plus a dish of three strains placed far apart:
+
+| Dish | Alive | Effective strains | Total steadiness | Strain steadiness | Synchrony | Bodies | Food |
+|---|---|---|---|---|---|---|---|
+| Three strains apart, HOMEOSTASIS 0.5 | 3/3 | 2.2 | 48,700 | 27,000 | 0.41 | 3 | 0.80 |
+| Mixed, HOMEOSTASIS 0.5 | 4/4 | 3.1 | 22,500 | 12,800 | 0.37 | 10 | 0.49 |
+| Mixed, HOMEOSTASIS 0.2 | 4/4 | 3.1 | 16,600 | 106 | 0.00 | 9 | 0.46 |
+| Mixed, HOMEOSTASIS 0 | 4/4 | 3.2 | 74,100 | 135 | 0.00 | 8 | 0.42 |
+| Mixed, FOOD 0.1 | 4/4 | 3.1 | 18 | 8 | 0.17 | 11 | 0.15 |
+
+What this shows:
+
+- **At the default HOMEOSTASIS of 0.5, there is nothing to judge.** Every strain is held at its size limit, so strain numbers barely move (a standard deviation of under a hundredth of a percent). Steadiness there measures the limit, not the community.
+- **At 0.2, bodies hold and strains compete.** The size limit is 1.4 times what was placed, the oldest body lived through the whole run, and strain numbers move about a hundred times more while the total stays steady. Synchrony near 0 means the strains trade ground: what one loses another gains. That is the signature of an ecosystem sharing one food supply.
+- **At 0, the same trading happens, but bodies fray** into the classic slime networks, so individuality is lost.
+- **Scarce food** shows as a dish that swings (total steadiness 18 rather than thousands), with more body deaths than divisions and the broth near its floor.
+- **Body counts flicker.** Most counted divisions and deaths are thin bridges breaking and rejoining, with median "lives" of 100 to 200 steps, while the real bodies last thousands. The age of the oldest bodies is a better sign of persistence than the count of divisions.
+
+**A proposed ECOSYSTEM score**, read over a sliding window of a few thousand steps, in parts like the LIFE score:
+
+1. **Coexistence:** strains still alive out of those placed, weighted by effective strains.
+2. **Persistence:** how long the dish's bodies have lasted, from the age of its oldest bodies, so individuals that endure count and flickering fragments don't.
+3. **Exchange:** strains trading ground (low synchrony while strain numbers move), so a dish frozen by the size limit doesn't score as an ecosystem.
+4. **Balance:** the whole dish steady, without crashes, and food above its floor.
+
+Building it needs one change first: the size limit should hold bodies, not strains, or be set near 0.2 for an ecosystem run, because at 0.5 no strain can gain or lose ground.
 
 ### What is new here, honestly
 

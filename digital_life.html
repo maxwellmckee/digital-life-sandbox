@@ -1561,6 +1561,8 @@ struct Stamp { center: vec2f, radius: f32, fade: f32, cropCenter: vec2f, scale: 
 @group(0) @binding(3) var dst: texture_storage_2d<rgba32float, write>;
 fn at(p: vec2f) -> vec4f {
   let size = vec2i(textureDimensions(crop, 0));
+  // Beyond the crop there is no trail and no vein.
+  if (any(p < vec2f(-0.5)) || any(p > vec2f(size) - vec2f(0.5))) { return vec4f(0.0, 0.0, 0.0, 1.0); }
   let base = floor(p);
   let s = p - base;
   let hi = size - vec2i(1);
@@ -1579,7 +1581,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let d = vec2f(c) + vec2f(0.5) - job.center;
   let dist = length(d);
   if (dist < job.radius) {
-    let w = 1.0 - smoothstep(job.radius * (1.0 - job.fade), job.radius, dist);
+    let w = select(1.0, 1.0 - smoothstep(job.radius * (1.0 - job.fade), job.radius, dist), job.fade > 0.0);
     let s = at(d / job.scale + job.cropCenter - vec2f(0.5));
     let added = vec3f(dot(job.mix0.xyz, s.rgb), dot(job.mix1.xyz, s.rgb), dot(job.mix2.xyz, s.rgb));
     v = vec4f(v.rgb + added * w, min(v.a, mix(1.0, s.a, w)));
@@ -2194,6 +2196,11 @@ const WGSL_BLEND = WGSL_FS_VERT + /* wgsl */`
   return vec4f(mix(textureLoad(first, at, 0).rgb, textureLoad(second, at, 0).rgb, amount.x), 1.0);
 }`;
 
+// Lays a prepared picture with transparency over a frame, such as the Incubator's porthole and readouts on a recording.
+const WGSL_OVERLAY = WGSL_FS_VERT + /* wgsl */`
+@group(0) @binding(0) var art: texture_2d<f32>;
+@fragment fn fs(io: VOut) -> @location(0) vec4f { return textureLoad(art, vec2i(io.pos.xy), 0); }`;
+
 // Resizes a trail map between quality levels. Alpha travels too, because it holds the veins.
 const WGSL_UPSCALE = WGSL_FS_VERT + /* wgsl */`
 @group(0) @binding(0) var source: texture_2d<f32>;
@@ -2346,6 +2353,7 @@ async function initGpu() {
     composite: draw(L.composite, WGSL_COMPOSITE, canvasFormat),
     blend: draw(L.blend, WGSL_BLEND, canvasFormat),
     upscale: draw(L.upscale, WGSL_UPSCALE, 'rgba32float'),
+    overlay: draw(L.upscale, WGSL_OVERLAY, canvasFormat, { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } }),
     sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' }),
     lut: device.createTexture({ size: [256, PALETTE_NAMES.length], format: 'rgba8unorm-srgb', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST }),
   };
@@ -4291,7 +4299,7 @@ const HELP = {
   'lib.thumb': { t: 'OPEN', d: 'Click the picture to open this organism at the moment you saved it.' },
   'lib.keep.body': { t: 'BODY + RULES', d: 'This save holds the grown body itself, so it opens exactly as saved. When you breed from it, children can start inside this body.' },
   'lib.keep.rules': { t: 'RULES ONLY', d: 'An older save with settings only. It regrows from nothing when opened, so it can differ from the picture.', tip: 'Open it and SAVE again to store its body too.' },
-  'lib.name': { t: 'NAME', d: 'Named automatically from its colors and shape. Type to rename it. It saves automatically.' },
+  'lib.name': { t: 'NAME', d: 'Named automatically like a lab strain: a genus for its form, such as Reticulum for a web or Amoeba for islands, then a code. M, D or T is one, two or three species, F means it carries a reaction field, and the number comes from its seed and rules. Type to rename it. It saves automatically.', tip: 'A save renamed from an older name keeps it: point at the name to see it, and searching for it still finds the save.' },
   'lib.tags': { t: 'TAGS', d: 'Words to find it by later, separated by commas.' },
   'lib.open': { t: 'OPEN', d: 'Loads this organism in SOLO view at the moment you saved it.' },
   'lib.breed': { t: 'BREED', d: 'Starts a new 9-tile grid of children from this organism. They get what PASS ON says: the body and rules, or the rules only.', tip: 'The save itself never changes.' },
@@ -4304,11 +4312,11 @@ const HELP = {
   'room.archive': { t: 'ARCHIVE', d: 'The Library: every saved culture, the family tree, the specimens cut or kept, and the Incubator dishes you saved.', tip: 'Press L to open it.' },
   'view.arena': { t: 'ARENA', d: 'A shared world where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to place your SOLO organism, or ADD on a save in the LIBRARY.' },
   'arena.dish': { t: 'DISH SIZE', d: 'How much room the dish has. At 1.5× it holds about 2¼ times as much, and at 2× four times as much. Every specimen keeps its true size, so a larger dish holds more copies, not larger ones.', tip: 'Changing the size places the strains again where they were and starts the run over. Larger dishes need more of the GPU, so the fastest speeds may slow down. Scroll on the dish to zoom in and drag to look around.' },
-  'arena.zoom': { t: 'ZOOM', d: 'How far the dish is magnified. Scroll on the dish to zoom toward the pointer, and drag to look around. Click here to see the whole dish again.', tip: 'While placing a specimen, scrolling sizes the copy instead; hold Ctrl or pinch to zoom. IMAGE always saves the whole dish at full size, and CLIP and RECORD film what you see.' },
+  'arena.zoom': { t: 'ZOOM', d: 'How far the dish is magnified. Scroll on the dish to zoom toward the pointer, and drag to look around. Click here to see the whole dish again.', tip: 'While placing a specimen, scrolling sizes the copy instead; hold Ctrl or pinch to zoom. IMAGE always saves the whole dish at full size, and CLIP and RECORD film what you see, framed by the porthole and readouts.' },
   'arena.specimen': { t: 'CIRCLE', d: 'How large a round cut starts: on the cutting bench when no body is found or you click outside the outlined bodies, and for KEEP. Bodies found on the bench are cut along their own outline instead.', tip: 'On the bench, scroll to resize a circle.' },
   bench: { t: 'CUTTING BENCH', d: 'The organism you are adding, with the bodies found in it outlined, best first. Click a body to choose it. Click anywhere else for a circle, and scroll to size it. Everything outside the cut is dimmed.', rows: [['STEADY', 'Out of sight, the organism ran on for 900 more steps, and this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it pulled together, spread or reshaped on its own, so it will keep changing in the dish too.']], tip: 'A body is where particles gather more densely than around it, and keeps together as the threshold loosens. It is cut along its own outline, so passing strands stay behind.' },
   'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle, files it in your specimen deck and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
-  drawer: { t: 'SPECIMENS', d: 'Every specimen you have cut or kept, newest in front, as a deck of cards. Scroll over the deck to flip through it, then click a card to pick it. Scroll over the dish to size the copy, and click the dish to place it. Esc stops.', tip: 'Specimens are saved in saves/specimens. The Archive lists them under SPECIMENS, where they can be removed. The arrow keys also flip the deck when a card has focus.' },
+  drawer: { t: 'SPECIMENS', d: 'Every specimen you have cut or kept, newest in front, as a deck of cards. Scroll over the deck to flip through it, then click a card to pick it. Scroll over the dish to size the copy, and click the dish to place it. Esc stops.', tip: 'Specimens are saved in saves/specimens. The Archive lists them under SPECIMENS, where they can be removed. Cutting the same body from the same moment twice makes no second card, and older duplicates move to the removed folder. The arrow keys also flip the deck when a card has focus.' },
   'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it and place copies of it. The copies placed while it is picked form one strain, so they recognize each other as kin. Click it again to stop.', tip: 'Copies can be placed from a third of their size to twice it. A copy placed larger or smaller has its sensing reach and speed scaled with it, so it behaves like a true larger or smaller version. An orange count means it is not saved yet.' },
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
   'arena.food': { t: 'FOOD', d: 'How fast food grows back. Particles eat it to gain energy, and dead particles return to it.', lo: 'Scarce food: hard competition and crashes', hi: 'Plenty: fast growth and crowding' },
@@ -4343,10 +4351,10 @@ const HELP = {
   'init.shape': { t: 'SHAPE', d: 'Agents begin in a shape picked by the seed: several clusters, a swirl, or two groups side by side. The seed also sets the details, such as how many clusters and which way the swirl turns.', tip: 'With several species, each cluster or group belongs to one species, and a swirl gives each species its own ring. The same seed always starts the same way.' },
   'init.empty': { t: 'BLANK', d: 'Starts with an empty sandbox. Hold the ORGANISM brush on the picture to place each species yourself.', tip: 'With CELLS on the LIFE page, a small painted colony can feed and grow by itself.' },
   saves: { t: 'WORKING FOLDER', d: 'Holds your saves, images and videos folders. CHANGE picks a different one.' },
-  export: { t: 'EXPORT', d: 'Turns what is on screen into files you can keep and share, with no interface in them.' },
+  export: { t: 'EXPORT', d: 'Turns what is on screen into files you can keep and share, with no interface in them.', tip: 'In the Incubator, CLIP and RECORD show the dish through its porthole, with the bezel and the readouts beside it.' },
   'pad.image': { t: 'IMAGE', d: 'Saves a clean PNG at full resolution. In BATCH, saves each tile you picked, or the whole grid if none are picked.' },
   'pad.clip': { t: 'CLIP', d: 'Captures a 6 second 1080p MP4 whose ending dissolves into its start, so it loops seamlessly.', tip: 'It plays at your current SPEED. Try 4X for visible growth. Click again to cancel.' },
-  'pad.record': { t: 'RECORD', d: 'Records to a 1080p MP4 until you press it again, up to 10 minutes. You can move sliders while it runs.', tip: 'PAUSE also pauses the recording.' },
+  'pad.record': { t: 'RECORD', d: 'Records to a 1080p MP4 until you press it again, up to 10 minutes. You can move sliders while it runs. In the Incubator it films the dish through its porthole, with the readouts beside it.', tip: 'PAUSE also pauses the recording.' },
 
   'tab.organism': { t: 'ORGANISM PAGE', d: 'How the agents sense, move and relate to each other.' },
   'tab.life': { t: 'LIFE PAGE', d: 'Whether paths thicken into veins, and whether agents behave like simple living cells.' },
@@ -4857,7 +4865,7 @@ async function save() {
         try { thumb = await renderThumb(sim, genome); } catch (e) { console.error(e); } // The library can regrow a missing picture.
         if (!data.name) {
           const taken = new Set(existing.filter(x => x !== same).map(x => x.data.name).filter(Boolean));
-          data.name = uniqueName(autoName(data, thumb?.colors), taken);
+          data.name = autoName(data, taken);
           data.autoName = true;
         }
         const handle = await dir.getFileHandle(file, { create: true });
@@ -5009,13 +5017,6 @@ function colorWords(rgba, stride = 1) {
   const second = next === undefined ? null : hueWord(next * 10 + 5);
   return second && second !== first ? [first, second] : [first];
 }
-async function blobColors(blob) {
-  const bmp = await createImageBitmap(blob, { resizeWidth: 96, resizeHeight: 54 });
-  const ctx = new OffscreenCanvas(96, 54).getContext('2d');
-  ctx.drawImage(bmp, 0, 0);
-  bmp.close();
-  return colorWords(ctx.getImageData(0, 0, 96, 54).data);
-}
 // Thresholds follow the LIFE measurements: loops are enclosed holes, and largest is the share held by the biggest piece.
 function shapeWord(m, g) {
   if (lifeOf(g).mode === 'cells') return 'Colony';
@@ -5029,25 +5030,113 @@ function shapeWord(m, g) {
   if (m.fractal >= 1.55) return 'Branches';
   return m.thickness >= 1.6 ? 'Rivers' : 'Ribbons';
 }
-function textureWord(m, g) {
-  if (m?.coverage >= .28) return 'Dense';
-  if (m?.coverage < .11) return 'Sparse';
-  if (m?.alignment >= .84) return 'Flowing';
-  if (m?.thickness >= 1.7) return 'Bold';
-  if (m?.fractal >= 1.62) return 'Feathered';
-  return g.walls ? 'Walled' : '';
+/* Names. Everything alive is named like a lab strain: a genus for its form, then a code. The code's letters are M, D or
+   T for one, two or three species, with F when it carries a reaction field; a wild organism's code starts with W and a
+   body kept from the Incubator's is K. The number comes from the organism's seed and rules, so the same organism always
+   gets the same one, and moves on only if that name is taken. A cut adds the letter of the body it was, or "disc" for a
+   round cut. A dish is named for how many strains live in it, with S, M or L for the size of the dish. */
+const GENUS_OF_SHAPE = {
+  Threads: 'Filum', Spores: 'Coccus', Lace: 'Retiola', Honeycomb: 'Favella', Web: 'Reticulum', Islands: 'Amoeba',
+  Branches: 'Hypha', Rivers: 'Fluvia', Ribbons: 'Vitta', Colony: 'Volvox', Bloom: 'Plasmodium', Growth: 'Plasmodium',
+};
+const GENERA = new Set(Object.values(GENUS_OF_SHAPE)), DISH_WORDS = ['Monoculture', 'Coculture', 'Consortium'];
+const isStrainName = name => { const m = /^([A-Z][a-z]+) [A-Z]{1,3}-\d{3}\b/.exec(name || ''); return !!m && (GENERA.has(m[1]) || DISH_WORDS.includes(m[1])); };
+const strainLetters = (count, field) => 'MDT'[clamp(count || 1, 1, 3) - 1] + (field ? 'F' : '');
+const nameNumber = text => { let x = 0x811c9dc5; for (let i = 0; i < text.length; i++) x = Math.imul(x ^ text.charCodeAt(i), 16777619); return 100 + (x >>> 0) % 900; };
+// A name from its parts, with the number moved on until the name is free.
+function freeName(base, code, seedText, taken) {
+  let n = nameNumber(seedText);
+  for (let i = 0; i < 900 && taken?.has(`${base} ${code}-${n}`); i++) n = n >= 999 ? 100 : n + 1;
+  return `${base} ${code}-${n}`;
 }
-function autoName(d, colors) {
-  const g = parseSave(d), m = d.metrics || null, palette = savedView(d).palettes[0] || '';
-  const hue = colors?.length ? colors.join('-') : palette.charAt(0) + palette.slice(1).toLowerCase();
-  return [textureWord(m, g), hue, shapeWord(m, g)].filter(Boolean).join(' ');
+// A genus from a name: its first word if that is one, else the form word an older name had, such as Web or Islands.
+function genusFromName(name) {
+  const words = String(name || '').split(/[\s()]+/);
+  return words.find(w => GENERA.has(w)) || GENUS_OF_SHAPE[words.find(w => GENUS_OF_SHAPE[w])] || 'Plasmodium';
 }
-const NUMERALS = ['', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X'];
-function uniqueName(base, taken) {
-  for (let i = 0; ; i++) {
-    const name = base + (NUMERALS[i] ?? ' ' + (i + 1));
-    if (!taken.has(name)) return name;
+function autoName(d, taken, wild = false) {
+  const g = parseSave(d);
+  return freeName(GENUS_OF_SHAPE[shapeWord(d.metrics || null, g)], (wild ? 'W' : '') + strainLetters(g.count, g.field.on), String(d.seed) + JSON.stringify(d.species?.slice(0, d.count)), taken);
+}
+const keptName = (from, seedText, taken) => freeName(genusFromName(from), 'K', seedText, taken);
+const dishName = (living, key, seedText) => freeName(DISH_WORDS[living <= 1 ? 0 : living <= 3 ? 1 : 2], { s: 'S', m: 'M', l: 'L' }[key] || 'S', seedText);
+const cutName = (base, shape) => `${base} ${shape.circle ? 'disc' : shape.name}`;
+
+/* Older names were words for colors and shapes, such as "Silver Web V". They are renamed once, the first time the saves
+   folder is read: every save with an automatic name (a name you typed stays as it is), every specimen and every saved
+   dish, along with the names they hold of each other, such as the save a cut came from or the strains in a dish. Each
+   keeps its old name as formerName, so searching for it still finds it. Names already in the new form are left alone. */
+let renamed = null;
+function renameOldNames(dir) {
+  if (!renamed || renamed.dir !== dir) renamed = { dir, done: renameAll(dir).catch(e => console.error(e)) };
+  return renamed.done;
+}
+async function renameAll(dir) {
+  const files = async folder => {
+    const out = [];
+    for await (const [name, handle] of folder.entries()) {
+      if (handle.kind !== 'file' || !name.endsWith('.json')) continue;
+      try { out.push({ handle, data: JSON.parse(await readText(handle)) }); } catch { /* unreadable files are skipped */ }
+    }
+    return out;
+  };
+  const sub = async name => dir.getDirectoryHandle(name).catch(() => null);
+  const saves = (await files(dir)).filter(x => x.data.format === 'digital-life-save' && parseSave(x.data));
+  const specimens = (await sub('specimens').then(f => f ? files(f) : [])).filter(x => x.data.format === 'digital-life-specimen');
+  const dishes = (await sub('dishes').then(f => f ? files(f) : [])).filter(x => x.data.format === 'digital-life-dish');
+  const changed = new Set(), byName = new Map(), byId = new Map();
+  const rename = (x, name) => { if (x.data.name === name) return; if (!x.data.formerName) x.data.formerName = x.data.name; x.data.name = name; changed.add(x); };
+  // Saves, oldest first, so the earliest keeps its number when two would share one.
+  const taken = new Set(saves.filter(x => x.data.name && (!x.data.autoName || isStrainName(x.data.name))).map(x => x.data.name));
+  for (const x of saves.sort((a, b) => saveTime(a.data) - saveTime(b.data))) {
+    const d = x.data;
+    if (!d.name || !d.autoName || isStrainName(d.name)) { if (d.name && d.id) byId.set(d.id, d.name); if (d.formerName) byName.set(d.formerName, d.name); continue; }
+    const name = autoName(d, taken);
+    taken.add(name);
+    byName.set(d.name, name);
+    rename(x, name);
+    byId.set(d.id, name);
   }
+  // Specimens: a cut is its save's new name and its body letter, a kept body is K.
+  const was = new Map(), cutBase = old => byName.get(old) || null;
+  for (const x of specimens.sort((a, b) => new Date(a.data.createdAt) - new Date(b.data.createdAt))) {
+    const m = x.data;
+    if (isStrainName(m.name)) { if (m.formerName) was.set(m.formerName, m.name); continue; }
+    let name;
+    // The first specimen files held only kept bodies and didn't say so.
+    if (m.kind === 'kept' || m.version === 1 || /^Kept /.test(m.name || '')) name = keptName(m.origin?.[0]?.name || m.name, m.id || m.name, taken);
+    else {
+      const part = /^(.*) \((\w+)\)$/.exec(m.name || ''), letter = part ? (part[2] === 'circle' ? 'disc' : part[2]) : 'disc';
+      const base = (m.source?.saveId && byId.get(m.source.saveId)) || cutBase(m.source?.name) || cutBase(part?.[1])
+        || freeName(genusFromName(m.name), strainLetters(m.g?.count, !!m.field), m.id || m.name, taken);
+      taken.add(base);
+      if (m.source && m.source.name !== base) m.source.name = base;
+      name = `${base} ${letter}`;
+    }
+    taken.add(name);
+    was.set(m.name, name);
+    rename(x, name);
+  }
+  // Names held of other things: a kept body's origins and a dish's strains.
+  const renameOld = old => {
+    if (!old || isStrainName(old)) return old;
+    if (was.has(old)) return was.get(old);
+    if (byName.has(old)) return byName.get(old);
+    // A wild founder was never a save, even when its name matches one.
+    const part = /^(?:Wild )?(.*) \((\w+)\)$/.exec(old), letter = part && (part[2] === 'circle' ? 'disc' : part[2]);
+    if (old.startsWith('Wild ')) return part ? `${freeName(genusFromName(part[1]), 'W', part[1])} ${letter}` : freeName(genusFromName(old), 'W', old);
+    if (part && cutBase(part[1])) return `${cutBase(part[1])} ${letter}`;
+    if (old.startsWith('Kept ')) return keptName(old, old);
+    return old;
+  };
+  for (const x of specimens) for (const o of x.data.origin || []) { const name = renameOld(o.name); if (name !== o.name) { o.name = name; changed.add(x); } }
+  for (const x of dishes) {
+    const m = x.data;
+    for (const list of [m.founders, m.strains]) for (const f of list || []) { const name = renameOld(f.name); if (name !== f.name) { f.name = name; changed.add(x); } }
+    if (!isStrainName(m.name)) rename(x, dishName((m.strains || []).filter(s => s.particles).length, m.dish, m.id || m.name));
+  }
+  for (const x of changed) await writeJson(x.handle, x.data);
+  return changed.size;
 }
 
 const saveTime = d => new Date(d.updatedAt || d.createdAt || 0).getTime() || 0;
@@ -5076,14 +5165,11 @@ async function saveMeta(item) {
   item.data.tags = tags;
   await writeJson(item.handle, item.data);
 }
-// Unnamed saves get a name from their picture, so every card in the library can be told apart.
-async function nameIfUnnamed(item, blob) {
+// Unnamed saves get a name from their form and rules, so every card in the library can be told apart.
+async function nameIfUnnamed(item) {
   if (item.data.name || itemName(item)) return;
   const taken = new Set([...lib.items, ...lib.removed].map(itemName).filter(Boolean));
-  let colors = null;
-  try { if (blob) colors = await blobColors(blob); } catch (e) { console.error(e); }
-  if (item.data.name || itemName(item)) return;
-  item.data.name = uniqueName(autoName(item.data, colors), taken);
+  item.data.name = autoName(item.data, taken);
   item.data.autoName = true;
   if (item.nameInput) item.nameInput.value = item.data.name;
   await writeJson(item.handle, item.data);
@@ -5198,6 +5284,7 @@ function buildCard(item) {
     return input;
   };
   item.nameInput = field('lib-name', item.data.name || '', 'Naming...', 'Name', 'lib.name', 60);
+  if (item.data.formerName) item.nameInput.title = 'Formerly ' + item.data.formerName;
   item.tagsInput = field('lib-tags', (item.data.tags || []).join(', '), 'Tags, separated by commas', 'Tags', 'lib.tags', 160);
 
   const actions = el('div', 'lib-actions');
@@ -5232,7 +5319,7 @@ const itemName = item => (item.nameInput ? item.nameInput.value : item.data.name
 const searchWords = () => lib.query.toLowerCase().split(/\s+/).filter(Boolean);
 function libMatches(item, words) {
   const { data: d, genome: g } = item, tags = item.tagsInput ? item.tagsInput.value : (d.tags || []).join(' ');
-  const text = [itemName(item), tags, g.count + ' species', g.field.on ? 'hybrid' : '', ...savedView(d).palettes.slice(0, g.count)].join(' ').toLowerCase();
+  const text = [itemName(item), d.formerName || '', tags, g.count + ' species', g.field.on ? 'hybrid' : '', ...savedView(d).palettes.slice(0, g.count)].join(' ').toLowerCase();
   return words.every(w => text.includes(w));
 }
 
@@ -5466,7 +5553,7 @@ async function nameSaves(run) {
   for (const item of lib.items) {
     if (run !== lib.run) return;
     if (!item.blob || item.data.name) continue;
-    try { await nameIfUnnamed(item, item.blob); named = true; } catch (e) { console.error(e); }
+    try { await nameIfUnnamed(item); named = true; } catch (e) { console.error(e); }
   }
   if (named && run === lib.run) renderLibrary();
 }
@@ -5494,7 +5581,7 @@ async function growMissingThumbs(run) {
       if (body) dropBody(body);
       if (run !== lib.run) return;
       setThumb(item, blob);
-      await nameIfUnnamed(item, blob);
+      await nameIfUnnamed(item);
     }
   } catch (e) {
     console.error(e);
@@ -5539,6 +5626,7 @@ async function openLibrary() {
     if (!dir) { flash('LIBRARY CANCELLED'); return; }
     lib.status = 'OPENING LIBRARY';
     drawLcd();
+    await renameOldNames(dir);
     const items = [], thumbs = await withTimeout(dir.getDirectoryHandle('thumbs', { create: true }));
     await readAll(dir, items);
     // Removed saves are never shown, but they are still read so the family tree can connect their children to their parents.
@@ -5558,6 +5646,7 @@ async function openLibrary() {
     drawLcd();
     lib.specimens = await readSpecimens(dir).catch(e => { console.error(e); return []; });
     lib.specimens.forEach(buildSpecimenCard);
+    if (lib.specimens.duplicates) lib.note += ` · ${lib.specimens.duplicates} duplicate specimen${lib.specimens.duplicates === 1 ? '' : 's'} moved to removed`;
     lib.dishes = await readDishes(dir).catch(e => { console.error(e); return []; });
     lib.dishes.forEach(buildDishCard);
     const run = ++lib.run;
@@ -5589,8 +5678,13 @@ async function openLibrary() {
 }
 function closeLibrary() { if ($('library').open) $('library').close(); }
 
+// Two specimens are the same when everything about them but their number, date and name matches and their particle files
+// are the same size: the same body cut twice from the same moment, or kept twice from a paused dish.
+const specimenKey = meta => { const { id, createdAt, name, ...rest } = meta; return JSON.stringify(rest); };
+const fileSize = async (store, name) => { try { return (await (await store.getFileHandle(name)).getFile()).size; } catch { return -1; } };
 // Specimens kept from the Arena live in the saves folder's "specimens" subfolder, each as a description, a picture
-// and a compressed file of its particles and trail.
+// and a compressed file of its particles and trail. Duplicates keep only their newest copy; the others move to the
+// removed folder, as duplicate saves do. The list says how many moved.
 async function readSpecimens(dir) {
   const store = await dir.getDirectoryHandle('specimens').catch(e => { if (e.name === 'NotFoundError') return null; throw e; });
   if (!store) return [];
@@ -5605,7 +5699,24 @@ async function readSpecimens(dir) {
       out.push(item);
     } catch { /* a damaged file just won't appear */ }
   }
-  return out.sort((a, b) => new Date(b.meta.createdAt) - new Date(a.meta.createdAt));
+  out.sort((a, b) => new Date(b.meta.createdAt) - new Date(a.meta.createdAt));
+  const groups = new Map(), copies = [];
+  for (const item of out) { const k = specimenKey(item.meta); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(item); }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const seen = new Set();
+    for (const item of group) {
+      const size = await fileSize(store, item.key + '.dlspec');
+      if (size >= 0 && seen.has(size)) copies.push(item); else seen.add(size);
+    }
+  }
+  for (const item of copies) {
+    try { await removeStored(item, 'specimens', ['.json', '.dlspec', '.webp'], dir); } catch (e) { console.error(e); }
+    if (item.url) URL.revokeObjectURL(item.url);
+  }
+  const kept = out.filter(x => !copies.includes(x));
+  kept.duplicates = copies.length;
+  return kept;
 }
 function buildSpecimenCard(item) {
   const m = item.meta, card = el('article', 'lib-card'), thumb = el('div', 'lib-thumb'), img = el('img');
@@ -5624,6 +5735,7 @@ function buildSpecimenCard(item) {
     row('SHAPE', `${m.shape === 'circle' ? 'circle' : 'body outline'} · ${m.g?.count || 1} species`);
     if (m.steady != null) row('AT HOME', m.steady ? 'held its shape' : 'kept changing');
   } else row('KEPT', `step ${kilo(m.keptAt)} · ${when}`);
+  if (m.formerName) row('FORMERLY', m.formerName);
   if (Number.isFinite(t.setpoint)) row('SET POINT', t.setpoint.toFixed(2));
   if (Number.isFinite(t.speed)) row('SPEED', t.speed.toFixed(2));
   if (Number.isFinite(t.angle)) row('SENSORS', `${Math.round(t.angle)}° · reach ${t.reach.toFixed(1)}`);
@@ -5652,7 +5764,7 @@ function buildSpecimenCard(item) {
   item.card = card;
 }
 function renderSpecimens() {
-  const words = searchWords(), list = (lib.specimens || []).filter(x => words.every(w => [x.meta.name, x.meta.source?.name || '', ...(x.meta.origin || []).map(o => o.name)].join(' ').toLowerCase().includes(w)));
+  const words = searchWords(), list = (lib.specimens || []).filter(x => words.every(w => [x.meta.name, x.meta.formerName || '', x.meta.source?.name || '', ...(x.meta.origin || []).map(o => o.name)].join(' ').toLowerCase().includes(w)));
   $('specGrid').replaceChildren(...list.map(x => x.card));
   const all = (lib.specimens || []).length;
   $('libCount').textContent = list.length === all ? `${all} ${all === 1 ? 'specimen' : 'specimens'}` : `${list.length} of ${all}`;
@@ -5705,6 +5817,7 @@ function buildDishCard(item) {
   row('DISH', `${DISHES[m.dish].label} · ${kilo(m.particles)} of ${m.agents >= 1e6 ? +(m.agents / 1e6).toFixed(1) + 'M' : kilo(m.agents)} places`);
   row('STRAINS', `${m.strains.filter(x => x.particles).length} living of ${m.strains.length} · ${m.bodies} ${m.bodies === 1 ? 'body' : 'bodies'}`);
   if (Number.isFinite(m.food)) row('BROTH', Math.round(m.food * 100) + '%');
+  if (m.formerName) row('FORMERLY', m.formerName);
   const total = m.strains.reduce((t, x) => t + x.particles, 0) || 1;
   for (const x of [...m.strains].sort((a, b) => b.particles - a.particles).filter(x => x.particles).slice(0, 4)) {
     const sp = el('span'), sw = el('i');
@@ -5732,7 +5845,7 @@ function buildDishCard(item) {
   item.card = card;
 }
 function renderDishes() {
-  const words = searchWords(), list = (lib.dishes || []).filter(x => words.every(w => [x.meta.name, ...x.meta.strains.map(s => s.name)].join(' ').toLowerCase().includes(w)));
+  const words = searchWords(), list = (lib.dishes || []).filter(x => words.every(w => [x.meta.name, x.meta.formerName || '', ...x.meta.strains.map(s => s.name)].join(' ').toLowerCase().includes(w)));
   $('dishGrid').replaceChildren(...list.map(x => x.card));
   const all = (lib.dishes || []).length;
   $('libCount').textContent = list.length === all ? `${all} ${all === 1 ? 'dish' : 'dishes'}` : `${list.length} of ${all}`;
@@ -5741,8 +5854,8 @@ function renderDishes() {
   markSeg($('libView'), lib.view);
 }
 // Removed specimens and dishes move to the "removed" folder like saves, so they can be brought back.
-async function removeStored(item, kind, extensions) {
-  const bin = await (await lib.dir.getDirectoryHandle('removed', { create: true })).getDirectoryHandle(kind, { create: true });
+async function removeStored(item, kind, extensions, dir = lib.dir) {
+  const bin = await (await dir.getDirectoryHandle('removed', { create: true })).getDirectoryHandle(kind, { create: true });
   for (const ext of extensions) {
     try {
       const source = await item.store.getFileHandle(item.key + ext), w = await (await bin.getFileHandle(item.key + ext, { create: true })).createWritable();
@@ -6409,15 +6522,26 @@ async function cutFrom(src, shape) {
   const pos = src.pos || new Float32Array(await readBack(sim.agentBuf, agents * 16)), rngs = new Uint32Array(pos.buffer);
   const genes = sim.genesReady ? new Float32Array(await readBack(sim.geneBuf, agents * 32)) : null;
   const { cx, cy, R } = shape, soft = shape.circle ? null : blurGrid(blurGrid(Float32Array.from(shape.mask), gw, gh), gw, gh);
-  const size = Math.min(Math.ceil(2 * R) + 4, w, h), x0 = clamp(Math.round(cx - size / 2), 0, w - size), y0 = clamp(Math.round(cy - size / 2), 0, h - size);
-  const data = await readRegion(sim.trail[sim.cur], x0, y0, size, size);
+  // The trail is cropped to the cut: a circle's square, or the box around a body's outline, so a long body keeps both
+  // its ends however much wider than tall it is.
+  let x0, y0, cropW, cropH;
+  if (shape.circle) {
+    cropW = cropH = Math.min(Math.ceil(2 * R) + 4, w, h);
+    x0 = clamp(Math.round(cx - cropW / 2), 0, w - cropW); y0 = clamp(Math.round(cy - cropH / 2), 0, h - cropH);
+  } else {
+    let bx0 = gw, bx1 = 0, by0 = gh, by1 = 0;
+    for (let p = 0; p < shape.mask.length; p++) if (shape.mask[p]) { const x = p % gw, y = (p - x) / gw; bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); }
+    x0 = Math.max(0, Math.floor(bx0 * cw) - 2); y0 = Math.max(0, Math.floor(by0 * ch) - 2);
+    cropW = Math.min(w, Math.ceil((bx1 + 1) * cw) + 2) - x0; cropH = Math.min(h, Math.ceil((by1 + 1) * ch) + 2) - y0;
+  }
+  const data = await readRegion(sim.trail[sim.cur], x0, y0, cropW, cropH);
   // How much of a point is inside the cut: the body's outline with a soft edge, or the circle.
   const maskAt = (px, py) => soft ? clamp(gridAt(soft, gw, gh, px / cw - .5, py / ch - .5) * 1.6, 0, 1) : 1 - smoothstep(R * .85, R, Math.hypot(px - cx, py - cy));
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const m = maskAt(x0 + x + .5, y0 + y + .5), k = (y * size + x) * 4;
+  for (let y = 0; y < cropH; y++) for (let x = 0; x < cropW; x++) {
+    const m = maskAt(x0 + x + .5, y0 + y + .5), k = (y * cropW + x) * 4;
     data[k] *= m; data[k + 1] *= m; data[k + 2] *= m; data[k + 3] = 1 - (1 - data[k + 3]) * m;
   }
-  const crop = { w: size, h: size, cx: cx - x0, cy: cy - y0, data };
+  const crop = { w: cropW, h: cropH, cx: cx - x0, cy: cy - y0, data };
   const [bA, bB] = speciesBounds(agents, g), inside = [];
   for (let i = 0; i < agents; i++) {
     const x = pos[i * 4], y = pos[i * 4 + 1];
@@ -6446,7 +6570,7 @@ async function cutFrom(src, shape) {
   let field = null;
   if (g.field.on && sim.fieldOn) {
     const cell = w / FIELD_W, fx0 = clamp(Math.floor(x0 / cell), 0, FIELD_W - 1), fy0 = clamp(Math.floor(y0 / cell), 0, FIELD_H - 1);
-    const fw = clamp(Math.ceil((x0 + size) / cell), fx0 + 1, FIELD_W) - fx0, fh = clamp(Math.ceil((y0 + size) / cell), fy0 + 1, FIELD_H) - fy0;
+    const fw = clamp(Math.ceil((x0 + cropW) / cell), fx0 + 1, FIELD_W) - fx0, fh = clamp(Math.ceil((y0 + cropH) / cell), fy0 + 1, FIELD_H) - fy0;
     const fdata = await readRegion(sim.field[0], fx0, fy0, fw, fh);
     for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
       const m = maskAt((fx0 + x + .5) * cell, (fy0 + y + .5) * cell), k = (y * fw + x) * 4;
@@ -6514,7 +6638,7 @@ async function benchCut() {
   const specimen = await arenaWork('CUTTING', async () => {
     const sp = await cutFrom(b, shape);
     // Several cuts can come from one save, so each is named for the body it was.
-    return sp && Object.assign(sp, { kind: 'cut', name: `${b.name} (${shape.circle ? 'circle' : shape.name})`, source: { saveId: b.g.saveId || null, name: b.name } });
+    return sp && Object.assign(sp, { kind: 'cut', name: cutName(b.name, shape), source: { saveId: b.g.saveId || null, name: b.name } });
   });
   const thumb = specimen ? await benchThumb(b, shape).catch(() => null) : null;
   closeBench();
@@ -6522,9 +6646,11 @@ async function benchCut() {
   let item;
   try { item = await saveSpecimen(specimen, thumb, false); }
   catch (e) { console.error(e); item = { key: null, meta: specimenMeta(specimen, ''), store: null, url: thumb && URL.createObjectURL(thumb), specimen }; }
+  const again = item.again;
   addToDrawer(item);
-  beginPlacing(specimen, item);
-  if (!item.key) flash(window.showDirectoryPicker ? 'IN THE DECK FOR NOW · SET FOLDER TO KEEP' : 'IN THE DECK FOR THIS SESSION');
+  beginPlacing(item.specimen, item);
+  if (again) flash('ALREADY IN THE DECK');
+  else if (!item.key) flash(window.showDirectoryPicker ? 'IN THE DECK FOR NOW · SET FOLDER TO KEEP' : 'IN THE DECK FOR THIS SESSION');
 }
 // The card picture: the source organism around the cut, with everything outside the cut dimmed.
 async function benchThumb(b, shape) {
@@ -6779,8 +6905,10 @@ async function stampSpot(f, spot, index) {
     planes[0][i * 4 + 3] = src[i * 4 + 3];
     planes[1][i * 4 + 3] = 1;
   }
+  // A cut's trail already has its soft edge, so it is laid down whole. A kept body's crop is a plain square of the dish
+  // it came from, so the ring's soft edge is laid on as it goes down.
   const job = new Float32Array(24);
-  job.set([cx, cy, R, .15, sp.crop.cx, sp.crop.cy, scale, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
+  job.set([cx, cy, sp.genes ? R : R + 2 * scale, sp.genes ? .15 : 0, sp.crop.cx, sp.crop.cy, scale, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
   device.queue.writeBuffer(arena.stampJob, 0, job);
   const crops = planes.map(data => {
     const t = device.createTexture({ size: [cw, ch], format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
@@ -7017,7 +7145,7 @@ async function growBody(g, q, steps) {
 // SOLO: the organism you last had in the Microscope goes on the bench as it is now.
 async function arenaFromSolo() {
   if (!R || R.step < BODY_MIN_STEPS) { flash('LET IT GROW FIRST'); return; }
-  await openBench({ sim: R, g: st, view: st.view, own: false, name: autoName(buildSave(st, R), null) });
+  await openBench({ sim: R, g: st, view: st.view, own: false, name: autoName(buildSave(st, R)) });
 }
 // CUT in the Microscope: whatever is on screen goes on the cutting bench in the Incubator, however it got there. In
 // BATCH that is the slide asked for, else the slide under the pointer, else the last slide picked.
@@ -7031,7 +7159,7 @@ async function cutFromMicroscope(tile = -1) {
     if (!t.sim || !t.genome || t.sim.step < BODY_MIN_STEPS) { flash('LET IT GROW FIRST'); return; }
     // The slide's simulation stays where it is: nothing steps it while the Incubator is open, and leaving the
     // Incubator closes the bench before the tray runs again.
-    const src = { sim: t.sim, g: t.genome, view: st.view, own: false, name: autoName(buildSave(t.genome, t.sim), null) };
+    const src = { sim: t.sim, g: t.genome, view: st.view, own: false, name: autoName(buildSave(t.genome, t.sim)) };
     goRoom('incubator');
     await openBench(src);
     return;
@@ -7075,7 +7203,7 @@ async function arenaRandom() {
         const judged = await sampleSim(sim, g).then(() => sim.judged);
         if (judged?.verdict !== 'ALIVE' && t < ARENA.tries - 1) continue;
         const named = { format: 'digital-life-save', seed: g.seed, init: g.init, count: g.count, species: g.species, field: g.field, life: g.life, metrics: metricsFor(sim) };
-        return await autoCut({ sim, g, name: 'Wild ' + autoName(named, null) });
+        return await autoCut({ sim, g, name: autoName(named, null, true) });
       } finally { destroySim(sim); }
     }
     return null;
@@ -7480,7 +7608,7 @@ async function keepAt(x, y, radius, from = '') {
       field = { w: fw, h: fh, cx: cx / cell - fx0, cy: cy / cell - fy0, cell, data, palette: first?.palette || 'ORCHID', light: first?.light ?? st.view.fieldLight };
     }
     const specimen = {
-      kind: 'kept', name: 'Kept ' + (from || origin[0].name), srcH: DISH_UNIT, radius, crop, field, recipes, agents: out, counts: [n], genes: keptGenes,
+      kind: 'kept', name: keptName(from || origin[0].name, `${arena.seed}:${s.step}:${n}:${Math.round(cx)}:${Math.round(cy)}`, new Set(drawer.items.map(x => x.meta.name))), srcH: DISH_UNIT, radius, crop, field, recipes, agents: out, counts: [n], genes: keptGenes,
       meanEmit: emit, chem, origin, keptAt: s.step,
       traits: Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, +v.toFixed(3)])),
     };
@@ -7488,8 +7616,9 @@ async function keepAt(x, y, radius, from = '') {
     return saveSpecimen(specimen, thumb);
   });
   if (!kept) return;
+  const again = kept.again;
   addToDrawer(kept);
-  flash(kept.key ? 'KEPT ' + kilo(kept.meta.particles) + ' AS A SPECIMEN' : 'IN THE DECK FOR NOW · SET FOLDER TO KEEP');
+  flash(again ? 'ALREADY IN THE DECK' : kept.key ? 'KEPT ' + kilo(kept.meta.particles) + ' AS A SPECIMEN' : 'IN THE DECK FOR NOW · SET FOLDER TO KEEP');
   flashIcon('dish');
 }
 /* Specimen files. Version 3 holds both kinds: a cut, whose particles follow their species' rules (with any inherited
@@ -7599,7 +7728,15 @@ function specimenMeta(sp, id) {
 async function saveSpecimen(sp, thumb, ask = true) {
   const dir = !window.showDirectoryPicker ? null : ask ? await savesFolder() : await silentFolder();
   const id = `sp-${timeStamp(new Date())}-${hashText([arena.seed, sp.kind, sp.keptAt, sp.name, sp.agents.dx.length, sp.agents.dx[0], sp.agents.dy[0], Date.now()].join()).toLowerCase()}`;
-  const meta = specimenMeta(sp, id), item = { key: null, meta, store: null, url: thumb ? URL.createObjectURL(thumb) : null, specimen: sp };
+  const meta = specimenMeta(sp, id);
+  // The same specimen already in the deck is not filed again; its card is used instead.
+  if (dir && !drawer.loaded) await loadDrawer();
+  const packed = dir ? await packSpecimen(sp) : null, key = specimenKey(meta);
+  for (const x of drawer.items) {
+    if (specimenKey(x.meta) !== key) continue;
+    if (!x.key ? !dir : packed && await fileSize(x.store, x.key + '.dlspec') === packed.size) return Object.assign(x, { again: true, specimen: x.specimen || sp });
+  }
+  const item = { key: null, meta, store: null, url: thumb ? URL.createObjectURL(thumb) : null, specimen: sp };
   if (!dir) return item;
   const store = await dir.getDirectoryHandle('specimens', { create: true });
   const write = async (name, data) => {
@@ -7607,7 +7744,7 @@ async function saveSpecimen(sp, thumb, ask = true) {
     await w.write(data);
     await w.close();
   };
-  await write(id + '.dlspec', await packSpecimen(sp));
+  await write(id + '.dlspec', packed);
   if (thumb) await write(id + '.webp', thumb);
   await write(id + '.json', JSON.stringify(meta, null, 2));
   return Object.assign(item, { key: id, store });
@@ -7641,10 +7778,10 @@ async function packDish(id) {
   const parts = [header, places, genes, await trail(s.trail[s.cur]), await trail(arena.trailB[s.cur]), ...grids];
   for (const l of labels) if (l) parts.push(l, new Uint8Array((4 - l.byteLength % 4) % 4));
   const c = arena.census, strains = arena.founders.map((f, i) => ({ name: f.specimen.name, color: f.color, particles: c?.counts[i] ?? 0 }));
-  const alive = strains.filter(x => x.particles).sort((a, b) => b.particles - a.particles), top = (alive.length ? alive : strains).map(x => x.name);
+  const alive = strains.filter(x => x.particles);
   const meta = {
     format: 'digital-life-dish', version: 1, id, createdAt: new Date().toISOString(),
-    name: top.slice(0, 2).join(' & ') + (top.length > 2 ? ` +${top.length - 2}` : ''),
+    name: dishName(alive.length, d.key, id),
     dish: d.key, w, h, agents, particles: live.length, step: s.step, seed: arena.seed, params: { ...arena.params },
     food: c?.food ?? null, bodies: arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0), strains,
     recipes: arena.recipes, history: arena.history,
@@ -7765,7 +7902,9 @@ async function readDrawer(ask) {
     const dir = ask ? await savesFolder() : await silentFolder();
     drawer.blocked = !dir && !!(workFolder || folder);
     if (!dir) return;
+    await renameOldNames(dir);
     const saved = await readSpecimens(dir);
+    if (saved.duplicates) flash(saved.duplicates + ' DUPLICATE' + (saved.duplicates === 1 ? '' : 'S') + ' REMOVED');
     // Cards already in the drawer keep their loaded particles. Unsaved cuts from this session stay too.
     const known = new Map(drawer.items.filter(x => x.key).map(x => [x.key, x]));
     for (const x of saved) {
@@ -7781,6 +7920,10 @@ async function readDrawer(ask) {
   } catch (e) { console.error(e); }
 }
 function addToDrawer(item) {
+  // A specimen that was already in the deck comes to the front instead of being added twice.
+  const at = drawer.items.indexOf(item);
+  if (at >= 0) drawer.items.splice(at, 1);
+  delete item.again;
   drawer.items.unshift(item);
   drawer.front = 0;
   renderDrawer();
@@ -8127,6 +8270,66 @@ function syncExport() {
   record.querySelector('span').textContent = job?.kind === 'record' ? (job.live ? `STOP ${Math.floor(job.frames / VIDEO.fps / 60)}:${String(Math.floor(job.frames / VIDEO.fps) % 60).padStart(2, '0')}` : '...') : 'RECORD';
 }
 // Advances the simulation one video frame at a time, so the file is perfectly smooth even if the computer briefly falls behind.
+/* Recordings of the Incubator show it as it looks in the room: the dish through its round porthole, with the bezel and
+   its tick marks, and the readouts beside it. The porthole and bezel are drawn once; the readouts are drawn again only
+   when their numbers change. */
+const dishFrame = { ring: null, art: null, key: '' };
+function dishFrameArt(w, h) {
+  const u = h / 720, cx = w / 2, cy = h / 2, r = h / 2, TAU_ = Math.PI * 2;
+  if (!dishFrame.ring || dishFrame.ring.width !== w || dishFrame.ring.height !== h) {
+    const ring = new OffscreenCanvas(w, h), c = ring.getContext('2d');
+    // Inside the glass, a soft shadow at the rim.
+    const shade = c.createRadialGradient(cx, cy, r - 105 * u, cx, cy, r);
+    shade.addColorStop(0, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(0,0,0,.72)');
+    c.fillStyle = shade; c.beginPath(); c.arc(cx, cy, r, 0, TAU_); c.fill();
+    // The machinery around it.
+    c.fillStyle = '#04080a'; c.beginPath(); c.rect(0, 0, w, h); c.arc(cx, cy, r, 0, TAU_, true); c.fill();
+    const glow = c.createRadialGradient(cx, cy, r + 12 * u, cx, cy, r + 90 * u);
+    glow.addColorStop(0, 'rgba(47,240,196,.06)'); glow.addColorStop(1, 'rgba(47,240,196,0)');
+    c.fillStyle = glow; c.beginPath(); c.arc(cx, cy, r + 90 * u, 0, TAU_); c.arc(cx, cy, r + 12 * u, 0, TAU_, true); c.fill();
+    // The bezel: a bright lip, a dark band and a fine outer line.
+    const band = (r0, r1, color) => { c.fillStyle = color; c.beginPath(); c.arc(cx, cy, r1, 0, TAU_); c.arc(cx, cy, r0, 0, TAU_, true); c.fill(); };
+    band(r, r + 2 * u, '#2a4a4a'); band(r + 2 * u, r + 11 * u, '#0b1416'); band(r + 11 * u, r + 12 * u, '#1f3537');
+    // Tick marks every 6 degrees, brighter every 30.
+    for (let d = 0; d < 360; d += 6) {
+      const major = d % 30 === 0, half = (major ? .7 : .5) / 2 * Math.PI / 180, a = (d - 90) * Math.PI / 180;
+      c.fillStyle = major ? 'rgba(111,240,207,.67)' : 'rgba(111,240,207,.4)';
+      c.beginPath(); c.arc(cx, cy, r + 23 * u, a - half, a + half); c.arc(cx, cy, r + 14 * u, a + half, a - half, true); c.fill();
+    }
+    dishFrame.ring = ring;
+  }
+  const art = dishFrame.art?.width === w && dishFrame.art?.height === h ? dishFrame.art : (dishFrame.art = new OffscreenCanvas(w, h));
+  const c = art.getContext('2d'), census = arena.census, pool = arena.sim.q.agents;
+  c.clearRect(0, 0, w, h);
+  c.drawImage(dishFrame.ring, 0, 0);
+  // The readouts, as beside the porthole in the room.
+  const mono = getComputedStyle(document.body).getPropertyValue('--mono') || 'monospace';
+  const x0 = .025 * w, colW = .17 * w, alive = census ? census.counts.filter(Boolean).length : 0;
+  const bodies = arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0);
+  const label = (text, x, y) => { c.font = `${11.5 * u}px ${mono}`; c.fillStyle = '#4f7a72'; c.letterSpacing = `${2 * u}px`; c.fillText(text, x, y); };
+  const value = (text, x, y, height) => { c.fillStyle = '#9ff5dc'; c.shadowColor = 'rgba(47,240,196,.33)'; c.shadowBlur = 10 * u; dotText(c, text, x, y, height / 7); c.shadowBlur = 0; };
+  const bar = (x, y, share) => {
+    c.fillStyle = '#13282a'; c.fillRect(x, y, colW, 3 * u);
+    c.fillStyle = '#6ff0cf'; c.shadowColor = '#6ff0cf'; c.shadowBlur = 8 * u; c.fillRect(x, y, colW * clamp(share, 0, 1), 3 * u); c.shadowBlur = 0;
+  };
+  const title = 26 * u, big = 21 * u, gap = 26 * u;
+  let y = cy - (title + 3 * (gap + 18 * u + big) + 8 * u) / 2;
+  c.fillStyle = '#c9f7ea'; dotText(c, 'INCUBATOR', x0, y, title / 7);
+  y += title + gap;
+  label('MOTES', x0, y + 9 * u); value(census ? kilo(census.total) : '0', x0, y + 18 * u, big); bar(x0, y + 18 * u + big + 7 * u, census ? census.total / pool : 0);
+  y += 18 * u + big + 7 * u + gap;
+  const food = census?.food ?? 1;
+  label('BROTH', x0, y + 9 * u); value(Math.round(food * 100) + '%', x0, y + 18 * u, big); bar(x0, y + 18 * u + big + 7 * u, food);
+  y += 18 * u + big + 7 * u + gap;
+  [['STRAINS', alive + '/' + arena.founders.length], ['BODIES', String(bodies)], ['STEP', kilo(arena.sim.step)]].forEach(([name, text], i) => {
+    const x = x0 + i * colW / 3;
+    label(name, x, y + 9 * u); value(text, x, y + 18 * u, big);
+  });
+  return art;
+}
+// What the readouts say now, so the frame art is only redrawn when it changes.
+const dishFrameKey = () => { const c = arena.census; return [c?.total, c?.food, c?.counts.filter(Boolean).length, arena.founders.length, arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0), kilo(arena.sim.step)].join(); };
+
 async function captureVideo(kind) {
   if (capture) { if (capture.live && capture.kind === kind) capture.stop = true; return; }
   if (!R || batch.screening || imageBusy || growing) return;
@@ -8136,7 +8339,7 @@ async function captureVideo(kind) {
   const { w, h, fps, clipFrames: T, fadeFrames: F } = VIDEO, isClip = kind === 'clip';
   const name = `dl-${timeStamp(new Date())}-${hex8(st.seed).toLowerCase()}-${isClip ? 'loop' : 'rec'}.mp4`;
   const T_ = GPUTextureUsage, bytesPerRow = Math.ceil(w * 4 / 256) * 256, head = [];
-  let sink = null, encoder = null, frameTex = null, mixTex = null, readBuf = null, amountBuf = null;
+  let sink = null, encoder = null, frameTex = null, mixTex = null, readBuf = null, amountBuf = null, frameArt = null;
   try {
     const config = await videoConfig();
     if (!config) { flash('VIDEO UNSUPPORTED'); return; }
@@ -8154,6 +8357,12 @@ async function captureVideo(kind) {
     const usage = T_.RENDER_ATTACHMENT | T_.COPY_SRC | T_.TEXTURE_BINDING;
     frameTex = device.createTexture({ size: [w, h], format: canvasFormat, usage });
     readBuf = device.createBuffer({ size: bytesPerRow * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    // In the Incubator, each frame gets the porthole and readouts laid over it.
+    if (mode === 'arena') {
+      frameArt = device.createTexture({ size: [w, h], format: 'rgba8unorm', usage: T_.TEXTURE_BINDING | T_.COPY_DST | T_.RENDER_ATTACHMENT });
+      frameArt.group = device.createBindGroup({ layout: P.L.upscale, entries: [{ binding: 0, resource: frameArt.createView() }] });
+      frameArt.key = null;
+    }
     if (isClip) {
       mixTex = device.createTexture({ size: [w, h], format: canvasFormat, usage });
       amountBuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -8177,6 +8386,14 @@ async function captureVideo(kind) {
       pass.end();
       for (const it of items) prepareImage(enc, it.sim);
       compositeTo(enc, items, frameTex.createView());
+      if (frameArt && mode === 'arena') {
+        const key = dishFrameKey();
+        if (key !== frameArt.key) {
+          device.queue.copyExternalImageToTexture({ source: dishFrameArt(w, h) }, { texture: frameArt, premultipliedAlpha: true }, [w, h]);
+          frameArt.key = key;
+        }
+        fullscreenPass(enc, frameTex.createView(), P.overlay, frameArt.group, 'load');
+      }
       // A clip holds back its first frames, then dissolves its ending into them so the last frame flows into the first.
       if (isClip && made < F) {
         enc.copyTextureToTexture({ texture: frameTex }, { texture: head[made] }, [w, h]);
@@ -8233,7 +8450,7 @@ async function captureVideo(kind) {
     job.live = false;
     if (sink) await sink.abort().catch(() => {});
     if (encoder && encoder.state !== 'closed') encoder.close();
-    [frameTex, mixTex, ...head].forEach(t => t?.destroy());
+    [frameTex, mixTex, frameArt, ...head].forEach(t => t?.destroy());
     readBuf?.destroy();
     amountBuf?.destroy();
     capture = null;
