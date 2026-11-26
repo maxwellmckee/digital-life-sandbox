@@ -4,6 +4,13 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Bodies last: digestion needs real company.** Dishes run for 25,000 to 50,000 steps were spreading into an even
+  mush at every FOOD level, because selection lowered every strain's set point: a particle content at low density
+  digested as well spread thin and shared its food with fewer. Cooperative digestion now never counts a set point below
+  a minimum density of kin (5), so eating well needs real company. The default FOOD stays 0.75; RANDOMIZE draws it from
+  0.75 up, since a dish at 0.6 lost a strain.
+- **ECOSYSTEM gains STRUCTURE.** A fifth part measures whether the dish lives in separate bodies rather than an even
+  mush (how much of it is packed into its densest tenth), so a steady, well-mixed mush no longer scores high.
 - **ECOSYSTEM score.** Beside the dish, under STRAINS / BODIES / STEP: 0 to 100 over the last 3,000 steps, with four
   bars for its parts (COEXIST, PERSIST, EXCHANGE, BALANCE), multiplied so a dish needs all of them. It is computed from
   the census the dish already keeps, never changes the dish, is saved with it, and shows on its Archive card.

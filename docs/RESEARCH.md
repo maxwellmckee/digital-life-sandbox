@@ -630,6 +630,45 @@ shrinks first, and recovers as its particles evolve to spend less. RANDOMIZE dra
 what was placed, with the largest strain at 48 to 68%: strains now compete for food. A dish saved before the change
 opens with its FOOD doubled (to at most 1), so the food it gets is the same; dishes that had more than 0.5 now get less.
 
+### Why dishes turned to mush
+
+Once food limited growth, dishes run for 25,000 to 50,000 steps still lost their bodies: whatever the FOOD, the
+particles spread evenly across the whole glass, while food kept their number down (26 to 32% of their places at FOOD
+0.26 to 0.32). Measured on the saved dishes, the share of particles in the densest tenth of the dish (8-pixel squares)
+was 28 to 56% in these, against 77 to 99% in older dishes of separate bodies (L-743, L-848, M-690, M-804).
+
+The cause was in the genes. In every surviving strain of three such dishes the average set point had fallen four to
+ten times (Amoeba C-978 3.54 to 0.42, Fluvia C-493 5.58 to 0.87, Filum WMF-789 2.84 to 0.12). Every rule that holds a
+body together is measured against a particle's own set point: crowding pushes it out past its set point, it digests
+best near it, and homing turns it back below a third of it. A particle with a low set point is therefore content
+spread thin, digests as well there, and shares its food with fewer. A fresh four-strain dish at FOOD 0.6 showed it is
+selection: over 20,000 steps the set point fell from 2.82 to 1.20 as the dish spread (densest tenth 85% to 40%), and
+it fell just as far with set points held from drifting toward where particles live (to 0.28) and with no mutation at
+all (to 0.51, from the variety the strains were placed with).
+
+The fix is a particle rule: cooperative digestion never counts a set point below a minimum density of kin, so a low set
+point no longer makes sparse living pay. On the same dish:
+
+| Minimum (FOOD 0.75 unless noted) | Places used at 20,000 steps | Strains alive | Clumped (densest tenth, 20-pixel squares) |
+|---|---|---|---|
+| none (FOOD 0.6, 8-pixel squares) | 54% | 4 of 4 | 40%, still falling |
+| 4 | 42% | 4 of 4 | 40%, slowly falling |
+| 5 | 31% | 4 of 4 | 49%, steady |
+| 5 at FOOD 1 | 49% | 4 of 4 | 41% |
+| 5 at FOOD 0.6 | 9% | 3 of 4 | 100% |
+| 6 | 12% | 3 of 4 | 98% |
+| 8 | 7% | 2 of 4 | 100% |
+
+A minimum of 5 holds bodies at the default FOOD without starving strains, so RANDOMIZE now draws FOOD from 0.75 up.
+It slows the spread rather than ending it: at FOOD 1 a dish still loosens to about 41%. Keeping bodies for good probably
+needs cohesion that can itself evolve, such as homing and crowding as genes, so that selection can favour strains that
+hold together.
+
+The ECOSYSTEM score had the same blind spot: a well-mixed mush coexists, persists, trades ground and holds steady, so
+those dishes scored 75 to 88. It now has a fifth part, **structure**: the share of particles in the densest tenth of the
+dish's 20-pixel census squares, mapped from 0 at 30% to 1 at 70% (mush dishes measure 20 to 45% there, dishes of
+separate bodies 71 to 93%).
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.

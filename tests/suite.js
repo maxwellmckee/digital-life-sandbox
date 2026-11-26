@@ -281,16 +281,18 @@
       return { ok: opened === .6 && kept === .3, detail: `older dish at FOOD 0.3 opens at ${opened}; a new one stays at ${kept}` };
     },
 
-    // The ECOSYSTEM score. On made-up histories: strains trading ground in a steady dish score high; a crashing dish, one
-    // whose strains never move, and one too short to judge do not. On a real dish: once 3,000 steps of census history
-    // exist, it shows beside the dish and is saved with it.
+    // The ECOSYSTEM score. On made-up histories: strains trading ground in a steady dish of separate bodies score high; the
+    // same dish spread into an even mush, a crashing dish, one whose strains never move, and one too short to judge do
+    // not. On a real dish: once 3,000 steps of census history exist, it shows beside the dish and is saved with it.
     async 'Ecosystem score'() {
-      const wrong = [], make = (n, f) => Array.from({ length: n }, (_, j) => ({ step: j * 150, counts: f(j) }));
-      const trading = ecoScore(make(25, j => [1000 + 200 * Math.sin(j / 2), 1000 - 200 * Math.sin(j / 2), 1000 + 150 * Math.cos(j / 3), 1000 - 150 * Math.cos(j / 3)]), 12000, 4);
+      const wrong = [], make = (n, f, clump = .85) => Array.from({ length: n }, (_, j) => ({ step: j * 150, counts: f(j), clump }));
+      const trade = j => [1000 + 200 * Math.sin(j / 2), 1000 - 200 * Math.sin(j / 2), 1000 + 150 * Math.cos(j / 3), 1000 - 150 * Math.cos(j / 3)];
+      const trading = ecoScore(make(25, trade), 12000, 4), mush = ecoScore(make(25, trade, .25), 12000, 4);
       const crash = ecoScore(make(25, j => [1000 * (1 - j / 30), 900 * (1 - j / 30), 800, 700]), 12000, 4);
       const frozen = ecoScore(make(25, () => [1000, 1000, 1000, 1000]), 12000, 4);
       const short = ecoScore(make(5, j => [1000 + j, 1000 - j, 1000, 1000]), 12000, 4);
       if (!(trading?.score >= 80)) wrong.push('trading dish scored ' + trading?.score);
+      if (!(mush?.score < 30)) wrong.push('mush dish scored ' + mush?.score);
       if (!(crash?.score < 30)) wrong.push('crashing dish scored ' + crash?.score);
       if (frozen?.score !== 0) wrong.push('frozen dish scored ' + frozen?.score);
       if (short !== null) wrong.push('a short history was scored');
@@ -304,7 +306,7 @@
       const meta = JSON.parse(await (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('dishes')).getFileHandle(arena.dishId + '.json')).getFile()).text());
       if (!meta.ecosystem || !Number.isFinite(meta.ecosystem.score)) wrong.push('not saved with the dish');
       arena.dishId = null;
-      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `made-up dishes: trading ${trading.score}, crashing ${crash.score}, frozen 0; real dish ${eco.score} (shown ${shown}), saved` };
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `made-up dishes: trading ${trading.score}, mush ${mush.score}, crashing ${crash.score}, frozen 0; real dish ${eco.score} (shown ${shown}), saved` };
     },
 
     async 'Every help label has its text'() {
@@ -323,8 +325,9 @@
 
   // Fingerprints recorded on the development machine (NVIDIA RTX 40-series). Another GPU may differ; the checks that
   // compare two runs still hold there. The dish's changed on purpose when the strain cap was removed, and again when
-  // energy was made to come only from food and food was rescaled to limit growth.
-  const EXPECTED = { dish: 'd58733a5-a0a45a6c-419cb7b-faf75c2a-91553fc1' };
+  // energy was made to come only from food and food was rescaled to limit growth, and when digestion came to need a
+  // minimum density of kin.
+  const EXPECTED = { dish: 'd0bdfa5c-7e209c9d-c1f8197c-91d72f21-783f0a3d' };
   const FIXTURES = {
     a: { quality: 'med', seed: 12345, init: 'scatter', count: 1, eco: null, hybrid: 'off', steps: 600 },
     b: { quality: 'med', seed: 6060, init: 'out', count: 3, eco: 'cycle', hybrid: 'cells', steps: 600 },

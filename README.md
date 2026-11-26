@@ -95,8 +95,10 @@ with PNG and MP4 export and Help everywhere.
 
 **Next:**
 
-1. Membrane material made by the particles themselves, and whole bodies that divide.
-2. Use the ECOSYSTEM score to compare dishes over long runs, and see which settings and strains make the richest
+1. Cohesion that can evolve (homing and crowding as genes), so bodies last because selection favours strains that hold
+   together ([research](docs/RESEARCH.md#why-dishes-turned-to-mush)).
+2. Membrane material made by the particles themselves, and whole bodies that divide.
+3. Use the ECOSYSTEM score to compare dishes over long runs, and see which settings and strains make the richest
    ecosystems.
 
 **Ideas for later:** endosymbiosis-like dependence between strains, a first-run gallery of presets, parameter locks for

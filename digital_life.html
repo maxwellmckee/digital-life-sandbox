@@ -557,6 +557,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
               <span data-help="hud.eco.persist">PERSIST<i><u id="ecoPersist"></u></i></span>
               <span data-help="hud.eco.exchange">EXCHANGE<i><u id="ecoExchange"></u></i></span>
               <span data-help="hud.eco.balance">BALANCE<i><u id="ecoBalance"></u></i></span>
+              <span data-help="hud.eco.structure">STRUCTURE<i><u id="ecoStructure"></u></i></span>
             </div>
             <em id="ihudEcoNote">last 3,000 steps</em></div>
         </div>
@@ -1180,7 +1181,7 @@ struct Gene {
 }
 struct Arena {
   size: vec2u, agents: u32, step: u32,
-  norm: f32, coop: f32, pad0: f32, settle: f32,
+  norm: f32, coop: f32, kinFloor: f32, settle: f32,
   hunger: f32, drift: f32, crowd: f32, sigma: f32,
   eat: f32, regrow: f32, wear: f32, veins: f32,
   scale: f32, homing: f32, spread: f32, veinFlow: f32,
@@ -1285,10 +1286,10 @@ fn score(p: vec2f, a: f32, reach: f32, g: Gene, rl: vec3f, rh: vec3f, pull: f32)
   return vec2f(v - arena.crowd * over * over, u);
 }
 // Cooperative digestion: shared enzymes only pay off where enough kin are around (a Hill curve, as in cooperative binding).
-// Enough is measured against the density the particle is set to live at, so a body that is sparse by nature eats well
-// at its own density, while a loner of any body still can't.
+// Enough is measured against the density the particle is set to live at, but never less than a floor (kinFloor), so a
+// particle cannot make sparse living pay by lowering its set point: it eats well only in real company.
 fn together(u: f32, setpoint: f32) -> f32 {
-  let r = u / max(setpoint, 0.05);
+  let r = u / max(setpoint, arena.kinFloor);
   return r * r / (r * r + arena.coop * arena.coop);
 }
 // How much of its kin a particle senses where it stands.
@@ -3376,12 +3377,14 @@ function syncSlide() {
      persist   how long its oldest bodies have lasted, nearing 1 after about 12,000 steps;
      exchange  strains trading ground: their numbers move, and their step-to-step changes offset each other rather than
                rising and falling together (low synchrony, after Loreau and de Mazancourt);
-     balance   the dish as a whole steady: no crash or boom over the window.
+     balance   the dish as a whole steady: no crash or boom over the window;
+     structure separate bodies rather than an even mush: how clumped the dish is (see censusClump).
    It only reads what the census counted, so it never changes the dish. */
-const ECO = { window: 3000, minSpan: 2500, minSamples: 8, ageScale: 5000, move: .02, trend: .3, cv: .15 };
+const ECO = { window: 3000, minSpan: 2500, minSamples: 8, ageScale: 5000, move: .02, trend: .3, cv: .15, clump: [.3, .7] };
 const clamp01e = v => Math.max(0, Math.min(1, v));
-// history: [{ step, counts }], oldest: the age of the dish's oldest bodies, placed: how many strains were placed.
-function ecoScore(history, oldest, placed) {
+// history: [{ step, counts, clump }], oldest: the age of the dish's oldest bodies, placed: how many strains were placed,
+// clumpNow: how clumped it is now, used when the history has no clumping (it was saved before that was counted).
+function ecoScore(history, oldest, placed, clumpNow = 0) {
   const end = history.at(-1);
   if (!end || !placed) return null;
   const w = history.filter(h => h.step > end.step - ECO.window);
@@ -3400,15 +3403,17 @@ function ecoScore(history, oldest, placed) {
   const sync = sumSd > 0 ? sd(change(totals)) ** 2 / sumSd ** 2 : 1;
   const exchange = clamp01e(move / ECO.move) * clamp01e(1 - sync);
   const balance = clamp01e(1 - Math.abs(totals.at(-1) / Math.max(1, totals[0]) - 1) / ECO.trend) * clamp01e(1 - sd(totals) / Math.max(1, mean(totals)) / ECO.cv);
-  const parts = { coexist: clamp01e(coexist), persist, exchange, balance };
-  return { score: Math.round((parts.coexist * parts.persist * parts.exchange * parts.balance) ** .25 * 100), parts, span: end.step - w[0].step };
+  const clumps = w.map(h => h.clump).filter(Number.isFinite), clump = clumps.length ? mean(clumps) : clumpNow;
+  const structure = clamp01e((clump - ECO.clump[0]) / (ECO.clump[1] - ECO.clump[0]));
+  const parts = { coexist: clamp01e(coexist), persist, exchange, balance, structure };
+  return { score: Math.round((parts.coexist * parts.persist * parts.exchange * parts.balance * parts.structure) ** .2 * 100), parts, span: end.step - w[0].step };
 }
 // The open dish's score: its census history, and the median age of its three oldest bodies.
 function dishEcosystem() {
   if (!arena.sim || !arena.founders.length) return null;
   const step = arena.history.at(-1)?.step ?? arena.sim.step;
   const ages = arena.founders.flatMap(f => (f.track?.bodies || []).map(b => step - b.born)).sort((a, b) => b - a);
-  return ecoScore(arena.history, ages.length ? ages[Math.min(1, ages.length - 1)] : 0, arena.founders.length);
+  return ecoScore(arena.history, ages.length ? ages[Math.min(1, ages.length - 1)] : 0, arena.founders.length, arena.census?.clump ?? 0);
 }
 
 // Readouts beside the Incubator porthole, refreshed with each census.
@@ -3427,7 +3432,7 @@ function syncIncubatorHud() {
   const eco = dishEcosystem();
   setDots($('ihudEco'), eco ? String(eco.score) : '--');
   $('ihudEcoNote').textContent = eco ? 'last 3,000 steps' : 'after 3,000 steps of history';
-  for (const [k, id] of [['coexist', 'ecoCoexist'], ['persist', 'ecoPersist'], ['exchange', 'ecoExchange'], ['balance', 'ecoBalance']]) $(id).style.width = (eco ? eco.parts[k] * 100 : 0) + '%';
+  for (const [k, id] of [['coexist', 'ecoCoexist'], ['persist', 'ecoPersist'], ['exchange', 'ecoExchange'], ['balance', 'ecoBalance'], ['structure', 'ecoStructure']]) $(id).style.width = (eco ? eco.parts[k] * 100 : 0) + '%';
 }
 
 /* Afterglow: a pressed control lights up and the light fades the way trail does. Nothing moves, so the eye stays on
@@ -4513,15 +4518,16 @@ const HELP = {
   'hud.strains': { t: 'STRAINS', d: 'Strains still alive, of all you placed. A strain is one placed specimen and all its descendants.' },
   'hud.bodies': { t: 'BODIES', d: 'Separate bodies across all strains: each connected patch where a strain is dense. Counted twice a second.' },
   'hud.step': { t: 'STEP', d: 'How many steps the dish has run. In each step every particle senses, turns, moves, eats, and may divide or die.' },
-  'hud.eco': { t: 'ECOSYSTEM', d: 'How much the dish behaves like an ecosystem over its last 3,000 steps, from 0 to 100. Its four parts are multiplied, so a dish needs all of them.', tip: 'It only reads what the dish already counts, so it never changes what happens. It is saved with the dish and shown on its Archive card.' },
+  'hud.eco': { t: 'ECOSYSTEM', d: 'How much the dish behaves like an ecosystem of separate living bodies over its last 3,000 steps, from 0 to 100. Its five parts are multiplied, so a dish needs all of them.', tip: 'It only reads what the dish already counts, so it never changes what happens. It is saved with the dish and shown on its Archive card.' },
   'hud.eco.coexist': { t: 'COEXIST', d: 'How many of the strains you placed are still alive, and how evenly they share the dish.' },
   'hud.eco.persist': { t: 'PERSIST', d: 'How long the dish\'s oldest bodies have lasted. Near full after about 12,000 steps.' },
   'hud.eco.exchange': { t: 'EXCHANGE', d: 'Whether strains trade ground: their numbers move, and when one rises another falls, as competitors for the same food do, rather than all rising and falling together.' },
   'hud.eco.balance': { t: 'BALANCE', d: 'Whether the dish as a whole holds steady, without crashing or booming.' },
+  'hud.eco.structure': { t: 'STRUCTURE', d: 'Whether the dish lives in separate bodies rather than an even mush: how much of it is packed into its densest tenth.', tip: 'Full when that tenth holds about 70% of the particles; empty at about 30%, an even spread.' },
   'arena.cells': { t: 'CELLS', d: 'Cells are structures nobody placed: closed membranes around a living inside. SHOW boxes each one with a name and score; green means an EU cell (one with a body inside, like a nucleus) at 80% or more.', tip: 'The score needs all five: a closed wall, an outline that holds its particles, movement inside, bodies and strains inside, and age. Cells are followed every 150 steps, shown or not.' },
   'arena.cellTop': { t: 'BEST CELLS', d: 'The three best cells, with score, age and the strains inside. Point at one to light it up in the dish; click it to zoom to it.', tip: 'The list holds still while you point at it, so KEEP CELL takes the cell you aimed at. EU cells have a body inside; PR cells do not.' },
   'cell.keep': { t: 'KEEP CELL', d: 'Cuts this cell along its own outline, with every gene its particles evolved, and files it as a specimen marked CELL.' },
-  'arena.randomize': { t: 'RANDOMIZE', d: 'Sets the four sliders at random, mostly near the middle of each, never with so little food that the dish starves.', tip: 'Below FOOD 0.6 a dish of fresh specimens shrinks at first, so RANDOMIZE keeps it above that.' },
+  'arena.randomize': { t: 'RANDOMIZE', d: 'Sets the four sliders at random, mostly near the middle of each, never with so little food that the dish starves.', tip: 'Below FOOD 0.75 a dish of fresh specimens can lose strains, so RANDOMIZE keeps it above that.' },
   'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
   bench: { t: 'CUTTING BENCH', d: 'The organism being cut, with its bodies outlined, best first. Click a body to choose it, or anywhere else for a circle, and scroll to size it.', rows: [['STEADY', 'Run on out of sight for 900 steps, this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it reshaped on its own, so it will keep changing in the dish.']], tip: 'A body is a region denser than its surroundings that holds together as the threshold loosens. The cut follows its outline, so passing strands stay behind.' },
   'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle, files it in your specimen deck and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
@@ -4529,7 +4535,7 @@ const HELP = {
   'drawer.remove': { t: 'REMOVE', d: 'Takes the card in front out of the deck. Press it twice; its files move to the removed folder.', tip: 'Strains already in the dish live on.' },
   'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it, then click the dish to place copies. The copies placed while it is picked form one strain and know each other as kin. Click it again to stop.', tip: 'Scroll over the dish to size a copy, from a third of its size to twice it; its reach and speed scale with it. An orange count means it is not saved yet.' },
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
-  'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'At 1 a dish of fresh specimens fills about nine tenths of its room' },
+  'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'At 1 a dish of fresh specimens fills about half its room' },
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together: a particle that strays from its kin turns back, crowding past its set density pushes it out, and it digests best near that density.', lo: 'Classic slime: bodies fray into spreading networks', hi: 'Bodies stay separate: rings, ribbons and cells that move and compete' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful copies', hi: 'Fast evolution and more failed offspring' },
@@ -5980,7 +5986,7 @@ function buildDishCard(item) {
   row('DISH', `${DISHES[m.dish].label} · ${kilo(m.particles)} of ${m.agents >= 1e6 ? +(m.agents / 1e6).toFixed(1) + 'M' : kilo(m.agents)} places`);
   row('STRAINS', `${m.strains.filter(x => x.particles).length} living of ${m.strains.length} · ${m.bodies} ${m.bodies === 1 ? 'body' : 'bodies'}`);
   if (Number.isFinite(m.food)) row('BROTH', Math.round(m.food * 100) + '%');
-  if (m.ecosystem) { const e = m.ecosystem.parts; row('ECOSYSTEM', `${m.ecosystem.score} · coexist ${Math.round(e.coexist * 100)} · persist ${Math.round(e.persist * 100)} · exchange ${Math.round(e.exchange * 100)} · balance ${Math.round(e.balance * 100)}`); }
+  if (m.ecosystem) { const e = m.ecosystem.parts; row('ECOSYSTEM', `${m.ecosystem.score} · coexist ${Math.round(e.coexist * 100)} · persist ${Math.round(e.persist * 100)} · exchange ${Math.round(e.exchange * 100)} · balance ${Math.round(e.balance * 100)}${e.structure != null ? ` · structure ${Math.round(e.structure * 100)}` : ''}`); }
   if (m.formerName) row('FORMERLY', m.formerName);
   const total = m.strains.reduce((t, x) => t + x.particles, 0) || 1;
   for (const x of [...m.strains].sort((a, b) => b.particles - a.particles).filter(x => x.particles).slice(0, 4)) {
@@ -6089,6 +6095,11 @@ const ARENA = {
   // specimens levels off just short of full (docs/RESEARCH.md, "Food sets the limit"). Dishes saved when it was 0.012
   // have their FOOD rescaled when opened, so they get the same food.
   regrow: .006,
+  // The least density of kin that cooperative digestion is measured against, whatever a particle's set point. Without it
+  // a particle with a low set point digests as well spread thin as in a body, and shares its food with fewer, so
+  // selection lowered every strain's set point until dishes spread into an even mush (docs/RESEARCH.md, "Why dishes
+  // turned to mush"). With it, eating well needs real company, and bodies last.
+  kinFloor: 5,
 };
 // The dish's chemicals: three in each of its two trail maps.
 const CHEM = 6;
@@ -6102,9 +6113,9 @@ const ARENA_PARAMS = [
   { k:'drift',  label:'GENE DRIFT',  min:0,  max:1, step:.01, def:.35, fmt:v=>v.toFixed(2) },
 ];
 /* RANDOMIZE draws each of the settings above from a range where dishes were seen to live, more often near its middle
-   (the average of two random numbers). FOOD is the one that kills: below about 0.6 a dish of fresh specimens shrinks
-   at first, so food is drawn from 0.6 up (docs/RESEARCH.md, "Food sets the limit"). */
-const SAFE_SETTINGS = { food: [.6, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65] };
+   (the average of two random numbers). FOOD is the one that kills: since digestion needs real company, a dish of fresh
+   specimens at 0.6 lost a strain, so food is drawn from 0.75 up (docs/RESEARCH.md, "Why dishes turned to mush"). */
+const SAFE_SETTINGS = { food: [.75, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65] };
 function safeSettings(rf = Math.random) {
   return Object.fromEntries(ARENA_PARAMS.map(p => { const [lo, hi] = SAFE_SETTINGS[p.k]; return [p.k, snapTo(lo + (rf() + rf()) / 2 * (hi - lo), p)]; }));
 }
@@ -6389,7 +6400,7 @@ function writeArenaUniforms(s, now, view = st.view) {
   au[0] = w; au[1] = h; au[2] = agents; au[3] = s.step;
   const rules = arena.rules;
   // Without cooperation a particle digests fully wherever any kin are, and food pulls wherever it is.
-  af[4] = ARENA.norm; af[5] = rules.cooperation ? ARENA.coop : 1e-4; af[7] = ARENA.settle;
+  af[4] = ARENA.norm; af[5] = rules.cooperation ? ARENA.coop : 1e-4; af[6] = ARENA.kinFloor; af[7] = ARENA.settle;
   af[8] = p.hunger; af[9] = p.drift;
   // Homeostasis sets how hard crowding pushes back and how narrow the density a particle can digest at is.
   af[10] = rules.crowding ? p.homeo * 3 : 0; af[11] = 1.5 - p.homeo;
@@ -7514,6 +7525,22 @@ function trackBodies(f, grid, step, size) {
   t.bodies = bodies;
 }
 
+// How clumped the dish is: the share of its particles in the densest tenth of its 20-pixel squares inside the glass.
+// About 0.2 to 0.45 for a dish spread into an even mush, 0.7 to 0.95 for one of separate bodies.
+function censusClump(u, grid, strains) {
+  const cells = grid.w * grid.h, R = (arena.sim.q.h / 2 - 9) / 20;
+  const glass = arena.d.censusGlass || (arena.d.censusGlass = Array.from({ length: cells }, (_, k) => Math.hypot(k % grid.w + .5 - grid.w / 2, Math.floor(k / grid.w) + .5 - grid.h / 2) < R));
+  const v = [];
+  for (let k = 0; k < cells; k++) {
+    if (!glass[k]) continue;
+    let n = 0;
+    for (let i = 0; i < strains; i++) n += u[CENSUS_GRID + i * cells + k];
+    v.push(n);
+  }
+  v.sort((a, b) => b - a);
+  const all = v.reduce((a, b) => a + b, 0);
+  return all ? v.slice(0, Math.max(1, Math.round(v.length / 10))).reduce((a, b) => a + b, 0) / all : 0;
+}
 // Counts each lineage a couple of times a second: particles, genes and bodies, for the chart and the founder list.
 function arenaCensus() {
   if (arena.censusPending || !arena.sim || arena.busy) return;
@@ -7542,12 +7569,12 @@ function arenaCensus() {
       if (traits && !f.start) f.start = traits;
       return { n, energy: avg(1, 256), traits };
     });
-    const counts = lineages.map(l => l.n);
-    arena.census = { step, counts, lineages, total: counts.reduce((a, b) => a + b, 0), food: u[CENSUS_FOOD] / 64 / Math.max(1, u[CENSUS_FOOD + 1]) };
+    const counts = lineages.map(l => l.n), clump = censusClump(u, grid, Math.min(16, arena.founders.length));
+    arena.census = { step, counts, lineages, clump, total: counts.reduce((a, b) => a + b, 0), food: u[CENSUS_FOOD] / 64 / Math.max(1, u[CENSUS_FOOD + 1]) };
     syncIncubatorHud();
     const last = arena.history.at(-1);
     if (!last || step > last.step) {
-      arena.history.push({ step, counts, bodies: arena.founders.map(f => f.track?.bodies.length || 0) });
+      arena.history.push({ step, counts, clump: +clump.toFixed(3), bodies: arena.founders.map(f => f.track?.bodies.length || 0) });
       if (arena.history.length > 480) arena.history.shift();
     }
     renderArenaPanel();
