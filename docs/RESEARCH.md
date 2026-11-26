@@ -362,6 +362,8 @@ Fourteen copies of one dish (four strains, two ×0.4 copies each) ran 3,000 step
 
 So the danger is one-sided, and drawing nearer the middle alone would not avoid it. **RANDOMIZE** draws each setting as the average of two random numbers within a range, which favours its middle: FOOD 0.45 to 1, METABOLISM 0.5 to 1.6, HOMEOSTASIS 0.2 to 0.85 and GENE DRIFT 0.1 to 0.65. Twelve dishes drawn that way all kept every strain and held their size, at 103 to 114% of what was placed.
 
+**Rechecked without the strain cap.** The same 26 dishes were run again after the cap was removed. Low food still shrinks a dish (FOOD 0.04 to 0.09 ended at 33 to 92% of what was placed, still falling), and FOOD 0.40 with a slow METABOLISM grew. Every dish with FOOD 0.44 or more filled all its particle places within 3,000 steps, and no strain died in any of them; the largest strain held 36 to 49%. The twelve RANDOMIZE dishes all kept their four strains and filled the dish. So the ranges stand, and the dish's particle places, not food, are now what limits most dishes.
+
 ### Finding cells
 
 Dishes grown from several specimens sometimes form new structures nobody placed: rings with spiralling insides, chains of
@@ -506,6 +508,59 @@ What the eight dishes add:
 Three cells were kept for the Archive, the best of the three best dishes: **Amoeba C-674** (M-690, 95%, 366,000
 particles, three strains), **Fluvia C-493** (L-848, 94%) and **Reticulum C-389** (L-743's square cell, 91%, 281,000
 particles). L-743's square cell was placed back in a dish in a test and laid down whole.
+
+### Which rules carry the cells
+
+The emergence audit (`update_notes/`, Notes 4) asked which rules the results depend on. A rule that acts on one particle
+with only what it senses or carries is part of the dish's physics; a rule that looks beyond the particle is imposed from
+above. One rule looks beyond: the **strain cap**, which counts each strain across the whole dish and stops its births
+once it is a little past the size it was placed at. It was on in every saved dish. Three particle rules were designed to
+hold bodies together: **homing** (a particle that senses too little of its kin turns back), **crowding** (it is pushed
+out past its set density) and **cooperative digestion** (eating, and the pull of food, need kin around). A fourth limit
+is not a rule but the dish's memory: a birth needs a free place among the dish's particles (half a million to two
+million), and four of the eight saved dishes were full.
+
+Each saved dish was run on a copy for 6,000 steps from its save: with every rule on, with each one switched off in
+turn, and with all four off, looking for cells every 150 steps. Every rule on, then all four off:
+
+| Dish | Places used | Largest strain | Bodies | Cells listed (green) | First five cells still there |
+|---|---|---|---|---|---|
+| L-848 | 99.9% / 100% | 37.9% / 38.9% | 93 / 87 | 22 (14) / 24 (10) | 5 / 5 |
+| L-743 | 67.1% / 100% | 20.8% / 21.7% | 72 / 60 | 6 (2) / 5 (3) | 2 / 3 |
+| M-690 | 100% / 100% | 40.0% / 40.1% | 54 / 43 | 10 (2) / 13 (2) | 4 / 4 |
+| M-804 | 94.9% / 100% | 47.2% / 47.2% | 65 / 56 | 12 (3) / 14 (1) | 5 / 4 |
+| M-637 | 100% / 100% | 25.4% / 25.4% | 60 / 45 | 10 (0) / 16 (0) | 1 / 0 |
+| S-206 | 80.0% / 100% | 36.2% / 39.3% | 26 / 20 | 5 (1) / 13 (1) | 1 / 2 |
+| L-662 | 75.3% / 100% | 57.1% / 58.4% | 14 / 17 | 8 (1) / 7 (0) | 1 / 2 |
+| S-947 | 100% / 100% | 39.7% / 40.6% | 46 / 66 | 1 (0) / 5 (0) | 0 / 0 (of 1) |
+
+What it shows:
+
+- **The cells that had formed do not need the designed rules to keep going**, over 6,000 steps. With all four off every
+  dish still had cells, the best scores moved by a few points, and the cells followed from the start lasted about as
+  often as with everything on. Cells come and go on their own as well: with everything on, M-637 and S-206 kept only one
+  of their first five.
+- **The strain cap held the population down, not the cells up.** In the four dishes where it was the limit (L-743,
+  M-804, S-206 and L-662, at 67–95% of their places), switching it off filled the dish within 6,000 steps. No strain died
+  out, and the largest strain gained at most about three points (S-206, 36% to 39–40%).
+- **The cohesion rules mostly shape bodies.** Switching them off changed how many separate bodies there were: fewer in
+  five dishes, as bodies merged, and more in S-947, which frayed. Homing alone did most of this. Strains and cells
+  changed little.
+- **The dish's places become the limit.** Without the cap every dish ended full, so a birth then depends on a free place
+  anywhere in the dish. That is a whole-dish limit too, though it favors no strain. Letting food set the population
+  would remove it.
+
+On these results the strain cap was removed from the Incubator altogether (2026-11-26): it was the one rule that looked
+beyond a single particle, and the dishes' cells did not depend on it.
+
+What it does not show:
+
+- How the cells **formed**. These dishes grew with every rule on; this only shows the cells keep going without them.
+  Growing dishes from specimens with the rules off is the test of whether cells form from the particles' own rules.
+- Long runs. 6,000 steps is short beside these dishes' 30,000 to 480,000; a slow takeover by one strain would not show.
+- Cooperation is not wholly gone when switched off: a particle with no kin at all still cannot eat. And each particle
+  still carries the set point imprinted when its strain was placed.
+- Each condition ran once. The dish is exactly repeatable, but a difference of a few cells is within normal turnover.
 
 ### What is new here, honestly
 

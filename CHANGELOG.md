@@ -4,6 +4,16 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **No strain cap.** The rule that held each strain near the size it was placed at counted the whole strain across
+  the dish, the one rule that looked beyond a single particle, so it is gone. Strains now grow as far as food and room
+  allow. Runs of all eight saved dishes with it off kept their cells (docs/RESEARCH.md, "Which rules carry the cells"),
+  and RANDOMIZE's ranges still keep every strain alive. Old dishes open as saved and carry on without it; the Incubator
+  fingerprint test has a new recorded value. HOMEOSTASIS now sets only the particle rules.
+- **Square pictures and films of the Incubator.** IMAGE, CLIP and RECORD save just the dish in its porthole, bezel
+  and tick marks included, as a square; the readouts no longer appear in them.
+- **The readouts beside the dish say what they are.** MOTES is now PARTICLES, like everywhere else, and each readout
+  has a short line under it and a help card. Help cards were tightened, with the older words lineage and world
+  replaced by strain and dish.
 - **A steadier Incubator console.** Controls come first and live readouts after: CELLS and its list now sit below the
   settings sliders. The best-cells list keeps three slots of one height, so nothing below it moves as cells come and
   go, and while you point at it the list holds its order. Pointing at a slot lights its cell in the dish; cell labels

@@ -249,8 +249,8 @@
   };
 
   // Fingerprints recorded on the development machine (NVIDIA RTX 40-series). Another GPU may differ; the checks that
-  // compare two runs still hold there.
-  const EXPECTED = { dish: '9d775dbf-e9a60af1-ee81feb0-b2c9048c-af02ae70' };
+  // compare two runs still hold there. The dish's changed once on purpose, when the strain cap was removed.
+  const EXPECTED = { dish: '65f66966-7a8050e9-cc944e47-2c27775a-fc916e06' };
   const FIXTURES = {
     a: { quality: 'med', seed: 12345, init: 'scatter', count: 1, eco: null, hybrid: 'off', steps: 600 },
     b: { quality: 'med', seed: 6060, init: 'out', count: 3, eco: 'cycle', hybrid: 'cells', steps: 600 },

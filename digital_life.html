@@ -97,7 +97,8 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .incubator-hud{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;padding:0 2.5%;pointer-events:none;z-index:2}
 .ihud-col{display:flex;flex-direction:column;gap:22px;width:22%}
 .ihud-col.right{align-items:flex-end;text-align:right}
-.ihud{display:flex;flex-direction:column;gap:6px}
+.ihud{display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+.ihud em{font-style:normal;font-size:8.5px;letter-spacing:.06em;color:#4a6d66}
 .ihud.right{align-items:flex-end}
 .ihud small{font-size:8.5px;letter-spacing:.18em;color:#4f7a72}
 .ihud b{font-size:clamp(12px,2.1cqh,22px);font-weight:400;color:#9ff5dc;text-shadow:0 0 10px #2ff0c455}
@@ -539,12 +540,12 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
       <div class="incubator-hud" id="incubatorHud" hidden>
         <div class="ihud-col">
           <div class="ihud-title" data-dots>INCUBATOR</div>
-          <div class="ihud"><small>MOTES</small><b id="ihudPop"></b><i><u id="ihudPopBar"></u></i></div>
-          <div class="ihud"><small>BROTH</small><b id="ihudFood"></b><i><u id="ihudFoodBar"></u></i></div>
+          <div class="ihud" data-help="hud.particles"><small>PARTICLES</small><b id="ihudPop"></b><i><u id="ihudPopBar"></u></i><em id="ihudPopNote">alive</em></div>
+          <div class="ihud" data-help="hud.broth"><small>BROTH</small><b id="ihudFood"></b><i><u id="ihudFoodBar"></u></i><em>food left in the dish</em></div>
           <div class="ihud-trio">
-            <div class="ihud"><small>STRAINS</small><b id="ihudStrains"></b></div>
-            <div class="ihud"><small>BODIES</small><b id="ihudBodies"></b></div>
-            <div class="ihud"><small>STEP</small><b id="ihudStep"></b></div>
+            <div class="ihud" data-help="hud.strains"><small>STRAINS</small><b id="ihudStrains"></b><em>alive / placed</em></div>
+            <div class="ihud" data-help="hud.bodies"><small>BODIES</small><b id="ihudBodies"></b><em>in all strains</em></div>
+            <div class="ihud" data-help="hud.step"><small>STEP</small><b id="ihudStep"></b><em>time so far</em></div>
           </div>
         </div>
       </div>
@@ -763,7 +764,7 @@ function dishLayout(key) {
   const d = DISHES[key], gw = Math.ceil(d.w / 4), gh = Math.ceil(d.h / 4), cells = gw * gh;
   const grid = { w: Math.ceil(d.w / 20), h: Math.ceil(d.h / 20) }, mark = { w: Math.ceil(d.w / 8), h: Math.ceil(d.h / 8) };
   // Where each kind of counter sits in the dish's one counter buffer, in 32-bit words. See ECON_* in the shaders.
-  const econ = { crowd: 0, returned: cells, strain: 2 * cells, recipe: 2 * cells + 128, words: 7 * cells + 128 };
+  const econ = { crowd: 0, returned: cells, recipe: 2 * cells, words: 7 * cells };
   return { key, ...d, gw, gh, grid, mark, econ, censusBytes: (CENSUS_GRID + 16 * grid.w * grid.h) * 4 };
 }
 // Barriers are brush strokes rasterized onto one fixed grid, so a drawing means the same thing at every quality level.
@@ -1175,10 +1176,8 @@ struct Arena {
 // The food grid of this dish size (see dishCode).
 const FIELD_SIZE = vec2u(#GW#u, #GH#u);
 // One buffer of counters, so the dish stays within the GPU's eight storage buffers per pass: per food cell, the
-// digestion and returned matter of the step; each strain's size and its limit; and per food cell, the five sums of
-// the field recipes given off there.
+// digestion and returned matter of the step, and the five sums of the field recipes given off there.
 const ECON_RETURNED = #RETURNED#u;
-const ECON_STRAIN = #STRAIN#u;
 const ECON_RECIPE = #RECIPE#u;
 const TAU = 6.283185307;
 
@@ -1212,8 +1211,7 @@ const WGSL_ARENA = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(2) var<storage, read_write> genes: array<Gene>;
 @group(0) @binding(3) var<storage, read_write> claims: array<atomic<u32>>;
 @group(0) @binding(4) var<storage, read_write> deposits: array<atomic<u32>>;
-// The counters: see ECON. A strain's size sits at ECON_STRAIN: how many particles of each lineage are alive this step,
-// then the most each may have, set from how many were placed (0 means no limit).
+// The counters: see ECON.
 @group(0) @binding(5) var<storage, read_write> econ: array<atomic<u32>>;
 // The field recipes in use: feed, kill, seeding and how far the field spreads, by recipe number. 0 is unused.
 @group(0) @binding(6) var<uniform> recipes: array<vec4f, 66>;
@@ -1223,7 +1221,6 @@ const WGSL_ARENA = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(10) var trailB: texture_2d<f32>;
 // The reaction field: U in red, the living chemical V in green.
 @group(0) @binding(11) var field: texture_2d<f32>;
-var<workgroup> tally: array<atomic<u32>, 64>;
 // Energy and matter: a particle is BODY units of matter plus its stored energy. Dividing splits both, and dying
 // returns both to the food field. Living costs energy that is not returned, so sunlight-like regrowth keeps it going.
 const DIVIDE = 1.0;
@@ -1288,20 +1285,6 @@ fn senseHere(p: vec2f, rl: vec3f, rh: vec3f) -> f32 {
   return sensed(textureLoad(trail, q, 0), textureLoad(trailB, q, 0), rl, rh);
 }
 
-// Counts each lineage at the start of a step. Each workgroup adds up its own particles first, so the totals cost little
-// and don't depend on the order threads run in.
-@compute @workgroup_size(256)
-fn count(@builtin(global_invocation_id) id: vec3u, @builtin(local_invocation_index) li: u32) {
-  if (li < 64u) { atomicStore(&tally[li], 0u); }
-  workgroupBarrier();
-  if (id.x < arena.agents && agents[id.x].pos.x >= 0.0) { atomicAdd(&tally[min(genes[id.x].lineage, 63u)], 1u); }
-  workgroupBarrier();
-  if (li < 64u) {
-    let n = atomicLoad(&tally[li]);
-    if (n > 0u) { atomicAdd(&econ[ECON_STRAIN + li], n); }
-  }
-}
-
 @compute @workgroup_size(256)
 fn claim(@builtin(global_invocation_id) id: vec3u) {
   let i = id.x;
@@ -1309,17 +1292,6 @@ fn claim(@builtin(global_invocation_id) id: vec3u) {
   let a = agents[i];
   let g = genes[i];
   if (a.pos.x < 0.0 || g.energy < DIVIDE) { return; }
-  // A strain holds its size: once it has as many particles as it may, a birth only replaces a loss. Near the limit each
-  // fed particle divides by a draw weighted by the room left, so a whole well-fed body can't overshoot in one step.
-  let l = min(g.lineage, 63u);
-  let most = atomicLoad(&econ[ECON_STRAIN + 64u + l]);
-  if (most > 0u) {
-    let now = f32(atomicLoad(&econ[ECON_STRAIN + l]));
-    let room = f32(most) - now;
-    let h = (a.rng ^ (arena.step * 2654435761u)) * 747796405u;
-    let draw = f32((h >> 8u) ^ (h >> 20u)) / 16777216.0 % 1.0;
-    if (room <= 0.0 || draw * now > room) { return; }
-  }
   let t = targetOf(a.rng);
   if (agents[t].pos.x < 0.0) { atomicMax(&claims[t], i + 1u); }
 }
@@ -1453,7 +1425,6 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
 @compute @workgroup_size(256)
 fn clear(@builtin(global_invocation_id) id: vec3u) {
   if (id.x < arena.agents) { atomicStore(&claims[id.x], 0u); }
-  if (id.x < 64u) { atomicStore(&econ[ECON_STRAIN + id.x], 0u); }
 }`;
 
 // Food regrows toward one unit per cell, spreads slightly, and is shared among the particles eating in each cell by how
@@ -1835,7 +1806,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 // The Incubator's shaders are built for one dish size at a time: each #NAME# in them becomes that dish's grid sizes
 // and counter places.
 function dishCode(code, d) {
-  const marks = { GW: d.gw, GH: d.gh, RETURNED: d.econ.returned, STRAIN: d.econ.strain, RECIPE: d.econ.recipe, CW: d.grid.w, CH: d.grid.h, MW: d.mark.w, MH: d.mark.h };
+  const marks = { GW: d.gw, GH: d.gh, RETURNED: d.econ.returned, RECIPE: d.econ.recipe, CW: d.grid.w, CH: d.grid.h, MW: d.mark.w, MH: d.mark.h };
   return code.replace(/#(\w+)#/g, (_, k) => String(marks[k]));
 }
 
@@ -2493,7 +2464,6 @@ function dishPipelines(d) {
   if (P.dishes[d.key]) return P.dishes[d.key];
   const { L, comp, draw } = P, at = code => dishCode(code, d), arena = at(WGSL_ARENA), census = at(WGSL_ARENA_CENSUS);
   return P.dishes[d.key] = {
-    arenaCount: comp(L.arena, arena, 'count'),
     arenaClaim: comp(L.arena, arena, 'claim'),
     arenaBirth: comp(L.arena, arena, 'birth'),
     arenaLive: comp(L.arena, arena, 'live'),
@@ -3355,6 +3325,7 @@ function syncIncubatorHud() {
   const c = arena.census, pool = arena.sim.q.agents;
   const alive = c ? c.counts.filter(Boolean).length : 0, bodies = arena.founders.reduce((s, f) => s + (f.track?.bodies.length || 0), 0);
   setDots($('ihudPop'), c ? kilo(c.total) : '0');
+  $('ihudPopNote').textContent = `alive · room for ${pool >= 1e6 ? +(pool / 1e6).toFixed(2) + 'M' : kilo(pool)}`;
   $('ihudPopBar').style.width = (c ? Math.min(100, c.total / pool * 100) : 0) + '%';
   setDots($('ihudFood'), Math.round((c?.food ?? 1) * 100) + '%');
   $('ihudFoodBar').style.width = Math.round((c?.food ?? 1) * 100) + '%';
@@ -4398,18 +4369,18 @@ const HELP = {
     ['LINE 1', 'Running or on HOLD, the generation in BATCH, and steps so far.'],
     ['LINE 2', 'Frames per second, simulation steps per second, and speed.'],
     ['LINE 3', 'Agent count and trail resolution, plus the LIFE score in SOLO.'],
-    ['LINE 4', 'Seed and species count. In BATCH, your picks and what children will receive (PASS BODY or PASS RULES). Confirmations flash here too, along with the graphics card in use at start and Archive loading progress.'],
+    ['LINE 4', 'Seed and species count; in BATCH, your picks and what children get. Messages flash here too.'],
   ] },
 
-  'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'In the Incubator this is ADD: it cuts a living specimen from your SOLO organism for you to place. Press it again for an open spot.' },
-  'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen: species count, rules, field, start and colors. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'In the Incubator it grows a wild organism out of sight and places a specimen of it in an open spot.' },
-  'pad.reroll': { t: 'REROLL / EMPTY', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'In the Incubator this is EMPTY: press it twice to remove every strain and start an empty dish. Kept specimens and saved dishes are not affected.' },
-  'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.', tip: 'In the Incubator it places the same strains again, which replays the same history. A dish opened from the Archive goes back to its last save.' },
-  'pad.save': { t: 'SAVE', d: 'Always stores the body and the rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked. In the Incubator, saves the whole dish: every strain, particle, trail and the broth, under DISHES in the Archive. Saving the same dish again updates its entry and adds a snapshot.', tip: 'Saving the same organism again updates its library entry instead of adding a copy. It is named automatically, and you can rename it in the library.' },
+  'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body.', tip: 'In the Incubator this is ADD: it puts your SOLO organism on the cutting bench, and while placing it drops a copy in the most open spot.' },
+  'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen. SOLO gets one; BATCH refills every tile you did not pick.', tip: 'In the Incubator it grows a wild organism out of sight and places a specimen of it in an open spot.' },
+  'pad.reroll': { t: 'REROLL / EMPTY', d: 'Same settings, fresh start: the agents are scattered anew and any inherited body is dropped.', tip: 'In the Incubator this is EMPTY: press it twice to remove every strain. Specimens and saved dishes are kept.' },
+  'pad.replay': { t: 'REPLAY', d: 'Restarts this run with the same seed and settings, so it grows the same way again.', tip: 'In the Incubator it places the same strains again and replays the same history. A dish opened from the Archive returns to its last save.' },
+  'pad.save': { t: 'SAVE', d: 'Saves the body and rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked.', tip: 'In the Incubator it saves the whole dish under DISHES in the Archive. Saving it again updates that entry and adds a snapshot.' },
   'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation.' },
-  'pad.undo': { t: 'UNDO', d: 'In SOLO, reverses the last settings change. In BATCH, returns to the previous generation. In the Incubator, removes the last copy placed and replays the rest. In a dish opened from the Archive, only copies placed since it was opened can be removed.' },
+  'pad.undo': { t: 'UNDO', d: 'SOLO: undoes the last settings change. BATCH: goes back a generation. Incubator: removes the last copy placed.', tip: 'In a dish opened from the Archive, only copies placed since it was opened can be removed.' },
   'pad.load': { t: 'ARCHIVE', d: 'Opens the Archive: your saved slides as a grid or family tree, and the living specimens and dishes. Open one, name it, breed from it or cut from it.' },
-  'pad.cut': { t: 'CUT / KEEP', d: 'Cuts a specimen from what is on screen. In SOLO, the organism you see goes on the cutting bench in the Incubator. In BATCH, the slide under the pointer, or the last slide you picked.', tip: 'In the Incubator this is KEEP: click a living body in the dish to cut it out with every gene it evolved. Each slide also has its own CUT button.' },
+  'pad.cut': { t: 'CUT / KEEP', d: 'Cuts a specimen from what is on screen and puts it on the Incubator\'s cutting bench: in SOLO the organism, in BATCH the slide under the pointer or your last pick.', tip: 'In the Incubator this is KEEP: click a living body to keep everything inside the ring, with every gene it evolved. Scroll to size the ring.' },
   'tile.cut': { t: 'CUT', d: 'Puts this slide on the cutting bench in the Incubator, with its bodies outlined, so you can cut one into your specimen deck.', tip: 'Coming back to the Microscope returns you to this tray.' },
   'lib.search': { t: 'SEARCH', d: 'Filters by name, tags, color, species count, or the word hybrid.' },
   'lib.sort': { t: 'SORT', d: 'Newest first, highest LIFE score first, or alphabetical by name.' },
@@ -4417,17 +4388,17 @@ const HELP = {
   'lib.slides.view': { t: 'GRID OR TREE', d: 'GRID shows every save as a card, sorted as you choose. TREE shows your families, parents on the left and children on the right.', tip: 'In the tree, click a slide to light up its family and get OPEN, CUT and BREED for it at the bottom. Double-click to open it.' },
   'lib.view.living': { t: 'LIVING', d: 'What lives in the Incubator. SPECIMENS are bodies you cut or kept, ready to place in a dish. DISHES are whole dishes you saved, which open exactly as they were.', tip: 'The number beside each is how many you have.' },
   'lib.life': { t: 'LIFE SCORE', d: 'How this save scored when it was saved, broken down into its parts below.' },
-  'lib.specimen': { t: 'SPECIMEN', d: 'A living body cut from a slide, or kept from the Incubator: its particles with their rules, and the trail beneath. A kept body carries every gene its particles evolved.', tip: 'The same specimens are the cards in the specimen deck beside the Incubator dish.' },
+  'lib.specimen': { t: 'SPECIMEN', d: 'A living body cut from a slide or kept from the Incubator: its particles with their rules, and the trail beneath.', tip: 'A kept body carries every gene its particles evolved. These are the cards in the deck beside the dish.' },
   'lib.specimen.add': { t: 'PLACE IN DISH', d: 'Opens the Incubator and lets you place copies of this specimen.' },
-  'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as it was when you last pressed SAVE: every strain, particle and gene, the trails, the broth and any reaction field. Below the picture are its strains and their share of it.', tip: 'Point at the picture to watch a snapshot from each save, from the first to the newest. Saving the same dish again keeps one entry with its newest state. The 1×, 1.5× or 2× badge is the dish size, and a saved dish always opens at that size.' },
+  'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as last saved: every particle and gene, the trails, the broth and any reaction field. Below are its strains and their shares.', tip: 'Point at the picture to replay a snapshot from each save. The 1×, 1.5× or 2× badge is its size, and it always opens at that size.' },
   'lib.dish.open': { t: 'OPEN', d: 'Opens this dish in the Incubator exactly as it was last saved, and it carries on from there.', tip: 'You can add more specimens to it. REPLAY returns to its last save, and SAVE updates this entry and adds a snapshot.' },
-  'lib.origin': { t: 'ORIGIN', d: 'Which strains the kept particles came from, and their share. A body can hold more than one lineage, like a membrane around another lineage inside it.' },
+  'lib.origin': { t: 'ORIGIN', d: 'Which strains the kept particles came from, and their shares. A body can hold more than one, like a membrane around another strain inside it.' },
   'tree.node': { t: 'FAMILY MEMBER', d: 'Point at it to light up its ancestors and descendants. Click it to find its card below, or double-click to open it.', tip: 'A label like +3 GEN on a line is not a copy. It means 3 generations were bred in between without being saved.' },
   'lib.file': { t: 'OPEN FILE', d: 'Opens a save from anywhere on your computer.' },
   'lib.thumb': { t: 'OPEN', d: 'Click the picture to open this organism at the moment you saved it.' },
   'lib.keep.body': { t: 'BODY + RULES', d: 'This save holds the grown body itself, so it opens exactly as saved. When you breed from it, children can start inside this body.' },
   'lib.keep.rules': { t: 'RULES ONLY', d: 'An older save with settings only. It regrows from nothing when opened, so it can differ from the picture.', tip: 'Open it and SAVE again to store its body too.' },
-  'lib.name': { t: 'NAME', d: 'Named automatically like a lab strain: a genus for its form, such as Reticulum for a web or Amoeba for islands, then a code. M, D or T is one, two or three species, F means it carries a reaction field, and the number comes from its seed and rules. Type to rename it. It saves automatically.', tip: 'A save renamed from an older name keeps it: point at the name to see it, and searching for it still finds the save.' },
+  'lib.name': { t: 'NAME', d: 'Named like a lab strain: a genus for its form (Reticulum for a web, Amoeba for islands), then a code: M, D or T for one, two or three species, F for a reaction field, and a number from its seed. Type to rename; it saves automatically.', tip: 'A save renamed from an older name keeps it for searching; point at the name to see it.' },
   'lib.tags': { t: 'TAGS', d: 'Words to find it by later, separated by commas.' },
   'lib.open': { t: 'OPEN', d: 'Loads this organism in SOLO view at the moment you saved it.' },
   'lib.breed': { t: 'BREED', d: 'Starts a new 9-tile grid of children from this organism. They get what PASS ON says: the body and rules, or the rules only.', tip: 'The save itself never changes.' },
@@ -4439,29 +4410,34 @@ const HELP = {
   'room.incubator': { t: 'INCUBATOR', d: 'A round dish of broth where living specimens cut from your cultures eat, divide, mutate and compete.', tip: 'Press A to come and go.' },
   'room.archive': { t: 'ARCHIVE', d: 'Every saved slide and its family tree, and the living things: specimens cut or kept, and the dishes you saved.', tip: 'Press L to open it.' },
   'view.arena': { t: 'INCUBATOR', d: 'A shared dish where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to cut your SOLO organism, or CUT on a slide in the Archive.' },
-  'arena.dish': { t: 'DISH SIZE', d: 'How much room the dish has. At 1.5× it holds about 2¼ times as much, and at 2× four times as much. Every specimen keeps its true size, so a larger dish holds more copies, not larger ones.', tip: 'Changing the size places the strains again where they were and starts the run over. Larger dishes need more of the GPU, so the fastest speeds may slow down. Scroll on the dish to zoom in and drag to look around.' },
-  'arena.zoom': { t: 'ZOOM', d: 'How far the dish is magnified. Scroll on the dish to zoom toward the pointer, and drag to look around. Click here to see the whole dish again.', tip: 'While placing a specimen, scrolling sizes the copy instead; hold Ctrl or pinch to zoom. IMAGE always saves the whole dish at full size, and CLIP and RECORD film what you see, framed by the porthole and readouts.' },
-  'arena.cells': { t: 'CELLS', d: 'Cells are structures nobody placed: closed membranes that form in the dish around a living inside. SHOW puts a box over each one scoring 25% or more, with its name and score. A box turns green for an EU cell (one with a body inside, like a nucleus) scoring 80% or more.', tip: 'The score multiplies five parts: a closed wall, an outline that holds and keeps its particles in, particles that keep moving inside, bodies and several strains inside, and age. The dish looks every 150 steps and keeps following its cells whether or not they are shown.' },
-  'arena.cellTop': { t: 'BEST CELLS', d: 'The dish\'s three best cells: name, score, how long each has lasted, and the strains living inside. Point at one to light it up in the dish; click it to zoom to it. While you point at the list it holds its order, so KEEP CELL takes the cell you aimed at.', tip: 'EU cells hold a body inside them; PR cells do not. The number is the order the dish first saw them in.' },
-  'cell.keep': { t: 'KEEP CELL', d: 'Cuts this cell along its own outline, with every gene its particles evolved, and files it as a specimen. The Archive marks it as a cell, with its score and age.' },
-  'arena.randomize': { t: 'RANDOMIZE', d: 'Sets FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT at random, more often near the middle of each, and never with so little food that the dish starves.', tip: 'It changes the settings of the dish as it runs. In tests, FOOD below about 0.45 was the one setting that made every dish shrink, so RANDOMIZE keeps it above that.' },
+  'arena.dish': { t: 'DISH SIZE', d: 'How much room the dish has: 1.5× holds about 2¼ times as much, 2× four times. Specimens keep their true size, so a bigger dish holds more copies, not bigger ones.', tip: 'Changing the size places the strains again and starts the run over. Bigger dishes run slower.' },
+  'arena.zoom': { t: 'ZOOM', d: 'How far the dish is magnified. Scroll on the dish to zoom toward the pointer and drag to look around; click here to see the whole dish.', tip: 'While placing, scrolling sizes the copy instead; hold Ctrl or pinch to zoom.' },
+  'hud.particles': { t: 'PARTICLES', d: 'Every living particle in the dish. The bar shows how full the dish is: it has room for a fixed number, and a particle can only divide into a free place.' },
+  'hud.broth': { t: 'BROTH', d: 'Food left in the broth, as a share of a full dish. Particles eat it; it regrows at the FOOD setting, and dead particles return to it.' },
+  'hud.strains': { t: 'STRAINS', d: 'Strains still alive, of all you placed. A strain is one placed specimen and all its descendants.' },
+  'hud.bodies': { t: 'BODIES', d: 'Separate bodies across all strains: each connected patch where a strain is dense. Counted twice a second.' },
+  'hud.step': { t: 'STEP', d: 'How many steps the dish has run. In each step every particle senses, turns, moves, eats, and may divide or die.' },
+  'arena.cells': { t: 'CELLS', d: 'Cells are structures nobody placed: closed membranes around a living inside. SHOW boxes each one with a name and score; green means an EU cell (one with a body inside, like a nucleus) at 80% or more.', tip: 'The score needs all five: a closed wall, an outline that holds its particles, movement inside, bodies and strains inside, and age. Cells are followed every 150 steps, shown or not.' },
+  'arena.cellTop': { t: 'BEST CELLS', d: 'The three best cells, with score, age and the strains inside. Point at one to light it up in the dish; click it to zoom to it.', tip: 'The list holds still while you point at it, so KEEP CELL takes the cell you aimed at. EU cells have a body inside; PR cells do not.' },
+  'cell.keep': { t: 'KEEP CELL', d: 'Cuts this cell along its own outline, with every gene its particles evolved, and files it as a specimen marked CELL.' },
+  'arena.randomize': { t: 'RANDOMIZE', d: 'Sets the four sliders at random, mostly near the middle of each, never with so little food that the dish starves.', tip: 'In tests only FOOD below about 0.45 made dishes shrink, so RANDOMIZE keeps it above that.' },
   'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
-  bench: { t: 'CUTTING BENCH', d: 'The organism you are adding, with the bodies found in it outlined, best first. Click a body to choose it. Click anywhere else for a circle, and scroll to size it. Everything outside the cut is dimmed.', rows: [['STEADY', 'Out of sight, the organism ran on for 900 more steps, and this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it pulled together, spread or reshaped on its own, so it will keep changing in the dish too.']], tip: 'A body is where particles gather more densely than around it, and keeps together as the threshold loosens. It is cut along its own outline, so passing strands stay behind.' },
+  bench: { t: 'CUTTING BENCH', d: 'The organism being cut, with its bodies outlined, best first. Click a body to choose it, or anywhere else for a circle, and scroll to size it.', rows: [['STEADY', 'Run on out of sight for 900 steps, this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it reshaped on its own, so it will keep changing in the dish.']], tip: 'A body is a region denser than its surroundings that holds together as the threshold loosens. The cut follows its outline, so passing strands stay behind.' },
   'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle, files it in your specimen deck and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
-  drawer: { t: 'SPECIMENS', d: 'Every specimen you have cut or kept, newest in front, as a deck of cards. Scroll over the deck to flip through it, then click a card to pick it. Scroll over the dish to size the copy, and click the dish to place it. Esc stops.', tip: 'Specimens are saved in saves/specimens. The Archive lists them under SPECIMENS, where they can be removed. Cutting the same body from the same moment twice makes no second card, and older duplicates move to the removed folder. The arrow keys also flip the deck when a card has focus.' },
-  'drawer.remove': { t: 'REMOVE', d: 'Takes the card in front out of the deck. Press it twice. Its files move to the removed folder, so it can be brought back.', tip: 'Strains already in the dish keep living; only the card goes.' },
-  'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it and place copies of it. The copies placed while it is picked form one strain, so they recognize each other as kin. Click it again to stop.', tip: 'Copies can be placed from a third of their size to twice it. A copy placed larger or smaller has its sensing reach and speed scaled with it, so it behaves like a true larger or smaller version. An orange count means it is not saved yet.' },
+  drawer: { t: 'SPECIMENS', d: 'Your specimens, newest in front. Scroll over the deck to flip through it, click a card to pick it, then click the dish to place copies. Esc stops.', tip: 'They are saved in saves/specimens and listed in the Archive. Cutting the same body twice makes no second card.' },
+  'drawer.remove': { t: 'REMOVE', d: 'Takes the card in front out of the deck. Press it twice; its files move to the removed folder.', tip: 'Strains already in the dish live on.' },
+  'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it, then click the dish to place copies. The copies placed while it is picked form one strain and know each other as kin. Click it again to stop.', tip: 'Scroll over the dish to size a copy, from a third of its size to twice it; its reach and speed scale with it. An orange count means it is not saved yet.' },
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
-  'arena.food': { t: 'FOOD', d: 'How fast food grows back. Particles eat it to gain energy, and dead particles return to it.', lo: 'Scarce food: hard competition and crashes', hi: 'Plenty: fast growth and crowding' },
+  'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: hard competition and crashes', hi: 'Plenty: fast growth until the dish is full' },
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
-  'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together and keep their size. A particle that wanders away from its kin turns back, crowding past its imprinted density pushes it out, and it digests best near that density. A strain may grow only a little past the size it was placed at, then births just replace losses: a tenth more at 0.50, exactly its size at 1.', lo: 'Classic slime: wanderers lay trails others follow, bodies fray into spreading networks, and strains grow as far as food allows', hi: 'Bodies stay separate individuals at their own size: rings, ribbons and cells that move and compete' },
-  'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful lineages', hi: 'Fast evolution and more failed offspring' },
-  'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each lineage has, stacked in its chemical color. PARTICLES charts each lineage's share of the world.", tip: 'For life-like behavior, bodies matter more: they show whether a lineage stays as individuals, divides, or spreads into one sprawl.' },
-  'arena.founders': { t: 'STRAINS', d: 'Each specimen placed in the Incubator founds a strain: the specimen and all its descendants. Each row shows the strain’s share of the world and its number of bodies. Point at one to light it up in the dish. Click it for its full stats, and the specimen deck flips to its card.', tip: 'Each species gives off a chemical of its own while any of the dish’s six are free, and shows in its own colors. Species that have to share a chemical smell alike. A strain from an organism with a reaction field brings the field with it: the field runs where the strain lives and follows it.' },
-  'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Puts the organism you last had in SOLO on the cutting bench, with its bodies outlined, so you can choose what to cut and then place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
+  'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together: a particle that strays from its kin turns back, crowding past its set density pushes it out, and it digests best near that density.', lo: 'Classic slime: bodies fray into spreading networks', hi: 'Bodies stay separate: rings, ribbons and cells that move and compete' },
+  'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful copies', hi: 'Fast evolution and more failed offspring' },
+  'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each strain has over time, stacked in its color. PARTICLES charts each strain's share of the dish.", tip: 'Bodies show whether a strain stays as individuals, divides, or merges into one sprawl.' },
+  'arena.founders': { t: 'STRAINS', d: 'Each placed specimen founds a strain: it and all its descendants. Each row shows the strain’s share of the dish and its bodies. Point at one to light it up; click it for its stats and its card in the deck.', tip: 'Each species gets a chemical of its own while any of the six are free; species that share one smell alike. A strain with a reaction field brings the field with it.' },
+  'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Puts the organism you last had in SOLO on the cutting bench, to cut and place.', tip: 'Open a save in SOLO first to use a different one.' },
   'arena.add.library': { t: 'ADD FROM ARCHIVE', d: 'Opens the Archive. Press CUT on any slide to put it on the cutting bench, or under SPECIMENS press PLACE IN DISH.' },
   'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight, cuts its best body (or its densest part if it has none) and places it in the most open spot.' },
-  'arena.keepBody': { t: 'KEEP LARGEST BODY', d: "Keeps this lineage's largest body as a specimen, with a ring fitted around it." },
+  'arena.keepBody': { t: 'KEEP LARGEST BODY', d: "Keeps this strain's largest body as a specimen, with a ring fitted around it." },
   strength: { t: 'MUTATION', d: 'How different children are from their parents.' },
   'strength.subtle': { t: 'SUBTLE MUTATION', d: 'Small refinements of what you already like.' },
   'strength.medium': { t: 'MEDIUM MUTATION', d: 'A balance of familiar and surprising.' },
@@ -4481,10 +4457,10 @@ const HELP = {
   'init.shape': { t: 'SHAPE', d: 'Agents begin in a shape picked by the seed: several clusters, a swirl, or two groups side by side. The seed also sets the details, such as how many clusters and which way the swirl turns.', tip: 'With several species, each cluster or group belongs to one species, and a swirl gives each species its own ring. The same seed always starts the same way.' },
   'init.empty': { t: 'BLANK', d: 'Starts with an empty sandbox. Hold the ORGANISM brush on the picture to place each species yourself.', tip: 'With CELLS on the LIFE page, a small painted colony can feed and grow by itself.' },
   saves: { t: 'WORKING FOLDER', d: 'Holds your saves, images and videos folders. CHANGE picks a different one.' },
-  export: { t: 'EXPORT', d: 'Turns what is on screen into files you can keep and share, with no interface in them.', tip: 'In the Incubator, CLIP and RECORD show the dish through its porthole, with the bezel and the readouts beside it.' },
-  'pad.image': { t: 'IMAGE', d: 'Saves a clean PNG at full resolution. In BATCH, saves each tile you picked, or the whole grid if none are picked.' },
-  'pad.clip': { t: 'CLIP', d: 'Captures a 6 second 1080p MP4 whose ending dissolves into its start, so it loops seamlessly.', tip: 'It plays at your current SPEED. Try 4X for visible growth. Click again to cancel.' },
-  'pad.record': { t: 'RECORD', d: 'Records to a 1080p MP4 until you press it again, up to 10 minutes. You can move sliders while it runs. In the Incubator it films the dish through its porthole, with the readouts beside it.', tip: 'PAUSE also pauses the recording.' },
+  export: { t: 'EXPORT', d: 'Saves what is on screen as files, with no interface in them.', tip: 'In the Incubator all three are square: the dish in its porthole.' },
+  'pad.image': { t: 'IMAGE', d: 'Saves a clean PNG at full resolution. In BATCH, each tile you picked, or the whole grid if none.', tip: 'In the Incubator: the whole dish at full size, square, in its porthole.' },
+  'pad.clip': { t: 'CLIP', d: 'Captures a 6-second MP4 whose end dissolves into its start, so it loops seamlessly.', tip: 'It plays at your SPEED; try 4X. Click again to cancel. In the Incubator it is a 1080 square of the porthole.' },
+  'pad.record': { t: 'RECORD', d: 'Records an MP4 until you press it again, up to 10 minutes. Sliders still work while it runs.', tip: 'PAUSE pauses the recording. In the Incubator it films the porthole as you see it, square.' },
 
   'tab.organism': { t: 'ORGANISM PAGE', d: 'How the agents sense, move and relate to each other.' },
   'tab.life': { t: 'LIFE PAGE', d: 'Whether paths thicken into veins, and whether agents behave like simple living cells.' },
@@ -6006,9 +5982,6 @@ const ARENA = {
   // patch, so food has to reach it from the broth around it, or it starves with food all around.
   // spread + veinFlow must stay at most 0.25, or food could flow out of a cell faster than it is there.
   coop: .7, settle: .0007, spread: .1, veinFlow: .15,
-  // How large a strain may grow, as a multiple of what was placed, from HOMEOSTASIS: a tenth more at 0.5, exactly its
-  // size at 1, and as far as food allows at 0. A strain at its size only replaces what it loses.
-  hold: homeo => homeo > 0 ? 1 + .1 * (1 - homeo) / homeo : null,
 };
 // The dish's chemicals: three in each of its two trail maps.
 const CHEM = 6;
@@ -6041,6 +6014,9 @@ const arena = {
   zoom: { ...WHOLE }, // The part of the dish shown: its middle, as fractions of the picture, and how far it is magnified.
   origin: null, // A dish opened from the Archive: its file and how many of the strains came with it. REPLAY returns to it.
   dishId: null, // The Archive entry this dish saves into, once it has been saved or opened.
+  // The particle rules that hold bodies together, all on. They can be switched off in code for experiments only
+  // (docs/RESEARCH.md, "Which rules carry the cells").
+  rules: { homing: true, crowding: true, cooperation: true },
 };
 // Fades the highlight in and out, and marks where the highlighted strain's particles are for this frame.
 function markStrain(enc, dt) {
@@ -6304,20 +6280,18 @@ function writeArenaUniforms(s, now, view = st.view) {
   device.queue.writeBuffer(arena.chemBuf, 0, chem);
   const data = new ArrayBuffer(80), au = new Uint32Array(data), af = new Float32Array(data);
   au[0] = w; au[1] = h; au[2] = agents; au[3] = s.step;
-  af[4] = ARENA.norm; af[5] = ARENA.coop; af[7] = ARENA.settle;
+  const rules = arena.rules;
+  // Without cooperation a particle digests fully wherever any kin are, and food pulls wherever it is.
+  af[4] = ARENA.norm; af[5] = rules.cooperation ? ARENA.coop : 1e-4; af[7] = ARENA.settle;
   af[8] = p.hunger; af[9] = p.drift;
   // Homeostasis sets how hard crowding pushes back and how narrow the density a particle can digest at is.
-  af[10] = p.homeo * 3; af[11] = 1.5 - p.homeo;
+  af[10] = rules.crowding ? p.homeo * 3 : 0; af[11] = 1.5 - p.homeo;
   // At the middle food setting a field cell regrows enough for a body at about its imprinted density, so growth
   // beyond that has to be won by spreading into fresh food.
   af[12] = .03 * p.hunger; af[13] = .012 * p.food * p.hunger; af[14] = .00004 * p.hunger; af[15] = .6;
   // A pixel is the same size in every dish, so the genes' distances and speeds need no scaling.
-  af[16] = 1; af[17] = p.homeo; af[18] = ARENA.spread; af[19] = ARENA.veinFlow;
+  af[16] = 1; af[17] = rules.homing ? p.homeo : 0; af[18] = ARENA.spread; af[19] = ARENA.veinFlow;
   device.queue.writeBuffer(arena.uniform, 0, data);
-  // The most particles each strain may have: a share more than it was placed with.
-  const most = new Uint32Array(64), hold = ARENA.hold(p.homeo);
-  if (hold) arena.founders.forEach((f, i) => { if (i < 64 && f.placed) most[i] = Math.max(1, Math.round(f.placed * hold)); });
-  device.queue.writeBuffer(arena.econ, (arena.d.econ.strain + 64) * 4, most);
   // The field recipes, by number. 0 means no field. Then how strongly each chemical's trail seeds a field: the Microscope
   // scales a species' trail by a third of its typical level at home, so a lasting trail seeds no more than a fleeting one.
   const recipes = new Float32Array(66 * 4);
@@ -6355,7 +6329,7 @@ function simulateArena(pass, s, n) {
   const { w, h, agents } = s.q, groups = Math.ceil(agents / 256), gx = Math.ceil(arena.d.gw / 8), gy = Math.ceil(arena.d.gh / 8);
   for (let i = 0; i < n; i++) {
     pass.setBindGroup(0, arena.liveBG[s.cur][arena.fcur]);
-    for (const stage of [P.arenaCount, P.arenaClaim, P.arenaBirth, P.arenaLive, P.arenaClear]) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
+    for (const stage of [P.arenaClaim, P.arenaBirth, P.arenaLive, P.arenaClear]) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
     pass.setPipeline(P.arenaDiffuse); pass.setBindGroup(0, arena.diffuseBG[s.cur]);
     pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
     s.cur = 1 - s.cur;
@@ -6832,11 +6806,11 @@ function outlinePath(mask, sx, sy) {
   return path;
 }
 function benchTraits(s) {
-  if (s.circle) return 'CIRCLE · ' + kilo(s.motes) + ' MOTES · SCROLL TO RESIZE';
+  if (s.circle) return 'CIRCLE · ' + kilo(s.motes) + ' PARTICLES · SCROLL TO RESIZE';
   const traits = [s.contrast >= .55 && 'STANDS APART', s.ring >= .25 && 'ENCLOSED', s.rim >= .25 && 'MEMBRANE'].filter(Boolean);
   // Whether it holds its shape at home comes first, so a narrow bar never cuts it off.
   const home = s.steady === true ? ' · STEADY AT HOME' : s.steady === false ? ' · CHANGES AT HOME' : '';
-  return `BODY ${s.name}${home} · ${kilo(s.motes)} MOTES · ${traits.join(' · ') || 'LOOSE'}${s.shrink < .99 ? ' · SHRUNK TO ' + Math.round(s.shrink * 100) + '%' : ''}`;
+  return `BODY ${s.name}${home} · ${kilo(s.motes)} PARTICLES · ${traits.join(' · ') || 'LOOSE'}${s.shrink < .99 ? ' · SHRUNK TO ' + Math.round(s.shrink * 100) + '%' : ''}`;
 }
 /* Steady at home. A saved body is one moment, and some moments are passing: a ring that pulls into a knot, a blob that
    keeps growing. So while the bench opens, a copy of the source keeps running out of sight, and each body found is
@@ -8653,6 +8627,13 @@ function pngChunk(type, data) {
   view.setUint32(data.length + 8, (crc ^ 0xFFFFFFFF) >>> 0);
   return out;
 }
+// The Incubator's picture as a square: the middle of the dish, as tall as the picture, inside its porthole.
+function squareDish(rgba, w, h) {
+  const { D, m, S } = dishSquare(h), c = new OffscreenCanvas(S, S).getContext('2d');
+  c.putImageData(new ImageData(rgba, w, h), m - (w - h) / 2, m, (w - h) / 2, 0, D, D);
+  c.drawImage(dishRingArt(S, D), 0, 0);
+  return [c.getImageData(0, 0, S, S).data, S, S];
+}
 async function encodePng(rgba, w, h) {
   // Each row stores its difference from the row above, which compresses smooth glow far better than raw pixels.
   const raw = new Uint8Array((w * 3 + 1) * h);
@@ -8688,10 +8669,11 @@ async function exportImage() {
     const jobs = picked.length
       ? picked.map(t => ({ items: [{ sim: t.sim, genome: t.genome, rect: null }], w: TILE.w, h: TILE.h, name: `dl-${stamp}-${hex8(t.genome.seed).toLowerCase()}.png` }))
       : mode === 'batch' ? [{ items: exportItems(GRID_IMAGE.w, GRID_IMAGE.h), w: GRID_IMAGE.w, h: GRID_IMAGE.h, name: `dl-${stamp}-grid.png` }]
-      : mode === 'arena' ? [{ items: exportItems(arena.sim.q.w, arena.sim.q.h), w: arena.sim.q.w, h: arena.sim.q.h, name: `dl-${stamp}-arena.png` }]
+      : mode === 'arena' ? [{ items: exportItems(arena.sim.q.w, arena.sim.q.h), w: arena.sim.q.w, h: arena.sim.q.h, name: `dl-${stamp}-arena.png`, square: true }]
       : [{ items: exportItems(R.q.w, R.q.h), w: R.q.w, h: R.q.h, name: `dl-${stamp}-${hex8(st.seed).toLowerCase()}.png` }];
     for (const job of jobs) {
-      const blob = await encodePng(await renderPixels(job.items, job.w, job.h), job.w, job.h);
+      const pixels = await renderPixels(job.items, job.w, job.h);
+      const blob = job.square ? await encodePng(...squareDish(pixels, job.w, job.h)) : await encodePng(pixels, job.w, job.h);
       if (dir) {
         const w = await (await dir.getFileHandle(job.name, { create: true })).createWritable();
         await w.write(blob);
@@ -8824,9 +8806,9 @@ async function openSink(dir, name) {
     },
   };
 }
-async function videoConfig() {
+async function videoConfig(width = VIDEO.w, height = VIDEO.h) {
   if (typeof VideoEncoder === 'undefined') return null;
-  const base = { width: VIDEO.w, height: VIDEO.h, framerate: VIDEO.fps, bitrate: VIDEO.bitrate, latencyMode: 'quality', avc: { format: 'avc' } };
+  const base = { width, height, framerate: VIDEO.fps, bitrate: VIDEO.bitrate, latencyMode: 'quality', avc: { format: 'avc' } };
   for (const codec of ['avc1.64002A', 'avc1.4D402A', 'avc1.42402A']) {
     for (const hardwareAcceleration of ['prefer-hardware', 'no-preference']) {
       const config = { ...base, codec, hardwareAcceleration };
@@ -8851,65 +8833,36 @@ function syncExport() {
   record.querySelector('span').textContent = job?.kind === 'record' ? (job.live ? `STOP ${Math.floor(job.frames / VIDEO.fps / 60)}:${String(Math.floor(job.frames / VIDEO.fps) % 60).padStart(2, '0')}` : '...') : 'RECORD';
 }
 // Advances the simulation one video frame at a time, so the file is perfectly smooth even if the computer briefly falls behind.
-/* Recordings of the Incubator show it as it looks in the room: the dish through its round porthole, with the bezel and
-   its tick marks, and the readouts beside it. The porthole and bezel are drawn once; the readouts are drawn again only
-   when their numbers change. */
-const dishFrame = { ring: null, art: null, key: '' };
-function dishFrameArt(w, h) {
-  const u = h / 720, cx = w / 2, cy = h / 2, r = h / 2, TAU_ = Math.PI * 2;
-  if (!dishFrame.ring || dishFrame.ring.width !== w || dishFrame.ring.height !== h) {
-    const ring = new OffscreenCanvas(w, h), c = ring.getContext('2d');
-    // Inside the glass, a soft shadow at the rim.
-    const shade = c.createRadialGradient(cx, cy, r - 105 * u, cx, cy, r);
-    shade.addColorStop(0, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(0,0,0,.72)');
-    c.fillStyle = shade; c.beginPath(); c.arc(cx, cy, r, 0, TAU_); c.fill();
-    // The machinery around it.
-    c.fillStyle = '#04080a'; c.beginPath(); c.rect(0, 0, w, h); c.arc(cx, cy, r, 0, TAU_, true); c.fill();
-    const glow = c.createRadialGradient(cx, cy, r + 12 * u, cx, cy, r + 90 * u);
-    glow.addColorStop(0, 'rgba(47,240,196,.06)'); glow.addColorStop(1, 'rgba(47,240,196,0)');
-    c.fillStyle = glow; c.beginPath(); c.arc(cx, cy, r + 90 * u, 0, TAU_); c.arc(cx, cy, r + 12 * u, 0, TAU_, true); c.fill();
-    // The bezel: a bright lip, a dark band and a fine outer line.
-    const band = (r0, r1, color) => { c.fillStyle = color; c.beginPath(); c.arc(cx, cy, r1, 0, TAU_); c.arc(cx, cy, r0, 0, TAU_, true); c.fill(); };
-    band(r, r + 2 * u, '#2a4a4a'); band(r + 2 * u, r + 11 * u, '#0b1416'); band(r + 11 * u, r + 12 * u, '#1f3537');
-    // Tick marks every 6 degrees, brighter every 30.
-    for (let d = 0; d < 360; d += 6) {
-      const major = d % 30 === 0, half = (major ? .7 : .5) / 2 * Math.PI / 180, a = (d - 90) * Math.PI / 180;
-      c.fillStyle = major ? 'rgba(111,240,207,.67)' : 'rgba(111,240,207,.4)';
-      c.beginPath(); c.arc(cx, cy, r + 23 * u, a - half, a + half); c.arc(cx, cy, r + 14 * u, a + half, a - half, true); c.fill();
-    }
-    dishFrame.ring = ring;
+/* Pictures and films of the Incubator are square: the dish through its round porthole, with the bezel and its tick
+   marks around it. The dish fills a circle of diameter D in the middle of a square of side S = 1.1 D, which leaves room
+   for the bezel. The art is drawn once per size and laid over each frame. */
+const dishSquare = D => { const m = Math.round(D / 20); return { D, m, S: D + 2 * m }; };
+const dishRings = new Map();
+function dishRingArt(S, D) {
+  const key = S + 'x' + D;
+  if (dishRings.has(key)) return dishRings.get(key);
+  const ring = new OffscreenCanvas(S, S), c = ring.getContext('2d'), u = D / 720, cx = S / 2, cy = S / 2, r = D / 2, TAU_ = Math.PI * 2;
+  // Inside the glass, a soft shadow at the rim.
+  const shade = c.createRadialGradient(cx, cy, r - 105 * u, cx, cy, r);
+  shade.addColorStop(0, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(0,0,0,.72)');
+  c.fillStyle = shade; c.beginPath(); c.arc(cx, cy, r, 0, TAU_); c.fill();
+  // The machinery around it.
+  c.fillStyle = '#04080a'; c.beginPath(); c.rect(0, 0, S, S); c.arc(cx, cy, r, 0, TAU_, true); c.fill();
+  const glow = c.createRadialGradient(cx, cy, r + 12 * u, cx, cy, r + 90 * u);
+  glow.addColorStop(0, 'rgba(47,240,196,.06)'); glow.addColorStop(1, 'rgba(47,240,196,0)');
+  c.fillStyle = glow; c.beginPath(); c.arc(cx, cy, r + 90 * u, 0, TAU_); c.arc(cx, cy, r + 12 * u, 0, TAU_, true); c.fill();
+  // The bezel: a bright lip, a dark band and a fine outer line.
+  const band = (r0, r1, color) => { c.fillStyle = color; c.beginPath(); c.arc(cx, cy, r1, 0, TAU_); c.arc(cx, cy, r0, 0, TAU_, true); c.fill(); };
+  band(r, r + 2 * u, '#2a4a4a'); band(r + 2 * u, r + 11 * u, '#0b1416'); band(r + 11 * u, r + 12 * u, '#1f3537');
+  // Tick marks every 6 degrees, brighter every 30.
+  for (let d = 0; d < 360; d += 6) {
+    const major = d % 30 === 0, half = (major ? .7 : .5) / 2 * Math.PI / 180, a = (d - 90) * Math.PI / 180;
+    c.fillStyle = major ? 'rgba(111,240,207,.67)' : 'rgba(111,240,207,.4)';
+    c.beginPath(); c.arc(cx, cy, r + 23 * u, a - half, a + half); c.arc(cx, cy, r + 14 * u, a + half, a - half, true); c.fill();
   }
-  const art = dishFrame.art?.width === w && dishFrame.art?.height === h ? dishFrame.art : (dishFrame.art = new OffscreenCanvas(w, h));
-  const c = art.getContext('2d'), census = arena.census, pool = arena.sim.q.agents;
-  c.clearRect(0, 0, w, h);
-  c.drawImage(dishFrame.ring, 0, 0);
-  // The readouts, as beside the porthole in the room.
-  const mono = getComputedStyle(document.body).getPropertyValue('--mono') || 'monospace';
-  const x0 = .025 * w, colW = .17 * w, alive = census ? census.counts.filter(Boolean).length : 0;
-  const bodies = arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0);
-  const label = (text, x, y) => { c.font = `${11.5 * u}px ${mono}`; c.fillStyle = '#4f7a72'; c.letterSpacing = `${2 * u}px`; c.fillText(text, x, y); };
-  const value = (text, x, y, height) => { c.fillStyle = '#9ff5dc'; c.shadowColor = 'rgba(47,240,196,.33)'; c.shadowBlur = 10 * u; dotText(c, text, x, y, height / 7); c.shadowBlur = 0; };
-  const bar = (x, y, share) => {
-    c.fillStyle = '#13282a'; c.fillRect(x, y, colW, 3 * u);
-    c.fillStyle = '#6ff0cf'; c.shadowColor = '#6ff0cf'; c.shadowBlur = 8 * u; c.fillRect(x, y, colW * clamp(share, 0, 1), 3 * u); c.shadowBlur = 0;
-  };
-  const title = 26 * u, big = 21 * u, gap = 26 * u;
-  let y = cy - (title + 3 * (gap + 18 * u + big) + 8 * u) / 2;
-  c.fillStyle = '#c9f7ea'; dotText(c, 'INCUBATOR', x0, y, title / 7);
-  y += title + gap;
-  label('MOTES', x0, y + 9 * u); value(census ? kilo(census.total) : '0', x0, y + 18 * u, big); bar(x0, y + 18 * u + big + 7 * u, census ? census.total / pool : 0);
-  y += 18 * u + big + 7 * u + gap;
-  const food = census?.food ?? 1;
-  label('BROTH', x0, y + 9 * u); value(Math.round(food * 100) + '%', x0, y + 18 * u, big); bar(x0, y + 18 * u + big + 7 * u, food);
-  y += 18 * u + big + 7 * u + gap;
-  [['STRAINS', alive + '/' + arena.founders.length], ['BODIES', String(bodies)], ['STEP', kilo(arena.sim.step)]].forEach(([name, text], i) => {
-    const x = x0 + i * colW / 3;
-    label(name, x, y + 9 * u); value(text, x, y + 18 * u, big);
-  });
-  return art;
+  dishRings.set(key, ring);
+  return ring;
 }
-// What the readouts say now, so the frame art is only redrawn when it changes.
-const dishFrameKey = () => { const c = arena.census; return [c?.total, c?.food, c?.counts.filter(Boolean).length, arena.founders.length, arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0), kilo(arena.sim.step)].join(); };
 
 async function captureVideo(kind) {
   if (capture) { if (capture.live && capture.kind === kind) capture.stop = true; return; }
@@ -8917,12 +8870,17 @@ async function captureVideo(kind) {
   const job = { kind, live: false, stop: false, error: null, frames: 0, bytes: 0 };
   capture = job;
   syncExport();
-  const { w, h, fps, clipFrames: T, fadeFrames: F } = VIDEO, isClip = kind === 'clip';
+  // The Incubator films a square of side h (see dishSquare): the dish is drawn D tall, its middle copied into the square,
+  // and the porthole laid over it.
+  const square = mode === 'arena' ? dishSquare(Math.round(VIDEO.h / 1.1 / 2) * 2) : null;
+  const { fps, clipFrames: T, fadeFrames: F } = VIDEO, isClip = kind === 'clip';
+  const w = square ? square.S : VIDEO.w, h = square ? square.S : VIDEO.h;
+  const rw = square ? Math.round(square.D * 16 / 9) : w, rh = square ? square.D : h;
   const name = `dl-${timeStamp(new Date())}-${hex8(st.seed).toLowerCase()}-${isClip ? 'loop' : 'rec'}.mp4`;
   const T_ = GPUTextureUsage, bytesPerRow = Math.ceil(w * 4 / 256) * 256, head = [];
-  let sink = null, encoder = null, frameTex = null, mixTex = null, readBuf = null, amountBuf = null, frameArt = null;
+  let sink = null, encoder = null, frameTex = null, squareTex = null, mixTex = null, readBuf = null, amountBuf = null, frameArt = null;
   try {
-    const config = await videoConfig();
+    const config = await videoConfig(w, h);
     if (!config) { flash('VIDEO UNSUPPORTED'); return; }
     const dir = await outputFolder('videos');
     if (dir === false) { flash('EXPORT CANCELLED'); return; }
@@ -8936,13 +8894,14 @@ async function captureVideo(kind) {
     });
     encoder.configure(config);
     const usage = T_.RENDER_ATTACHMENT | T_.COPY_SRC | T_.TEXTURE_BINDING;
-    frameTex = device.createTexture({ size: [w, h], format: canvasFormat, usage });
+    frameTex = device.createTexture({ size: [rw, rh], format: canvasFormat, usage });
     readBuf = device.createBuffer({ size: bytesPerRow * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    // In the Incubator, each frame gets the porthole and readouts laid over it.
-    if (mode === 'arena') {
+    // In the Incubator, the middle of each frame is copied into a square, and the porthole laid over it.
+    if (square) {
+      squareTex = device.createTexture({ size: [w, h], format: canvasFormat, usage: usage | T_.COPY_DST });
       frameArt = device.createTexture({ size: [w, h], format: 'rgba8unorm', usage: T_.TEXTURE_BINDING | T_.COPY_DST | T_.RENDER_ATTACHMENT });
       frameArt.group = device.createBindGroup({ layout: P.L.upscale, entries: [{ binding: 0, resource: frameArt.createView() }] });
-      frameArt.key = null;
+      device.queue.copyExternalImageToTexture({ source: dishRingArt(w, square.D) }, { texture: frameArt, premultipliedAlpha: true }, [w, h]);
     }
     if (isClip) {
       mixTex = device.createTexture({ size: [w, h], format: canvasFormat, usage });
@@ -8962,31 +8921,29 @@ async function captureVideo(kind) {
         if (wait > 0) await sleep(wait);
         nextAt = Math.max(nextAt + 1000 / fps, performance.now() - 100);
       }
-      const items = exportItems(w, h), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+      const items = exportItems(rw, rh), enc = device.createCommandEncoder(), pass = enc.beginComputePass();
       for (const it of items) { writeUniforms(it.sim, it.genome, performance.now()); simulate(pass, it.sim, readySpawns(it.sim, it.genome, st.speed)); }
       pass.end();
       for (const it of items) prepareImage(enc, it.sim);
       compositeTo(enc, items, frameTex.createView());
-      if (frameArt && mode === 'arena') {
-        const key = dishFrameKey();
-        if (key !== frameArt.key) {
-          device.queue.copyExternalImageToTexture({ source: dishFrameArt(w, h) }, { texture: frameArt, premultipliedAlpha: true }, [w, h]);
-          frameArt.key = key;
-        }
-        fullscreenPass(enc, frameTex.createView(), P.overlay, frameArt.group, 'load');
+      let shot = frameTex;
+      if (square) {
+        enc.copyTextureToTexture({ texture: frameTex, origin: { x: (rw - rh) >> 1, y: 0 } }, { texture: squareTex, origin: { x: square.m, y: square.m } }, [rh, rh]);
+        fullscreenPass(enc, squareTex.createView(), P.overlay, frameArt.group, 'load');
+        shot = squareTex;
       }
       // A clip holds back its first frames, then dissolves its ending into them so the last frame flows into the first.
       if (isClip && made < F) {
-        enc.copyTextureToTexture({ texture: frameTex }, { texture: head[made] }, [w, h]);
+        enc.copyTextureToTexture({ texture: shot }, { texture: head[made] }, [w, h]);
         device.queue.submit([enc.finish()]);
         await device.queue.onSubmittedWorkDone();
       } else {
-        let source = frameTex;
+        let source = shot;
         if (isClip && made >= T) {
           device.queue.writeBuffer(amountBuf, 0, new Float32Array([(made - T + 1) / (F + 1), 0, 0, 0]));
           fullscreenPass(enc, mixTex.createView(), P.blend, device.createBindGroup({ layout: P.L.blend, entries: [
             { binding: 0, resource: { buffer: amountBuf } },
-            { binding: 1, resource: frameTex.createView() },
+            { binding: 1, resource: shot.createView() },
             { binding: 2, resource: head[made - T].createView() },
           ] }));
           source = mixTex;
@@ -9031,7 +8988,7 @@ async function captureVideo(kind) {
     job.live = false;
     if (sink) await sink.abort().catch(() => {});
     if (encoder && encoder.state !== 'closed') encoder.close();
-    [frameTex, mixTex, frameArt, ...head].forEach(t => t?.destroy());
+    [frameTex, squareTex, mixTex, frameArt, ...head].forEach(t => t?.destroy());
     readBuf?.destroy();
     amountBuf?.destroy();
     capture = null;

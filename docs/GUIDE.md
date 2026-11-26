@@ -37,7 +37,7 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 | View | `B`, `A` | `B` switches Solo and Batch. `A` opens or leaves the Incubator |
 | Help | `H` | Hover over anything for an explanation. `H` works everywhere, and there is a HELP key in the room bar, the Archive and fullscreen |
 | Draw page | `D` | Opens the brushes |
-| Export | `I`, `C`, `V` | PNG image, seamless 6-second loop, 1080p recording. In the Incubator the image is the whole dish at full size, and clips film what you see through the porthole, with its bezel and the readouts beside it |
+| Export | `I`, `C`, `V` | PNG image, seamless 6-second loop, 1080p recording. In the Incubator all three are square: the dish in its porthole with the bezel around it. The image is the whole dish at full size; clips and recordings film what you see, 1080 × 1080 |
 | Speed | `[`, `]` | 1x to 8x |
 | Tiles | `1`-`9`, `Shift`+`1`-`9` | Pick a tile, or open it |
 
@@ -160,12 +160,14 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - **Food** regrows like sunlight, and dead particles return to it.
 - **Food flows** across the broth into bodies, and faster still along veins, the way *Physarum* streams nutrients through its tubes. A dense body eats out its own patch quickly, so without this flow it starved with food all around it.
 - **Reaction fields.** A body that lived in a reaction field brings it, and its particles carry the field's recipe: the feed and kill rates of its Gray-Scott reaction and how strongly its trails seed it. They give the recipe off where they live, so the field runs where the strain is, follows it as it moves, and fades back to plain broth where no strain keeps it. Strains with different fields can share the dish. Each species follows or flees the field as strongly as it did at home, and the field glows in its organism's field colors.
-- **A strain keeps its size.** It may grow a little past the number of particles it was placed with, then a birth only replaces a loss, like an organism that stops growing when it is grown. Near that size each fed particle divides only by a draw weighted by the room left, so a whole well-fed body can't overshoot at once.
+- **Nothing caps a strain's size.** A strain grows as far as food and room allow, so strains can gain and lose ground. The dish holds a fixed number of particles (half a million to two million, by size), and a particle can only divide into a free place; most dishes fill up within a few thousand steps. An earlier rule that held each strain near the size it was placed at was removed, because it counted the whole strain across the dish rather than acting on single particles (see [Which rules carry the cells](RESEARCH.md#which-rules-carry-the-cells)).
 - **Homing.** A particle that has wandered away, sensing little of its kin where it stands or where its sensors reach, turns back. Swarming bacteria such as *Myxococcus* reverse direction in a similar way to stay with their swarm. Without homing, a wanderer has nothing to steer by, lays a trail others follow, and the body frays into a spreading network.
 - **SETTINGS: RANDOMIZE** sets the four sliders below at random, more often near the middle of each, and never with less than 0.45 food, which was the one setting found to starve a dish. **DEFAULT** puts them back.
-- **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. HOMEOSTASIS sets how reliably lost particles turn back, how hard crowding pushes out, how narrowly they digest around their target density, and how closely a strain keeps its size: a tenth more than it was placed with at 0.5, exactly its size at 1. At 0 the Incubator behaves like classic slime and strains grow as far as food allows. From about 0.5, bodies stay separate individuals.
+- **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. HOMEOSTASIS sets how reliably lost particles turn back, how hard crowding pushes out, and how narrowly they digest around their target density. At 0 the Incubator behaves like classic slime and bodies fray into spreading networks. From about 0.5, bodies stay separate individuals.
 
 **What you can see:**
+
+- **The readouts beside the dish:** PARTICLES is how many particles are alive, and its bar how full the dish is. BROTH is the food left in the dish. STRAINS counts the strains still alive of those placed, BODIES the separate bodies across all of them, and STEP how long the dish has run. Point at any of them with help on (`H`) for more.
 
 - **CHART: BODIES** is an LED display that stacks how many separate bodies each strain has over time, in its chemical color. For life-like behavior, this matters more than size: it shows whether a strain stays as individuals, divides, or merges into one sprawl. **PARTICLES** stacks each strain's share of the world instead.
 - **Strains:** each placed specimen founds a strain, which is the specimen and all its descendants. Each row shows the strain's share of the world and its number of bodies. Point at a row to light that strain up in the dish while the others dim. Click one to see:
