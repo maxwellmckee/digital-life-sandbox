@@ -563,7 +563,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
       <button class="pad deep" data-act="save" id="savePad"><span>SAVE</span><kbd>S</kbd></button>
       <button class="pad" data-act="toggle" id="playPad" aria-pressed="true"><span id="playLabel">PAUSE</span><kbd>SPACE</kbd></button>
       <button class="pad" data-act="undo" id="undoPad" disabled><span>UNDO</span><kbd>U</kbd></button>
-      <button class="pad" data-act="load"><span>LIBRARY</span><kbd>L</kbd></button>
+      <button class="pad" data-act="load"><span>ARCHIVE</span><kbd>L</kbd></button>
       <button class="pad" data-act="full"><span>FULL</span><kbd>F</kbd></button>
       <button class="pad" data-act="cut" id="cutPad"><span id="cutLabel">CUT</span><kbd>X</kbd></button>
     </div>
@@ -589,7 +589,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
     <section class="group" id="tabArena" hidden><h2 data-dots>INCUBATOR</h2>
       <div class="row wide"><span>ADD FROM</span><div class="seg" id="arenaAdd">
         <button type="button" data-add="solo" data-help="arena.add.solo">SOLO</button>
-        <button type="button" data-add="library" data-help="arena.add.library">LIBRARY</button>
+        <button type="button" data-add="library" data-help="arena.add.library">ARCHIVE</button>
         <button type="button" data-add="wild" data-help="arena.add.wild">WILD</button>
       </div></div>
       <div class="row wide"><span>DISH</span><div class="seg" id="segDish"></div></div>
@@ -699,6 +699,16 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
 
 <script>
 'use strict';
+/* Digital Life Sandbox: the whole app in one script. Sections, in order:
+   Configuration · Shaders (Microscope, then the Incubator's dish, then pictures) · State · GPU setup · Barriers ·
+   Organism brush · Inherited bodies · Simulation and rendering · Dot-matrix display · Lab look · Metrics ·
+   Family records · Undo history · Genomes and breeding · Random founders · Learning from picks · Help mode ·
+   Saving and loading · Library (the Archive) · Arena (the Incubator's dish) · The cutting bench · Specimens ·
+   Saved dishes · The specimen deck · Image and video export · Draw page · Actions and interface ·
+   Keeping old files working · Debug handle · Boot.
+   The code keeps some older names for things the screen now calls something else: the Incubator is the arena (and
+   mode 'arena'), a strain is a founder, the specimen deck is the drawer, the Archive is the library (lib), and a slide
+   is a save. docs/ARCHITECTURE.md explains how it all fits together. */
 /* ---------- Configuration ---------- */
 const TAU = Math.PI * 2;
 const BASE_STEPS_PER_SEC = 60;
@@ -751,7 +761,6 @@ const INITS = { scatter:'SCATTER', in:'RING IN', out:'RING OUT', shape:'SHAPE', 
 const GROWN_INITS = ['scatter', 'in', 'out', 'shape'];
 // SHAPE starts from one of these, picked by the seed.
 const START_SHAPES = ['clusters', 'swirl', 'groups'];
-const MODES = { solo:'SOLO', batch:'BATCH', arena:'ARENA' };
 const STRENGTHS = { subtle:['SUBTLE', .035], medium:['MEDIUM', .07], wild:['WILD', .15] };
 
 const fmtFollow = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
@@ -3046,7 +3055,7 @@ function lcdLines() {
     const c = arena.census, k = n => n >= 1e4 ? Math.round(n / 1000) + 'K' : String(n);
     const alive = c ? c.counts.filter(Boolean).length : 0;
     return [
-      state + ' ARENA ST ' + String(arena.sim.step).padStart(8),
+      state + ' DISH ST ' + String(arena.sim.step).padStart(9),
       rate,
       c ? 'POP ' + k(c.total).padEnd(5) + ' FOOD ' + Math.round(c.food * 100) + '%' : 'POP --    FOOD 100%',
       capture?.live ? captureLabel() : lib.loading ? lib.status : arena.task ? arena.task + '...' : flashing ? flashText
@@ -3192,8 +3201,8 @@ function setTitle(el, main, tail = '') {
 // The three rooms. The Microscope holds SOLO and BATCH, the Incubator is the Arena, and the Archive is the Library.
 const ROOMS = [
   { id: 'lab', name: 'MICROSCOPE', sub: 'SLIDES', icon: 'scope', help: 'room.lab' },
-  { id: 'incubator', name: 'INCUBATOR', sub: 'ARENA', icon: 'dish', help: 'room.incubator' },
-  { id: 'archive', name: 'ARCHIVE', sub: 'LIBRARY', icon: 'book', help: 'room.archive' },
+  { id: 'incubator', name: 'INCUBATOR', sub: 'DISHES', icon: 'dish', help: 'room.incubator' },
+  { id: 'archive', name: 'ARCHIVE', sub: 'RECORDS', icon: 'book', help: 'room.archive' },
 ];
 const currentRoom = () => lib.open ? 'archive' : mode === 'arena' ? 'incubator' : 'lab';
 function buildRooms() {
@@ -4308,17 +4317,17 @@ const HELP = {
     ['LINE 1', 'Running or on HOLD, the generation in BATCH, and steps so far.'],
     ['LINE 2', 'Frames per second, simulation steps per second, and speed.'],
     ['LINE 3', 'Agent count and trail resolution, plus the LIFE score in SOLO.'],
-    ['LINE 4', 'Seed and species count. In BATCH, your picks and what children will receive (PASS BODY or PASS RULES). Confirmations flash here too, along with the graphics card in use at start and Library loading progress.'],
+    ['LINE 4', 'Seed and species count. In BATCH, your picks and what children will receive (PASS BODY or PASS RULES). Confirmations flash here too, along with the graphics card in use at start and Archive loading progress.'],
   ] },
 
-  'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'In ARENA this is ADD: it cuts a living specimen from your SOLO organism for you to place. Press it again for an open spot.' },
-  'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen: species count, rules, field, start and colors. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'In ARENA it grows a wild organism out of sight and places a specimen of it in an open spot.' },
+  'pad.mutate': { t: 'MUTATE / BREED / ADD', d: 'Makes children with changed rules. PASS ON decides whether they also get the grown body. Each child tile is labeled with what it received.', tip: 'In the Incubator this is ADD: it cuts a living specimen from your SOLO organism for you to place. Press it again for an open spot.' },
+  'pad.random': { t: 'RANDOM', d: 'Rolls brand-new organisms unrelated to what is on screen: species count, rules, field, start and colors. SOLO gets one. BATCH refills every tile you have not picked.', tip: 'In the Incubator it grows a wild organism out of sight and places a specimen of it in an open spot.' },
   'pad.reroll': { t: 'REROLL / EMPTY', d: 'Keeps the settings but starts fresh with the agents scattered differently. Any inherited body is left behind.', tip: 'In the Incubator this is EMPTY: press it twice to remove every strain and start an empty dish. Kept specimens and saved dishes are not affected.' },
-  'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.', tip: 'In ARENA it places the same founders again, which replays the same history. A dish opened from the Archive goes back to the moment it was saved.' },
+  'pad.replay': { t: 'REPLAY', d: 'Returns to the start of this run with the same seed and settings. If it inherited a body, it returns to the moment of birth.', tip: 'In the Incubator it places the same strains again, which replays the same history. A dish opened from the Archive goes back to its last save.' },
   'pad.save': { t: 'SAVE', d: 'Always stores the body and the rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked. In the Incubator, saves the whole dish: every strain, particle, trail and the broth, under DISHES in the Archive. Saving the same dish again updates its entry and adds a snapshot.', tip: 'Saving the same organism again updates its library entry instead of adding a copy. It is named automatically, and you can rename it in the library.' },
   'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation.' },
-  'pad.undo': { t: 'UNDO', d: 'In SOLO, reverses the last settings change. In BATCH, returns to the previous generation. In ARENA, removes the last copy placed and replays the rest. In a dish opened from the Archive, only copies placed since it was opened can be removed.' },
-  'pad.load': { t: 'LIBRARY', d: 'Browse all your saved organisms as pictures. Open one, name it, or breed from it.' },
+  'pad.undo': { t: 'UNDO', d: 'In SOLO, reverses the last settings change. In BATCH, returns to the previous generation. In the Incubator, removes the last copy placed and replays the rest. In a dish opened from the Archive, only copies placed since it was opened can be removed.' },
+  'pad.load': { t: 'ARCHIVE', d: 'Opens the Archive: your saved slides as a grid or family tree, and the living specimens and dishes. Open one, name it, breed from it or cut from it.' },
   'pad.cut': { t: 'CUT / KEEP', d: 'Cuts a specimen from what is on screen. In SOLO, the organism you see goes on the cutting bench in the Incubator. In BATCH, the slide under the pointer, or the last slide you picked.', tip: 'In the Incubator this is KEEP: click a living body in the dish to cut it out with every gene it evolved. Each slide also has its own CUT button.' },
   'tile.cut': { t: 'CUT', d: 'Puts this slide on the cutting bench in the Incubator, with its bodies outlined, so you can cut one into your specimen deck.', tip: 'Coming back to the Microscope returns you to this tray.' },
   'lib.search': { t: 'SEARCH', d: 'Filters by name, tags, color, species count, or the word hybrid.' },
@@ -4328,10 +4337,10 @@ const HELP = {
   'lib.view.living': { t: 'LIVING', d: 'What lives in the Incubator. SPECIMENS are bodies you cut or kept, ready to place in a dish. DISHES are whole dishes you saved, which open exactly as they were.', tip: 'The number beside each is how many you have.' },
   'lib.life': { t: 'LIFE SCORE', d: 'How this save scored when it was saved, broken down into its parts below.' },
   'lib.specimen': { t: 'SPECIMEN', d: 'A living body cut from a slide, or kept from the Incubator: its particles with their rules, and the trail beneath. A kept body carries every gene its particles evolved.', tip: 'The same specimens are the cards in the specimen deck beside the Incubator dish.' },
-  'lib.specimen.add': { t: 'ADD TO ARENA', d: 'Opens the Incubator and lets you place copies of this specimen.' },
+  'lib.specimen.add': { t: 'PLACE IN DISH', d: 'Opens the Incubator and lets you place copies of this specimen.' },
   'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as it was when you last pressed SAVE: every strain, particle and gene, the trails, the broth and any reaction field. Below the picture are its strains and their share of it.', tip: 'Point at the picture to watch a snapshot from each save, from the first to the newest. Saving the same dish again keeps one entry with its newest state. The 1×, 1.5× or 2× badge is the dish size, and a saved dish always opens at that size.' },
   'lib.dish.open': { t: 'OPEN', d: 'Opens this dish in the Incubator exactly as it was last saved, and it carries on from there.', tip: 'You can add more specimens to it. REPLAY returns to its last save, and SAVE updates this entry and adds a snapshot.' },
-  'lib.origin': { t: 'ORIGIN', d: 'Which founder lineages the kept particles came from, and their share. A body can hold more than one lineage, like a membrane around another lineage inside it.' },
+  'lib.origin': { t: 'ORIGIN', d: 'Which strains the kept particles came from, and their share. A body can hold more than one lineage, like a membrane around another lineage inside it.' },
   'tree.node': { t: 'FAMILY MEMBER', d: 'Point at it to light up its ancestors and descendants. Click it to find its card below, or double-click to open it.', tip: 'A label like +3 GEN on a line is not a copy. It means 3 generations were bred in between without being saved.' },
   'lib.file': { t: 'OPEN FILE', d: 'Opens a save from anywhere on your computer.' },
   'lib.thumb': { t: 'OPEN', d: 'Click the picture to open this organism at the moment you saved it.' },
@@ -4344,11 +4353,11 @@ const HELP = {
   'lib.remove': { t: 'REMOVE', d: 'Moves this save into a "removed" subfolder, so you can always bring it back.', tip: 'Click twice to confirm.' },
   'pad.full': { t: 'FULLSCREEN', d: 'Hides the controls so only the simulation shows. Press F or Esc to come back.' },
 
-  view: { t: 'VIEW', d: 'SOLO shows one organism large. BATCH shows nine variants to choose from. ARENA is a shared world where specimens of your organisms compete. B switches SOLO and BATCH, and A opens or leaves ARENA.' },
+  view: { t: 'VIEW', d: 'SOLO shows one organism large. BATCH shows nine variants to choose from. B switches between them, and A opens or leaves the Incubator.' },
   'room.lab': { t: 'MICROSCOPE', d: 'Where cultures grow on slides. SOLO shows one slide large, and BATCH a tray of nine to compare and breed.' },
-  'room.incubator': { t: 'INCUBATOR', d: 'The Arena: a round chamber of broth where living specimens cut from your cultures eat, divide, mutate and compete.', tip: 'Press A to come and go.' },
-  'room.archive': { t: 'ARCHIVE', d: 'The Library: every saved culture, the family tree, the specimens cut or kept, and the Incubator dishes you saved.', tip: 'Press L to open it.' },
-  'view.arena': { t: 'ARENA', d: 'A shared world where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to place your SOLO organism, or ADD on a save in the LIBRARY.' },
+  'room.incubator': { t: 'INCUBATOR', d: 'A round dish of broth where living specimens cut from your cultures eat, divide, mutate and compete.', tip: 'Press A to come and go.' },
+  'room.archive': { t: 'ARCHIVE', d: 'Every saved slide and its family tree, and the living things: specimens cut or kept, and the dishes you saved.', tip: 'Press L to open it.' },
+  'view.arena': { t: 'INCUBATOR', d: 'A shared dish where living specimens cut from your organisms eat, divide, mutate and compete for food.', tip: 'Press ADD to cut your SOLO organism, or CUT on a slide in the Archive.' },
   'arena.dish': { t: 'DISH SIZE', d: 'How much room the dish has. At 1.5× it holds about 2¼ times as much, and at 2× four times as much. Every specimen keeps its true size, so a larger dish holds more copies, not larger ones.', tip: 'Changing the size places the strains again where they were and starts the run over. Larger dishes need more of the GPU, so the fastest speeds may slow down. Scroll on the dish to zoom in and drag to look around.' },
   'arena.zoom': { t: 'ZOOM', d: 'How far the dish is magnified. Scroll on the dish to zoom toward the pointer, and drag to look around. Click here to see the whole dish again.', tip: 'While placing a specimen, scrolling sizes the copy instead; hold Ctrl or pinch to zoom. IMAGE always saves the whole dish at full size, and CLIP and RECORD film what you see, framed by the porthole and readouts.' },
   'arena.randomize': { t: 'RANDOMIZE', d: 'Sets FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT at random, more often near the middle of each, and never with so little food that the dish starves.', tip: 'It changes the settings of the dish as it runs. In tests, FOOD below about 0.45 was the one setting that made every dish shrink, so RANDOMIZE keeps it above that.' },
@@ -4366,7 +4375,7 @@ const HELP = {
   'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each lineage has, stacked in its chemical color. PARTICLES charts each lineage's share of the world.", tip: 'For life-like behavior, bodies matter more: they show whether a lineage stays as individuals, divides, or spreads into one sprawl.' },
   'arena.founders': { t: 'STRAINS', d: 'Each specimen placed in the Incubator founds a strain: the specimen and all its descendants. Each row shows the strain’s share of the world and its number of bodies. Point at one to light it up in the dish. Click it for its full stats.', tip: 'Each species gives off a chemical of its own while any of the dish’s six are free, and shows in its own colors. Species that have to share a chemical smell alike. A strain from an organism with a reaction field brings the field with it: the field runs where the strain lives and follows it.' },
   'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Puts the organism you last had in SOLO on the cutting bench, with its bodies outlined, so you can choose what to cut and then place it.', tip: 'Open any save in SOLO first to choose a different organism.' },
-  'arena.add.library': { t: 'ADD FROM LIBRARY', d: 'Opens the Library. Press ADD on any save, or switch to SPECIMENS and press ADD TO ARENA on a kept body.' },
+  'arena.add.library': { t: 'ADD FROM ARCHIVE', d: 'Opens the Archive. Press CUT on any slide to put it on the cutting bench, or under SPECIMENS press PLACE IN DISH.' },
   'arena.add.wild': { t: 'ADD WILD', d: 'Grows a random organism out of sight, cuts its best body (or its densest part if it has none) and places it in the most open spot.' },
   'arena.keepBody': { t: 'KEEP LARGEST BODY', d: "Keeps this lineage's largest body as a specimen, with a ring fitted around it." },
   strength: { t: 'MUTATION', d: 'How different children are from their parents.' },
@@ -4558,7 +4567,7 @@ function initHelp() {
     $(id).closest('.row').dataset.help = key;
     for (const b of $(id).children) if (HELP[`${key}.${b.dataset.value}`]) b.dataset.help = `${key}.${b.dataset.value}`;
   }
-  for (const b of $('segTab').children) b.dataset.help = 'tab.' + b.dataset.value;
+  for (const b of $('segTab').querySelectorAll('button')) b.dataset.help = 'tab.' + b.dataset.value;
   for (const b of document.querySelectorAll('[data-act]')) b.dataset.help = 'pad.' + b.dataset.act;
   $('savesName').closest('.row').dataset.help = 'saves';
   $('exportRow').dataset.help = 'export';
@@ -5027,7 +5036,7 @@ async function renderThumb(sim, genome, view) {
   const pixels = await renderPixels([{ sim, genome, view, rect: null }], THUMB.w, THUMB.h);
   const canvas = new OffscreenCanvas(THUMB.w, THUMB.h);
   canvas.getContext('2d').putImageData(new ImageData(pixels, THUMB.w, THUMB.h), 0, 0);
-  return { blob: await canvas.convertToBlob({ type: 'image/webp', quality: .86 }), colors: colorWords(pixels, 3) };
+  return { blob: await canvas.convertToBlob({ type: 'image/webp', quality: .86 }) };
 }
 async function storeThumb(dir, id, blob) {
   const thumbs = await dir.getDirectoryHandle('thumbs', { create: true });
@@ -5036,28 +5045,7 @@ async function storeThumb(dir, id, blob) {
   await w.close();
 }
 
-/* Automatic names: the colors come from the picture and the shape from the measured structure. */
-const HUE_WORDS = [[0, 'Red'], [14, 'Coral'], [28, 'Orange'], [42, 'Amber'], [54, 'Gold'], [72, 'Lime'], [110, 'Green'], [150, 'Jade'], [172, 'Teal'],
-  [188, 'Cyan'], [205, 'Azure'], [225, 'Blue'], [248, 'Indigo'], [270, 'Violet'], [292, 'Orchid'], [315, 'Magenta'], [335, 'Rose'], [360, 'Red']];
-const hueWord = h => HUE_WORDS.reduce((a, b) => Math.abs(b[0] - h) < Math.abs(a[0] - h) ? b : a)[1];
-// The strongest one or two hues among the lit pixels, each weighted by how vivid and bright it is.
-function colorWords(rgba, stride = 1) {
-  const bins = new Float32Array(36);
-  let gray = 0;
-  for (let i = 0; i < rgba.length; i += 4 * stride) {
-    const r = rgba[i] / 255, g = rgba[i + 1] / 255, b = rgba[i + 2] / 255, max = Math.max(r, g, b), c = max - Math.min(r, g, b);
-    if (max < .15) continue;
-    if (c < .12 || c / max < .25) { gray += max * .3; continue; }
-    const h = ((max === r ? ((g - b) / c + 6) % 6 : max === g ? (b - r) / c + 2 : (r - g) / c + 4) * 60) % 360;
-    bins[Math.floor(h / 10)] += c * max;
-  }
-  const order = [...bins.keys()].sort((a, b) => bins[b] - bins[a]), top = order[0];
-  if (!bins[top] || bins[top] < gray) return [gray ? 'Silver' : 'Dark'];
-  const first = hueWord(top * 10 + 5), apart = i => { const d = Math.abs(i - top) * 10; return Math.min(d, 360 - d) >= 50; };
-  const next = order.find(i => apart(i) && bins[i] >= bins[top] * .35);
-  const second = next === undefined ? null : hueWord(next * 10 + 5);
-  return second && second !== first ? [first, second] : [first];
-}
+/* Automatic names start from the form of the measured structure (see GENUS_OF_SHAPE below). */
 // Thresholds follow the LIFE measurements: loops are enclosed holes, and largest is the share held by the biggest piece.
 function shapeWord(m, g) {
   if (lifeOf(g).mode === 'cells') return 'Colony';
@@ -5103,82 +5091,6 @@ const keptName = (from, seedText, taken) => freeName(genusFromName(from), 'K', s
 const dishName = (living, key, seedText) => freeName(DISH_WORDS[living <= 1 ? 0 : living <= 3 ? 1 : 2], { s: 'S', m: 'M', l: 'L' }[key] || 'S', seedText);
 const cutName = (base, shape) => `${base} ${shape.circle ? 'disc' : shape.name}`;
 
-/* Older names were words for colors and shapes, such as "Silver Web V". They are renamed once, the first time the saves
-   folder is read: every save with an automatic name (a name you typed stays as it is), every specimen and every saved
-   dish, along with the names they hold of each other, such as the save a cut came from or the strains in a dish. Each
-   keeps its old name as formerName, so searching for it still finds it. Names already in the new form are left alone. */
-let renamed = null;
-function renameOldNames(dir) {
-  if (!renamed || renamed.dir !== dir) renamed = { dir, done: renameAll(dir).catch(e => console.error(e)) };
-  return renamed.done;
-}
-async function renameAll(dir) {
-  const files = async folder => {
-    const out = [];
-    for await (const [name, handle] of folder.entries()) {
-      if (handle.kind !== 'file' || !name.endsWith('.json')) continue;
-      try { out.push({ handle, data: JSON.parse(await readText(handle)) }); } catch { /* unreadable files are skipped */ }
-    }
-    return out;
-  };
-  const sub = async name => dir.getDirectoryHandle(name).catch(() => null);
-  const saves = (await files(dir)).filter(x => x.data.format === 'digital-life-save' && parseSave(x.data));
-  const specimens = (await sub('specimens').then(f => f ? files(f) : [])).filter(x => x.data.format === 'digital-life-specimen');
-  const dishes = (await sub('dishes').then(f => f ? files(f) : [])).filter(x => x.data.format === 'digital-life-dish');
-  const changed = new Set(), byName = new Map(), byId = new Map();
-  const rename = (x, name) => { if (x.data.name === name) return; if (!x.data.formerName) x.data.formerName = x.data.name; x.data.name = name; changed.add(x); };
-  // Saves, oldest first, so the earliest keeps its number when two would share one.
-  const taken = new Set(saves.filter(x => x.data.name && (!x.data.autoName || isStrainName(x.data.name))).map(x => x.data.name));
-  for (const x of saves.sort((a, b) => saveTime(a.data) - saveTime(b.data))) {
-    const d = x.data;
-    if (!d.name || !d.autoName || isStrainName(d.name)) { if (d.name && d.id) byId.set(d.id, d.name); if (d.formerName) byName.set(d.formerName, d.name); continue; }
-    const name = autoName(d, taken);
-    taken.add(name);
-    byName.set(d.name, name);
-    rename(x, name);
-    byId.set(d.id, name);
-  }
-  // Specimens: a cut is its save's new name and its body letter, a kept body is K.
-  const was = new Map(), cutBase = old => byName.get(old) || null;
-  for (const x of specimens.sort((a, b) => new Date(a.data.createdAt) - new Date(b.data.createdAt))) {
-    const m = x.data;
-    if (isStrainName(m.name)) { if (m.formerName) was.set(m.formerName, m.name); continue; }
-    let name;
-    // The first specimen files held only kept bodies and didn't say so.
-    if (m.kind === 'kept' || m.version === 1 || /^Kept /.test(m.name || '')) name = keptName(m.origin?.[0]?.name || m.name, m.id || m.name, taken);
-    else {
-      const part = /^(.*) \((\w+)\)$/.exec(m.name || ''), letter = part ? (part[2] === 'circle' ? 'disc' : part[2]) : 'disc';
-      const base = (m.source?.saveId && byId.get(m.source.saveId)) || cutBase(m.source?.name) || cutBase(part?.[1])
-        || freeName(genusFromName(m.name), strainLetters(m.g?.count, !!m.field), m.id || m.name, taken);
-      taken.add(base);
-      if (m.source && m.source.name !== base) m.source.name = base;
-      name = `${base} ${letter}`;
-    }
-    taken.add(name);
-    was.set(m.name, name);
-    rename(x, name);
-  }
-  // Names held of other things: a kept body's origins and a dish's strains.
-  const renameOld = old => {
-    if (!old || isStrainName(old)) return old;
-    if (was.has(old)) return was.get(old);
-    if (byName.has(old)) return byName.get(old);
-    // A wild founder was never a save, even when its name matches one.
-    const part = /^(?:Wild )?(.*) \((\w+)\)$/.exec(old), letter = part && (part[2] === 'circle' ? 'disc' : part[2]);
-    if (old.startsWith('Wild ')) return part ? `${freeName(genusFromName(part[1]), 'W', part[1])} ${letter}` : freeName(genusFromName(old), 'W', old);
-    if (part && cutBase(part[1])) return `${cutBase(part[1])} ${letter}`;
-    if (old.startsWith('Kept ')) return keptName(old, old);
-    return old;
-  };
-  for (const x of specimens) for (const o of x.data.origin || []) { const name = renameOld(o.name); if (name !== o.name) { o.name = name; changed.add(x); } }
-  for (const x of dishes) {
-    const m = x.data;
-    for (const list of [m.founders, m.strains]) for (const f of list || []) { const name = renameOld(f.name); if (name !== f.name) { f.name = name; changed.add(x); } }
-    if (!isStrainName(m.name)) rename(x, dishName((m.strains || []).filter(s => s.particles).length, m.dish, m.id || m.name));
-  }
-  for (const x of changed) await writeJson(x.handle, x.data);
-  return changed.size;
-}
 
 const saveTime = d => new Date(d.updatedAt || d.createdAt || 0).getTime() || 0;
 const saveScore = d => Number.isFinite(d.metrics?.score) ? d.metrics.score : -1;
@@ -5646,7 +5558,7 @@ async function growMissingThumbs(run) {
 }
 // Why the Library can't open right now, so the button never silently does nothing.
 function libraryBlocked() {
-  if (lib.loading) return 'LIBRARY IS OPENING';
+  if (lib.loading) return 'ARCHIVE IS OPENING';
   if (capture) return 'STOP THE RECORDING FIRST';
   if (growing) return 'WAIT: ' + growing.label;
   if (batch.screening) return 'WAIT FOR THE NEW TILES';
@@ -5661,7 +5573,7 @@ async function openLibrary() {
   // The simulation keeps running while the folder is read. The display counts the files, and a file that is still
   // downloading from the cloud is skipped instead of holding everything up.
   lib.loading = true;
-  lib.status = 'OPENING LIBRARY';
+  lib.status = 'OPENING ARCHIVE';
   drawLcd();
   let late = 0;
   const readAll = async (folderHandle, into) => {
@@ -5678,8 +5590,8 @@ async function openLibrary() {
   };
   try {
     const dir = await savesFolder(text => { lib.status = text; drawLcd(); });
-    if (!dir) { flash('LIBRARY CANCELLED'); return; }
-    lib.status = 'OPENING LIBRARY';
+    if (!dir) { flash('ARCHIVE CANCELLED'); return; }
+    lib.status = 'OPENING ARCHIVE';
     drawLcd();
     await renameOldNames(dir);
     const items = [], thumbs = await withTimeout(dir.getDirectoryHandle('thumbs', { create: true }));
@@ -5725,7 +5637,7 @@ async function openLibrary() {
   } catch (e) {
     lib.open = $('library').open;
     if (e.name === 'NotFoundError') { await forgetFolder(); flash('FOLDER MISSING'); }
-    else { console.error(e); flash('LIBRARY FAILED'); }
+    else { console.error(e); flash('ARCHIVE FAILED'); }
   } finally {
     lib.loading = false;
     lib.status = '';
@@ -5734,9 +5646,13 @@ async function openLibrary() {
 }
 function closeLibrary() { if ($('library').open) $('library').close(); }
 
-// Two specimens are the same when everything about them but their number, date and name matches and their particle files
-// are the same size: the same body cut twice from the same moment, or kept twice from a paused dish.
-const specimenKey = meta => { const { id, createdAt, name, ...rest } = meta; return JSON.stringify(rest); };
+// Two specimens are the same when everything about them but their number, date and names matches and their particle
+// files are the same size: the same body cut twice from the same moment, or kept twice from a paused dish. The name of
+// the organism a cut came from is left out too: an unsaved organism's name can change once its LIFE score is measured.
+const specimenKey = meta => {
+  const { id, createdAt, name, formerName, source, ...rest } = meta;
+  return JSON.stringify({ ...rest, from: source?.saveId ?? null });
+};
 const fileSize = async (store, name) => { try { return (await (await store.getFileHandle(name)).getFile()).size; } catch { return -1; } };
 // Specimens kept from the Arena live in the saves folder's "specimens" subfolder, each as a description, a picture
 // and a compressed file of its particles and trail. Duplicates keep only their newest copy; the others move to the
@@ -5802,7 +5718,7 @@ function buildSpecimenCard(item) {
     origin.append(s);
   }
   origin.dataset.help = 'lib.origin';
-  const actions = el('div', 'lib-actions'), add = el('button', 'breed', 'ADD TO ARENA'), remove = el('button', 'remove', 'REMOVE');
+  const actions = el('div', 'lib-actions'), add = el('button', 'breed', 'PLACE IN DISH'), remove = el('button', 'remove', 'REMOVE');
   add.type = remove.type = 'button';
   add.dataset.help = 'lib.specimen.add';
   remove.dataset.help = 'lib.remove';
@@ -5862,45 +5778,6 @@ async function readDishes(dir) {
   out.sort((a, b) => saveTime(b.meta) - saveTime(a.meta));
   out.folded = folded;
   return out;
-}
-/* Dishes saved before each dish had one entry: a dish saved several times left an entry for each save. They are one
-   dish when they share their size and random seed, which is set when a dish is emptied and kept through every save
-   and reopening. They fold into the newest entry, which keeps the first one's name and gains a round snapshot from each;
-   the older entries move to the removed folder. An entry from before snapshots gets one from its picture. */
-async function foldDishes(dir, store, items) {
-  const write = async (name, data) => { const w = await (await store.getFileHandle(name, { create: true })).createWritable(); await w.write(data); await w.close(); };
-  for (const item of items) {
-    if (Array.isArray(item.meta.snapshots)) continue;
-    item.meta.snapshots = [];
-    try {
-      const bmp = await createImageBitmap(await readFile(await store.getFileHandle(item.key + '.webp'))), side = Math.min(bmp.width, bmp.height);
-      const round = await roundPicture(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side), file = `${item.key}.s${item.meta.step}.webp`;
-      bmp.close();
-      await write(file, round);
-      await write(item.key + '.webp', round);
-      item.meta.snapshots.push({ step: item.meta.step, createdAt: item.meta.createdAt, file });
-    } catch { /* no picture to start from */ }
-    item.changed = true;
-  }
-  const groups = new Map();
-  for (const item of items) { const k = item.meta.dish + ':' + item.meta.seed; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(item); }
-  let folded = 0;
-  for (const group of groups.values()) {
-    if (group.length < 2) continue;
-    group.sort((a, b) => saveTime(a.meta) - saveTime(b.meta));
-    const first = group[0], keep = group.at(-1), m = keep.meta, seen = new Set();
-    m.snapshots = group.flatMap(x => x.meta.snapshots).sort((a, b) => a.step - b.step).filter(x => !seen.has(x.step) && seen.add(x.step));
-    Object.assign(m, { name: first.meta.name, createdAt: first.meta.createdAt, updatedAt: m.updatedAt || m.createdAt });
-    if (first.meta.formerName) m.formerName = first.meta.formerName;
-    keep.changed = true;
-    for (const item of group.slice(0, -1)) {
-      await removeStored(item, 'dishes', ['.json', '.dldish', '.webp'], dir);
-      item.folded = true;
-      folded++;
-    }
-  }
-  for (const item of items) if (item.changed && !item.folded) await writeJson(item.handle, item.meta);
-  return folded;
 }
 function buildDishCard(item) {
   const m = item.meta, card = el('article', 'lib-card'), thumb = el('div', 'lib-thumb round'), img = el('img');
@@ -7185,7 +7062,7 @@ async function arenaWork(label, job) {
   arena.task = label;
   drawLcd();
   try { return await job(); }
-  catch (e) { console.error(e); flash('ARENA FAILED'); return null; }
+  catch (e) { console.error(e); flash('INCUBATOR FAILED'); return null; }
   finally { arena.busy = false; arena.task = ''; syncUi(); renderArenaPanel(); }
 }
 // Places a copy of a specimen. A new strain is founded unless `strain` is given, in which case the copy joins it, so
@@ -7193,7 +7070,7 @@ async function arenaWork(label, job) {
 async function foundAt(specimen, x, y, size = 1, strain = null) {
   if (arena.busy) return null;
   let f = strain && arena.founders.includes(strain) ? strain : null;
-  if (!f && arena.founders.length >= ARENA.maxFounders) { flash('ARENA IS FULL'); return null; }
+  if (!f && arena.founders.length >= ARENA.maxFounders) { flash('DISH IS FULL'); return null; }
   const spot = { ...discInDish(x, y, specimen.radius * size), size };
   if (!f) {
     f = { specimen, x: spot.x, y: spot.y, spots: [], lineage: arena.founders.length };
@@ -7218,7 +7095,7 @@ async function replayArena() {
     for (const f of later) await stampFounder(f);
     return true;
   });
-  if (done) flash('ARENA REPLAY');
+  if (done) flash('DISH REPLAYED');
 }
 // Placing stays on after each click, so a specimen can be placed as many times as you like. The copies placed while
 // one specimen is picked form one strain. The scroll wheel sizes the next copy. Esc stops.
@@ -7386,7 +7263,7 @@ function arenaClear() {
   resetArena();
   syncUi();
   renderArenaPanel();
-  flash('ARENA CLEARED');
+  flash('DISH EMPTIED');
 }
 
 /* Bodies. Where a lineage is dense enough on a coarse grid, its connected patches are its bodies. Bodies are followed
@@ -7583,7 +7460,7 @@ function renderArenaPanel() {
       : `${b.name} is on the cutting bench. No separate body was found, so a circle sits on its densest part. Click to move it and scroll to size it. CUT takes it; Esc cancels.`)
     : arena.placing ? `Click the dish to place ${arena.placing.name} at ×${(arena.placeSize || 1).toFixed(2)}. Scroll to size the next copy. Each click adds another copy, and the copies form one strain. ADD places one in an open spot. Esc stops.`
     : arena.keeping ? 'Click a living body to keep it as a specimen. The ring shows what will be kept. Esc cancels.'
-    : !arena.founders.length ? 'Pick a card from the specimen deck beside the dish, then click the dish to place it. To cut something new, add from your SOLO organism, a save in the LIBRARY, or a WILD one.'
+    : !arena.founders.length ? 'Pick a card from the specimen deck beside the dish, then click the dish to place it. To cut something new, add from your SOLO organism, a slide in the ARCHIVE, or a WILD one.'
     : 'Each row is a strain: a placed specimen and all its descendants. Point at one to light it up in the dish, or click it to see its bodies and how its genes have drifted. Scroll on the dish to zoom in, and drag to look around.';
   markSeg($('segChart'), arena.chart);
   drawArenaChart();
@@ -7649,7 +7526,7 @@ function drawArenaChart() {
 }
 /* ---------- Specimens ---------- */
 // KEEP cuts a living disc out of the arena: every particle in it, of any lineage, with every gene it has evolved, and
-// the trail beneath. It is saved to the saves folder's "specimens" subfolder and appears in the Library's SPECIMENS view.
+// the trail beneath. It is saved to the saves folder's "specimens" subfolder and appears in the Archive's SPECIMENS view.
 const SPECIMEN_MAGIC = 0x50534C44;
 function beginKeeping() {
   if (!arena.founders.length) { flash('NOTHING TO KEEP YET'); return; }
@@ -8112,7 +7989,7 @@ function renderDrawer() {
       open.addEventListener('click', () => loadDrawer(true));
       note.append(el('span', '', 'Allow folder access to see the specimens you have saved.'), el('br'), open);
     } else note.append(el('span', '', (workFolder || folder)
-      ? 'Press CUT in the Microscope, or ADD FROM SOLO, LIBRARY or WILD, and the body you cut lands here.'
+      ? 'Press CUT in the Microscope, or ADD FROM SOLO, ARCHIVE or WILD, and the body you cut lands here.'
       : 'Bodies you cut collect here. SET FOLDER to keep them between sessions.'));
     host.replaceChildren(note);
     return;
@@ -9462,6 +9339,131 @@ function initUi() {
   syncUi();
 }
 
+/* ---------- Keeping old files working ---------- */
+/* Every change to a file format keeps older files opening. Where each kind of older file is handled:
+   - Saves: parseSave reads every save version, and mergeDuplicates folds the copies older versions made of one organism.
+   - Body files: unpackBody.
+   - Specimens: unpackSpecimen reads versions 1 to 3, with oldKeptGenes widening genes from the three-chemical dish, and
+     readSpecimens folds duplicates.
+   - Dishes: restoreDish reads version 1.
+   The two below change files in place, once, when the saves folder is read: names from before strain codes, and dishes
+   saved as several entries. Add new upgrades here, and a check for each to tests/suite.js. */
+/* Older names were words for colors and shapes, such as "Silver Web V". They are renamed once, the first time the saves
+   folder is read: every save with an automatic name (a name you typed stays as it is), every specimen and every saved
+   dish, along with the names they hold of each other, such as the save a cut came from or the strains in a dish. Each
+   keeps its old name as formerName, so searching for it still finds it. Names already in the new form are left alone. */
+let renamed = null;
+function renameOldNames(dir) {
+  if (!renamed || renamed.dir !== dir) renamed = { dir, done: renameAll(dir).catch(e => console.error(e)) };
+  return renamed.done;
+}
+async function renameAll(dir) {
+  const files = async folder => {
+    const out = [];
+    for await (const [name, handle] of folder.entries()) {
+      if (handle.kind !== 'file' || !name.endsWith('.json')) continue;
+      try { out.push({ handle, data: JSON.parse(await readText(handle)) }); } catch { /* unreadable files are skipped */ }
+    }
+    return out;
+  };
+  const sub = async name => dir.getDirectoryHandle(name).catch(() => null);
+  const saves = (await files(dir)).filter(x => x.data.format === 'digital-life-save' && parseSave(x.data));
+  const specimens = (await sub('specimens').then(f => f ? files(f) : [])).filter(x => x.data.format === 'digital-life-specimen');
+  const dishes = (await sub('dishes').then(f => f ? files(f) : [])).filter(x => x.data.format === 'digital-life-dish');
+  const changed = new Set(), byName = new Map(), byId = new Map();
+  const rename = (x, name) => { if (x.data.name === name) return; if (!x.data.formerName) x.data.formerName = x.data.name; x.data.name = name; changed.add(x); };
+  // Saves, oldest first, so the earliest keeps its number when two would share one.
+  const taken = new Set(saves.filter(x => x.data.name && (!x.data.autoName || isStrainName(x.data.name))).map(x => x.data.name));
+  for (const x of saves.sort((a, b) => saveTime(a.data) - saveTime(b.data))) {
+    const d = x.data;
+    if (!d.name || !d.autoName || isStrainName(d.name)) { if (d.name && d.id) byId.set(d.id, d.name); if (d.formerName) byName.set(d.formerName, d.name); continue; }
+    const name = autoName(d, taken);
+    taken.add(name);
+    byName.set(d.name, name);
+    rename(x, name);
+    byId.set(d.id, name);
+  }
+  // Specimens: a cut is its save's new name and its body letter, a kept body is K.
+  const was = new Map(), cutBase = old => byName.get(old) || null;
+  for (const x of specimens.sort((a, b) => new Date(a.data.createdAt) - new Date(b.data.createdAt))) {
+    const m = x.data;
+    if (isStrainName(m.name)) { if (m.formerName) was.set(m.formerName, m.name); continue; }
+    let name;
+    // The first specimen files held only kept bodies and didn't say so.
+    if (m.kind === 'kept' || m.version === 1 || /^Kept /.test(m.name || '')) name = keptName(m.origin?.[0]?.name || m.name, m.id || m.name, taken);
+    else {
+      const part = /^(.*) \((\w+)\)$/.exec(m.name || ''), letter = part ? (part[2] === 'circle' ? 'disc' : part[2]) : 'disc';
+      const base = (m.source?.saveId && byId.get(m.source.saveId)) || cutBase(m.source?.name) || cutBase(part?.[1])
+        || freeName(genusFromName(m.name), strainLetters(m.g?.count, !!m.field), m.id || m.name, taken);
+      taken.add(base);
+      if (m.source && m.source.name !== base) m.source.name = base;
+      name = `${base} ${letter}`;
+    }
+    taken.add(name);
+    was.set(m.name, name);
+    rename(x, name);
+  }
+  // Names held of other things: a kept body's origins and a dish's strains.
+  const renameOld = old => {
+    if (!old || isStrainName(old)) return old;
+    if (was.has(old)) return was.get(old);
+    if (byName.has(old)) return byName.get(old);
+    // A wild founder was never a save, even when its name matches one.
+    const part = /^(?:Wild )?(.*) \((\w+)\)$/.exec(old), letter = part && (part[2] === 'circle' ? 'disc' : part[2]);
+    if (old.startsWith('Wild ')) return part ? `${freeName(genusFromName(part[1]), 'W', part[1])} ${letter}` : freeName(genusFromName(old), 'W', old);
+    if (part && cutBase(part[1])) return `${cutBase(part[1])} ${letter}`;
+    if (old.startsWith('Kept ')) return keptName(old, old);
+    return old;
+  };
+  for (const x of specimens) for (const o of x.data.origin || []) { const name = renameOld(o.name); if (name !== o.name) { o.name = name; changed.add(x); } }
+  for (const x of dishes) {
+    const m = x.data;
+    for (const list of [m.founders, m.strains]) for (const f of list || []) { const name = renameOld(f.name); if (name !== f.name) { f.name = name; changed.add(x); } }
+    if (!isStrainName(m.name)) rename(x, dishName((m.strains || []).filter(s => s.particles).length, m.dish, m.id || m.name));
+  }
+  for (const x of changed) await writeJson(x.handle, x.data);
+  return changed.size;
+}
+/* Dishes saved before each dish had one entry: a dish saved several times left an entry for each save. They are one
+   dish when they share their size and random seed, which is set when a dish is emptied and kept through every save
+   and reopening. They fold into the newest entry, which keeps the first one's name and gains a round snapshot from each;
+   the older entries move to the removed folder. An entry from before snapshots gets one from its picture. */
+async function foldDishes(dir, store, items) {
+  const write = async (name, data) => { const w = await (await store.getFileHandle(name, { create: true })).createWritable(); await w.write(data); await w.close(); };
+  for (const item of items) {
+    if (Array.isArray(item.meta.snapshots)) continue;
+    item.meta.snapshots = [];
+    try {
+      const bmp = await createImageBitmap(await readFile(await store.getFileHandle(item.key + '.webp'))), side = Math.min(bmp.width, bmp.height);
+      const round = await roundPicture(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side), file = `${item.key}.s${item.meta.step}.webp`;
+      bmp.close();
+      await write(file, round);
+      await write(item.key + '.webp', round);
+      item.meta.snapshots.push({ step: item.meta.step, createdAt: item.meta.createdAt, file });
+    } catch { /* no picture to start from */ }
+    item.changed = true;
+  }
+  const groups = new Map();
+  for (const item of items) { const k = item.meta.dish + ':' + item.meta.seed; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(item); }
+  let folded = 0;
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => saveTime(a.meta) - saveTime(b.meta));
+    const first = group[0], keep = group.at(-1), m = keep.meta, seen = new Set();
+    m.snapshots = group.flatMap(x => x.meta.snapshots).sort((a, b) => a.step - b.step).filter(x => !seen.has(x.step) && seen.add(x.step));
+    Object.assign(m, { name: first.meta.name, createdAt: first.meta.createdAt, updatedAt: m.updatedAt || m.createdAt });
+    if (first.meta.formerName) m.formerName = first.meta.formerName;
+    keep.changed = true;
+    for (const item of group.slice(0, -1)) {
+      await removeStored(item, 'dishes', ['.json', '.dldish', '.webp'], dir);
+      item.folded = true;
+      folded++;
+    }
+  }
+  for (const item of items) if (item.changed && !item.folded) await writeJson(item.handle, item.meta);
+  return folded;
+}
+
 /* ---------- Debug handle for checking determinism from the console ---------- */
 window.DL = {
   st, batch, setMode, togglePick, breed, openTile, makeChild, cloneGenome,
@@ -9469,7 +9471,7 @@ window.DL = {
   exportImage, captureVideo, encodePng, renderPixels, exportItems, VIDEO, applySave, LIGHT_CURVES, lib, openLibrary, closeLibrary, save,
   layoutFamily, familyLine, lineageOf, setLibView, selectTreeNode, TREE,
   RANDOM, randomFounder, rollFounders, restartSim, actions, brush, wallMask, buildSave, parseSave, commitDraft,
-  wallsOpened, setSandbox, captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, organismKey, mergeDuplicates, autoName, colorWords, readSaves, setInit, lifeOf, bodies, liveBody, wallArt,
+  wallsOpened, setSandbox, captureBody, placeState, stateOf, packBody, unpackBody, writeBody, removeSave, setLifeMode, organismKey, mergeDuplicates, autoName, readSaves, setInit, lifeOf, bodies, liveBody, wallArt,
   get R() { return R; },
   goRoom, flashIcon, iconFlash, afterglow, startShapeOf, startLayout, setPalette, colorsOf,
   // Reads every agent's inherited genes back, eight numbers each, starting with energy.
