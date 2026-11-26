@@ -4,6 +4,16 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Energy only comes from food.** The Incubator had a leak: food cells shared out food using the previous step's
+  eaters, so particles moving into fresh food took more than there was, and overdrawn food was rounded back up to zero.
+  About 60% of what particles spent living came from nowhere. Each step, particles now report how much they can digest
+  before each cell's food is shared among exactly them, and the dead return their matter within the same step. Every
+  dish runs on the corrected energy, so saved dishes that grew on the leak change when opened (L-848 loses its rings).
+  A test checks that energy only falls when no food grows back.
+- **Food limits growth.** With energy conserved, food grows back at half the old rate, so food runs out before a dish
+  fills its room: at FOOD 1 a dish of fresh specimens levels off at about 89% of its places, at the new default of 0.75
+  about 68%, and at 0.6 about 54%. RANDOMIZE draws FOOD from 0.6 up. A dish saved before opens with its FOOD doubled (to
+  at most 1), so it gets the same food it had.
 - **No strain cap.** The rule that held each strain near the size it was placed at counted the whole strain across
   the dish, the one rule that looked beyond a single particle, so it is gone. Strains now grow as far as food and room
   allow. Runs of all eight saved dishes with it off kept their cells (docs/RESEARCH.md, "Which rules carry the cells"),

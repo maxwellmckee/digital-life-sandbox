@@ -89,17 +89,15 @@ There is nothing to install and no build step. It was built on a desktop NVIDIA 
 
 **Built:** the Microscope (breeding, three species, ecologies, reaction-diffusion hybrids, inherited bodies, living
 cells, barriers, an organism brush, taste learning, the LIFE score), the cutting bench, specimens and the deck, the
-Incubator (six chemicals, food that flows along veins, strains free to win or lose ground, carried reaction fields, three dish
+Incubator (six chemicals, food that flows along veins, energy only from food, strains that win or lose ground, carried reaction fields, three dish
 sizes, zoom, saved dishes, framed recordings, a cell finder), and the Archive (slides, family tree, specimens, dishes with snapshots),
 with PNG and MP4 export and Help everywhere.
 
 **Next:**
 
-1. Let food, rather than the dish's fixed number of particle places, limit growth, so the last whole-dish limit goes
-   too ([research](docs/RESEARCH.md#which-rules-carry-the-cells)).
-2. An ECOSYSTEM score for a dish: coexistence, persistence, exchange and balance
-   ([research](docs/RESEARCH.md#judging-a-dish)).
-3. Membrane material made by the particles themselves, and whole bodies that divide.
+1. An ECOSYSTEM score for a dish: coexistence, persistence, exchange and balance
+   ([research](docs/RESEARCH.md#judging-a-dish)), now that food, not a rule, decides who wins.
+2. Membrane material made by the particles themselves, and whole bodies that divide.
 
 **Ideas for later:** endosymbiosis-like dependence between strains, a first-run gallery of presets, parameter locks for
 RANDOM, a replay timeline, mutating only part of a body, and small evolvable brains.

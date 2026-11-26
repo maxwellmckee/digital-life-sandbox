@@ -234,6 +234,53 @@
       return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `sliders and chart still with 0, 1 and 3 cells; list held while pointed at (${held})` };
     },
 
+    // Food is the dish's only source of energy. With none growing back, everything the dish holds (the food in the broth,
+    // the energy its particles store, and the matter they are made of) must fall by at least what living costs.
+    async 'Energy only comes from food'() {
+      await freshDish('s', 31);
+      await foundAt(fx.a, .5, .5, 1); await idle();
+      await foundAt(fx.b, .3, .45, .5); await idle();
+      const regrow = ARENA.regrow;
+      ARENA.regrow = 0;
+      try {
+        const s = arena.sim, n = s.q.agents, { gw, gh } = arena.d, hunger = arena.params.hunger;
+        const held = async () => {
+          const pos = new Float32Array(await readBack(s.agentBuf, n * 16)), gf = new Float32Array(await readBack(arena.genes, n * 64));
+          let alive = 0, energy = 0, upkeep = 0;
+          for (let i = 0; i < n; i++) if (pos[i * 4] >= 0) { alive++; energy += Math.max(gf[i * 16], 0); upkeep += hunger * (.0004 + .00025 * gf[i * 16 + 5] + .00015 * gf[i * 16 + 6]); }
+          const food = await readRegion(s.field[arena.fcur], 0, 0, gw, gh);
+          let broth = 0;
+          for (let k = 0; k < gw * gh; k++) broth += food[k * 4 + 1];
+          return { all: energy + broth + .3 * alive, upkeep };
+        };
+        await DL.arenaAdvance(50);
+        const a = await held();
+        await DL.arenaAdvance(300);
+        const b = await held(), lost = a.all - b.all, least = .9 * Math.min(a.upkeep, b.upkeep) * 300;
+        return { ok: lost >= least, detail: `held ${a.all.toFixed(0)} -> ${b.all.toFixed(0)}: lost ${lost.toFixed(0)}, living cost at least ${least.toFixed(0)}` };
+      } finally { ARENA.regrow = regrow; }
+    },
+
+    // A dish saved when food grew back twice as fast opens with its FOOD doubled (to at most 1), so it gets the same
+    // food; a dish saved since keeps its FOOD as it is.
+    async 'Older dishes keep their food'() {
+      await freshDish('s', 31);
+      await foundAt(fx.a, .5, .5, 1); await idle();
+      arena.params.food = .3;
+      await DL.arenaAdvance(20);
+      await saveDish(); await idle();
+      const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('dishes');
+      const meta = JSON.parse(await (await (await dir.getFileHandle(arena.dishId + '.json')).getFile()).text());
+      const file = await (await dir.getFileHandle(arena.dishId + '.dldish')).getFile();
+      const older = { ...meta, params: { ...meta.params }, regrow: undefined };
+      await restoreDish(older, file);
+      const opened = arena.params.food;
+      await restoreDish(meta, file);
+      const kept = arena.params.food;
+      arena.origin = null; arena.dishId = null;
+      return { ok: opened === .6 && kept === .3, detail: `older dish at FOOD 0.3 opens at ${opened}; a new one stays at ${kept}` };
+    },
+
     async 'Every help label has its text'() {
       const keys = new Set(), take = () => document.querySelectorAll('[data-help]').forEach(e => keys.add(e.dataset.help));
       DL.goRoom('lab'); await sleep(200); take();
@@ -249,8 +296,9 @@
   };
 
   // Fingerprints recorded on the development machine (NVIDIA RTX 40-series). Another GPU may differ; the checks that
-  // compare two runs still hold there. The dish's changed once on purpose, when the strain cap was removed.
-  const EXPECTED = { dish: '65f66966-7a8050e9-cc944e47-2c27775a-fc916e06' };
+  // compare two runs still hold there. The dish's changed on purpose when the strain cap was removed, and again when
+  // energy was made to come only from food and food was rescaled to limit growth.
+  const EXPECTED = { dish: 'd58733a5-a0a45a6c-419cb7b-faf75c2a-91553fc1' };
   const FIXTURES = {
     a: { quality: 'med', seed: 12345, init: 'scatter', count: 1, eco: null, hybrid: 'off', steps: 600 },
     b: { quality: 'med', seed: 6060, init: 'out', count: 3, eco: 'cycle', hybrid: 'cells', steps: 600 },

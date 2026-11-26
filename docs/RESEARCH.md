@@ -562,6 +562,57 @@ What it does not show:
   still carries the set point imprinted when its strain was placed.
 - Each condition ran once. The dish is exactly repeatable, but a difference of a few cells is within normal turnover.
 
+### Energy only from food: a leak found and fixed
+
+Trying to let food, rather than the dish's fixed number of particle places, limit how far strains grow turned up a
+problem: lowering the food did almost nothing to saved dishes. L-848 stayed completely full for 20,000 steps on 15% of
+its food, and with no food growing back at all, S-206 grew from 80% to 99% of its places. An audit settled it: with no
+food growing back, everything a dish holds (the broth, the energy its particles store, and the matter they are made of)
+must fall by at least what living costs. In S-206 it fell by only about 40% of that, every 300 steps. About 60% of the
+energy the particles spent came from nowhere.
+
+Two things made it:
+
+- **Shares set by last step's eaters.** Each food cell set the share per unit of digestion from the particles that were
+  in it the step before. When more or hungrier particles moved in, each still took that share, so together they took
+  more than the cell held. Particles crossing into fresh food did this all the time.
+- **Food rounded up to zero.** When eating and food flowing to its neighbors together took more than a cell held, the
+  shortfall was simply clamped away.
+
+The fix: each step, every particle first reports how much it can digest where it stands, then each cell's food is
+shared among exactly those particles, from what is left after food has flowed, and only then do the particles eat, pay
+for living and move. The matter of those that die goes back into the broth within the same step. The audit now
+balances (each 300 steps the dish lost 98,863 against at least 98,092 in living costs), with no food the dish dies off
+as it should, and a test checks it.
+
+Every dish now runs on the corrected energy, saved ones included. Dishes that had grown on the leak change when opened:
+on 6,000 steps from their saves, L-848 at its own FOOD of 0.23 fell from full to 42% of its places and its rings and
+chambers dissolved into swirls (with 2.5 times the food it stayed full but swirled all the same), M-690 at 0.31 fell to
+59% and kept four of its first five cells, and M-804 at 0.84 stayed full while its largest strain went from 47% to 25%.
+The results above that were measured before this fix (the earlier sections of this document, including "Which rules
+carry the cells") ran on the leaky energy.
+
+### Food sets the limit
+
+With energy conserved, the question that started this could be answered: what does a dish run out of first, food or
+room? A fresh four-strain dish (two copies of four specimens at ×0.4) was run for 20,000 steps at several FOOD levels,
+noting the share of its places in use every 2,500 steps:
+
+| FOOD (old scale) | Share of places in use | Ends |
+|---|---|---|
+| 0.30 | 53%, falling to 42%, then rising | holds at 54% |
+| 0.45 | 53% rising | holds at 82% |
+| 0.60 | full by about 12,500 steps | full |
+| 0.80 and 1 | full within a few thousand steps | full |
+
+So above about 0.55 a dish still ran out of room before food. Food now grows back at half the old rate, which makes
+the slider's whole range food-limited: on the new scale FOOD 1 holds at 89%, 0.75 at 68% and 0.6 at 54%, each steady
+over the last 5,000 steps, with every strain alive. The dips at low food are real: a dish too poor for its strains
+shrinks first, and recovers as its particles evolve to spend less. RANDOMIZE draws FOOD from 0.6 up and DEFAULT is
+0.75; twelve RANDOMIZE dishes all kept their four strains, used 49 to 64% of their places, and held at 0.93 to 1.2 times
+what was placed, with the largest strain at 48 to 68%: strains now compete for food. A dish saved before the change
+opens with its FOOD doubled (to at most 1), so the food it gets is the same; dishes that had more than 0.5 now get less.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.

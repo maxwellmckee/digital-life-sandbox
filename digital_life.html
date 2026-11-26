@@ -1284,6 +1284,26 @@ fn senseHere(p: vec2f, rl: vec3f, rh: vec3f) -> f32 {
   let q = vec2i(p);
   return sensed(textureLoad(trail, q, 0), textureLoad(trailB, q, 0), rl, rh);
 }
+// How much a particle can digest where it stands, in 1024ths. Food is digested with the help of the chemicals a particle
+// is drawn to, like enzymes shared among kin: a loner can barely eat whatever its set point, and past its set point it
+// chokes. Together these give a body one shared fate.
+fn digestUnits(p: vec2f, g: Gene) -> u32 {
+  let u = senseHere(p, lo3(g.resp), hi3(g.resp));
+  let x = u - g.setpoint;
+  return u32(together(u, g.setpoint) * exp(-x * x / (2.0 * arena.sigma * arena.sigma)) * 1024.0 + 0.5);
+}
+
+// Before the food is shared out, each particle reports how much it can digest where it stands. Each cell's food is
+// then shared among the particles actually in it this step, so together they never take more than the cell holds.
+@compute @workgroup_size(256)
+fn report(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= arena.agents) { return; }
+  let a = agents[i];
+  if (a.pos.x < 0.0) { return; }
+  let cell = fieldCell(a.pos);
+  atomicAdd(&econ[cell.y * FIELD_SIZE.x + cell.x], digestUnits(a.pos, genes[i]));
+}
 
 @compute @workgroup_size(256)
 fn claim(@builtin(global_invocation_id) id: vec3u) {
@@ -1363,11 +1383,11 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   let near = max(max(sf.y, sl.y), max(sr.y, u));
   if (near < LOST * g.setpoint && rand(&rng) < arena.homing) { a.angle += TAU * 0.5 + (rand(&rng) - 0.5) * 0.8; }
 
-  // Food is digested with the help of the chemicals a particle is drawn to, like enzymes shared among kin. A loner can
-  // barely eat whatever its set point, and past its set point it chokes. Together these give a body one shared fate.
+  // It eats the share it reported (see report): exactly what it said it could digest, so the particles in a cell
+  // take exactly what was eaten there.
   let cell = fieldCell(a.pos);
   let x = u - g.setpoint;
-  let digest = together(u, g.setpoint) * exp(-x * x / (2.0 * arena.sigma * arena.sigma));
+  let digest = f32(digestUnits(a.pos, g)) / 1024.0;
   // Acclimation: the inherited set point drifts slowly toward the density a particle actually lives at, so a body
   // moved into a world unlike its own can adjust instead of starving. The inherited value is where it starts.
   g.setpoint += arena.settle * x;
@@ -1376,7 +1396,6 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   let cost = arena.hunger * (BASAL + MOVE_COST * g.speed / arena.scale + DEPOSIT_COST * g.deposit);
   g.energy = min(g.energy + ration * digest - cost, MAX_ENERGY);
   let k = cell.y * FIELD_SIZE.x + cell.x;
-  atomicAdd(&econ[k], u32(digest * 1024.0 + 0.5));
   if (g.energy <= 0.0 || rand(&rng) < arena.wear) {
     atomicAdd(&econ[ECON_RETURNED + k], u32((BODY + max(g.energy, 0.0)) * 1024.0));
     a.pos = vec2f(-1.0);
@@ -1461,7 +1480,6 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // Outside the glass there is no broth.
   if (!cellInDish(c)) {
     atomicStore(&econ[k], 0u);
-    atomicStore(&econ[ECON_RETURNED + k], 0u);
     textureStore(dst, c, vec4f(0.0, 0.0, 0.0, 1.0));
     return;
   }
@@ -1476,10 +1494,11 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     if (cellInDish(q)) { lap += (arena.spread + arena.veinFlow * 0.5 * (mine + conduct(q))) * (textureLoad(src, q, 0).g - n); }
   }
   let eaters = f32(atomicExchange(&econ[k], 0u)) / 1024.0;
-  let back = f32(atomicExchange(&econ[ECON_RETURNED + k], 0u)) / 1024.0;
-  let eaten = n * (1.0 - pow(1.0 - arena.eat, eaters));
+  // The particles here eat from what is left once food has flowed, so a cell never gives out more than it holds.
+  let here = max(n + lap, 0.0);
+  let eaten = select(0.0, here * (1.0 - pow(1.0 - arena.eat, eaters)), eaters > 0.001);
   let ration = select(0.0, eaten / eaters, eaters > 0.001);
-  let next = n + lap - eaten + arena.regrow * (1.0 - n) + back;
+  let next = here - eaten + arena.regrow * (1.0 - n);
   textureStore(dst, c, vec4f(ration, clamp(next, 0.0, 4.0), 0.0, 1.0));
 }`;
 
@@ -1488,6 +1507,24 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
    Its particles give the recipe off where they live, into a map that blurs and fades like a trail, so the field runs
    where the strain is and follows it, and strains with different fields can share the dish. The map holds weighted
    sums: how much recipe, then feed, kill and seeding times that, and in a second map the spread times that. */
+// The matter of the particles that died this step goes back into the broth before the step ends, so nothing is left
+// waiting between steps and a saved dish holds all of it.
+const WGSL_ARENA_RETURN = WGSL_ARENA_BASE + /* wgsl */`
+@group(0) @binding(0) var<uniform> arena: Arena;
+@group(0) @binding(1) var src: texture_2d<f32>;
+@group(0) @binding(2) var dst: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var<storage, read_write> econ: array<atomic<u32>>;
+@group(0) @binding(4) var trail: texture_2d<f32>;
+@group(0) @binding(5) var trailB: texture_2d<f32>;
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= FIELD_SIZE.x || id.y >= FIELD_SIZE.y) { return; }
+  let k = id.y * FIELD_SIZE.x + id.x;
+  let back = f32(atomicExchange(&econ[ECON_RETURNED + k], 0u)) / 1024.0;
+  let v = textureLoad(src, vec2i(id.xy), 0);
+  textureStore(dst, vec2i(id.xy), vec4f(v.r, clamp(v.g + back, 0.0, 4.0), v.b, v.a));
+}`;
+
 const WGSL_ARENA_RECIPE = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(0) var<uniform> arena: Arena;
 @group(0) @binding(1) var<storage, read_write> econ: array<atomic<u32>>;
@@ -2465,10 +2502,12 @@ function dishPipelines(d) {
   const { L, comp, draw } = P, at = code => dishCode(code, d), arena = at(WGSL_ARENA), census = at(WGSL_ARENA_CENSUS);
   return P.dishes[d.key] = {
     arenaClaim: comp(L.arena, arena, 'claim'),
+    arenaReport: comp(L.arena, arena, 'report'),
     arenaBirth: comp(L.arena, arena, 'birth'),
     arenaLive: comp(L.arena, arena, 'live'),
     arenaClear: comp(L.arena, arena, 'clear'),
     arenaFood: comp(L.arenaFood, at(WGSL_ARENA_FOOD)),
+    arenaReturn: comp(L.arenaFood, at(WGSL_ARENA_RETURN)),
     arenaPlace: comp(L.arenaPlace, at(WGSL_ARENA_PLACE)),
     arenaPeople: comp(L.arenaCensus, census, 'people'),
     arenaPantry: comp(L.arenaCensus, census, 'pantry'),
@@ -4420,7 +4459,7 @@ const HELP = {
   'arena.cells': { t: 'CELLS', d: 'Cells are structures nobody placed: closed membranes around a living inside. SHOW boxes each one with a name and score; green means an EU cell (one with a body inside, like a nucleus) at 80% or more.', tip: 'The score needs all five: a closed wall, an outline that holds its particles, movement inside, bodies and strains inside, and age. Cells are followed every 150 steps, shown or not.' },
   'arena.cellTop': { t: 'BEST CELLS', d: 'The three best cells, with score, age and the strains inside. Point at one to light it up in the dish; click it to zoom to it.', tip: 'The list holds still while you point at it, so KEEP CELL takes the cell you aimed at. EU cells have a body inside; PR cells do not.' },
   'cell.keep': { t: 'KEEP CELL', d: 'Cuts this cell along its own outline, with every gene its particles evolved, and files it as a specimen marked CELL.' },
-  'arena.randomize': { t: 'RANDOMIZE', d: 'Sets the four sliders at random, mostly near the middle of each, never with so little food that the dish starves.', tip: 'In tests only FOOD below about 0.45 made dishes shrink, so RANDOMIZE keeps it above that.' },
+  'arena.randomize': { t: 'RANDOMIZE', d: 'Sets the four sliders at random, mostly near the middle of each, never with so little food that the dish starves.', tip: 'Below FOOD 0.6 a dish of fresh specimens shrinks at first, so RANDOMIZE keeps it above that.' },
   'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
   bench: { t: 'CUTTING BENCH', d: 'The organism being cut, with its bodies outlined, best first. Click a body to choose it, or anywhere else for a circle, and scroll to size it.', rows: [['STEADY', 'Run on out of sight for 900 steps, this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it reshaped on its own, so it will keep changing in the dish.']], tip: 'A body is a region denser than its surroundings that holds together as the threshold loosens. The cut follows its outline, so passing strands stay behind.' },
   'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle, files it in your specimen deck and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
@@ -4428,7 +4467,7 @@ const HELP = {
   'drawer.remove': { t: 'REMOVE', d: 'Takes the card in front out of the deck. Press it twice; its files move to the removed folder.', tip: 'Strains already in the dish live on.' },
   'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it, then click the dish to place copies. The copies placed while it is picked form one strain and know each other as kin. Click it again to stop.', tip: 'Scroll over the dish to size a copy, from a third of its size to twice it; its reach and speed scale with it. An orange count means it is not saved yet.' },
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
-  'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: hard competition and crashes', hi: 'Plenty: fast growth until the dish is full' },
+  'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'At 1 a dish of fresh specimens fills about nine tenths of its room' },
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together: a particle that strays from its kin turns back, crowding past its set density pushes it out, and it digests best near that density.', lo: 'Classic slime: bodies fray into spreading networks', hi: 'Bodies stay separate: rings, ribbons and cells that move and compete' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful copies', hi: 'Fast evolution and more failed offspring' },
@@ -5982,6 +6021,11 @@ const ARENA = {
   // patch, so food has to reach it from the broth around it, or it starves with food all around.
   // spread + veinFlow must stay at most 0.25, or food could flow out of a cell faster than it is there.
   coop: .7, settle: .0007, spread: .1, veinFlow: .15,
+  // How fast an eaten-out food cell grows back each step, at FOOD 1 and METABOLISM 1, like sunlight on the broth. Set so
+  // that food, not the dish's fixed number of particle places, limits how far strains grow: at FOOD 1 a dish of fresh
+  // specimens levels off just short of full (docs/RESEARCH.md, "Food sets the limit"). Dishes saved when it was 0.012
+  // have their FOOD rescaled when opened, so they get the same food.
+  regrow: .006,
 };
 // The dish's chemicals: three in each of its two trail maps.
 const CHEM = 6;
@@ -5989,15 +6033,15 @@ const CHEM = 6;
 // six emissions, forage, six responses, and three spare.
 const GENE_IN = 24;
 const ARENA_PARAMS = [
-  { k:'food',   label:'FOOD',        min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
+  { k:'food',   label:'FOOD',        min:0,  max:1, step:.01, def:.75, fmt:v=>v.toFixed(2) },
   { k:'hunger', label:'METABOLISM',  min:.2, max:2, step:.01, def:1,   fmt:v=>v.toFixed(2) },
   { k:'homeo',  label:'HOMEOSTASIS', min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
   { k:'drift',  label:'GENE DRIFT',  min:0,  max:1, step:.01, def:.35, fmt:v=>v.toFixed(2) },
 ];
 /* RANDOMIZE draws each of the settings above from a range where dishes were seen to live, more often near its middle
-   (the average of two random numbers). FOOD is the one that kills: with less than about 0.45, every dish tried was
-   shrinking, so food is drawn from 0.45 up (docs/RESEARCH.md, "Random settings that keep a dish alive"). */
-const SAFE_SETTINGS = { food: [.45, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65] };
+   (the average of two random numbers). FOOD is the one that kills: below about 0.6 a dish of fresh specimens shrinks
+   at first, so food is drawn from 0.6 up (docs/RESEARCH.md, "Food sets the limit"). */
+const SAFE_SETTINGS = { food: [.6, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65] };
 function safeSettings(rf = Math.random) {
   return Object.fromEntries(ARENA_PARAMS.map(p => { const [lo, hi] = SAFE_SETTINGS[p.k]; return [p.k, snapTo(lo + (rf() + rf()) / 2 * (hi - lo), p)]; }));
 }
@@ -6288,7 +6332,7 @@ function writeArenaUniforms(s, now, view = st.view) {
   af[10] = rules.crowding ? p.homeo * 3 : 0; af[11] = 1.5 - p.homeo;
   // At the middle food setting a field cell regrows enough for a body at about its imprinted density, so growth
   // beyond that has to be won by spreading into fresh food.
-  af[12] = .03 * p.hunger; af[13] = .012 * p.food * p.hunger; af[14] = .00004 * p.hunger; af[15] = .6;
+  af[12] = .03 * p.hunger; af[13] = ARENA.regrow * p.food * p.hunger; af[14] = .00004 * p.hunger; af[15] = .6;
   // A pixel is the same size in every dish, so the genes' distances and speeds need no scaling.
   af[16] = 1; af[17] = rules.homing ? p.homeo : 0; af[18] = ARENA.spread; af[19] = ARENA.veinFlow;
   device.queue.writeBuffer(arena.uniform, 0, data);
@@ -6328,14 +6372,22 @@ function simulateArena(pass, s, n) {
   if (arena.busy || n <= 0) return;
   const { w, h, agents } = s.q, groups = Math.ceil(agents / 256), gx = Math.ceil(arena.d.gw / 8), gy = Math.ceil(arena.d.gh / 8);
   for (let i = 0; i < n; i++) {
+    // Births, then each particle reports how much it can digest, then the food is shared out among them, then they live:
+    // eat their share, pay for living, and move.
     pass.setBindGroup(0, arena.liveBG[s.cur][arena.fcur]);
-    for (const stage of [P.arenaClaim, P.arenaBirth, P.arenaLive, P.arenaClear]) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
-    pass.setPipeline(P.arenaDiffuse); pass.setBindGroup(0, arena.diffuseBG[s.cur]);
-    pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
-    s.cur = 1 - s.cur;
+    for (const stage of [P.arenaClaim, P.arenaBirth, P.arenaReport]) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
     pass.setPipeline(P.arenaFood); pass.setBindGroup(0, arena.foodBG[arena.fcur][s.cur]);
     pass.dispatchWorkgroups(gx, gy);
     arena.fcur = 1 - arena.fcur;
+    pass.setBindGroup(0, arena.liveBG[s.cur][arena.fcur]);
+    for (const stage of [P.arenaLive, P.arenaClear]) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
+    // The dead give their matter back to the broth within the same step.
+    pass.setPipeline(P.arenaReturn); pass.setBindGroup(0, arena.foodBG[arena.fcur][s.cur]);
+    pass.dispatchWorkgroups(gx, gy);
+    arena.fcur = 1 - arena.fcur;
+    pass.setPipeline(P.arenaDiffuse); pass.setBindGroup(0, arena.diffuseBG[s.cur]);
+    pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
+    s.cur = 1 - s.cur;
     // The field recipes given off this step, then the reaction field. Its steps come in pairs, so it always ends where
     // the particles and the picture read it.
     pass.setPipeline(P.arenaRecipe); pass.setBindGroup(0, arena.recipeBG[arena.rcur]);
@@ -7869,7 +7921,7 @@ async function packDish(id) {
   const meta = {
     format: 'digital-life-dish', version: 1, id, createdAt: new Date().toISOString(),
     name: dishName(alive.length, d.key, id),
-    dish: d.key, w, h, agents, particles: live.length, step: s.step, seed: arena.seed, params: { ...arena.params },
+    dish: d.key, w, h, agents, particles: live.length, step: s.step, seed: arena.seed, params: { ...arena.params }, regrow: ARENA.regrow,
     food: c?.food ?? null, bodies: arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0), strains,
     recipes: arena.recipes, history: arena.history,
     // The cells the dish was following, so their ages keep counting when it is opened again.
@@ -7966,6 +8018,9 @@ async function restoreDish(meta, file) {
   });
   Object.assign(arena, { rows: null, open: -1, seed: meta.seed, recipes: meta.recipes.map(rc => ({ ...rc })), history: meta.history.map(e => ({ ...e })) });
   Object.assign(arena.params, meta.params);
+  // A dish saved when food grew back at another rate keeps the same food: its FOOD is rescaled, to at most 1.
+  const regrew = meta.regrow ?? .012;
+  if (regrew !== ARENA.regrow) arena.params.food = Math.min(1, +(meta.params.food * regrew / ARENA.regrow).toFixed(2));
   arenaChemistry();
   s.step = meta.step;
   arena.origin = { meta, file, founders: arena.founders.length };
