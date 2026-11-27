@@ -29,7 +29,7 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 | | Idea | Why | Size | Status |
 |---|---|---|---|---|
 | B1 | **Two modes per particle**, such as "wander" and "hold on", switched by local cues like crowding or hunger, with genes setting the switch points. | Bodies could grow a distinct rim and core, shed spores or send out foraging fronts: the first step toward cell types. | Large | idea |
-| B2 | **Inherited cohesion.** Homing and crowding become genes. | Holding together becomes a strategy that can win or lose, not a fixed law. Built: in 100,000 steps the winning strain drifted toward holding together, but the dish's structure was the same as with fixed cohesion. | Medium to large | **in progress**: built, not yet committed |
+| B2 | **Inherited cohesion.** Homing and crowding become genes. | Holding together becomes a strategy that can win or lose, not a fixed law. Built: in 100,000 steps the winning strain drifted toward holding together, but the dish's structure was the same as with fixed cohesion. | Medium to large | **done**, 739031a |
 | B3 | **Signals.** A cheap chemical used only to communicate, like quorum sensing in bacteria. | Strains could evolve to swarm when crowded or scatter when starving. | Medium | idea |
 | B4 | **Placed specimens start with a spread of homing and crowding**, as their set points already do. | Selection gets variation to sort from the first step, instead of waiting for mutation ([Inherited cohesion](RESEARCH.md#inherited-cohesion)). | Small | idea |
 | B5 | **Straying costs the stray.** "Lost" is measured against the kin-density minimum, as digestion is. | A particle that wanders off starves sooner itself, so homing pays the particle and not just its body. A rule change, so it needs its own test. | Small | idea |
@@ -66,3 +66,4 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 | Digestion needs a minimum density of kin; STRUCTURE added to the score | fe0853e |
 | Patchy, drifting food (PATCHES) and two kinds of food with a diet gene (FOODS) | 13676e0 |
 | Specimen tests: TEST, TEST ALL and a BEHAVIOR line on every specimen card | ba6df22 |
+| Inherited homing and crowding; kept bodies wider than the dish are placed in the middle | 739031a |
