@@ -117,10 +117,12 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .deck[hidden]{display:none}
 .deck-head{flex:none;height:18px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:8.5px;letter-spacing:.18em;color:#4f7a72}
 .deck.placing .deck-head>span{color:#6ff0cf}
-#deckRemove{margin-left:auto;padding:1px 7px;border:1px solid #2a4a4a;border-radius:4px;background:transparent;color:#8fbfb3;font:inherit;font-size:8.5px;letter-spacing:.12em;cursor:pointer}
-#deckRemove:hover{color:#e6fff8;border-color:#4f7a72}
-#deckRemove.armed{background:#8a3b1e;border-color:#8a3b1e;color:#fff3ec}
-#deckRemove[hidden]{display:none}
+/* PUT AWAY and REMOVE sit on a row of their own under the deck's head, which keeps its place when they hide. */
+.deck-tools{flex:none;height:18px;display:flex;justify-content:flex-end;gap:6px}
+.deck-tools button{padding:1px 7px;border:1px solid #2a4a4a;border-radius:4px;background:transparent;color:#8fbfb3;font:inherit;font-size:8.5px;letter-spacing:.12em;cursor:pointer}
+.deck-tools button:hover{color:#e6fff8;border-color:#4f7a72}
+.deck-tools button.armed{background:#8a3b1e;border-color:#8a3b1e;color:#fff3ec}
+.deck-tools button[hidden]{display:block;visibility:hidden}
 .deck-head b{font-weight:400;font-size:10px;letter-spacing:.08em;color:#9ff5dc}
 .deck-stack{position:relative;flex:1;min-height:0;perspective:900px}
 .deck-card{position:absolute;top:50%;padding:0;border:0;border-radius:7px;background:#071113;color:var(--ink);cursor:pointer;
@@ -644,7 +646,8 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         </div>
       </div>
       <div class="deck" id="deck" hidden>
-        <div class="deck-head"><span id="deckLabel">SPECIMENS</span><b id="deckCount"></b><button type="button" id="deckRemove" data-help="drawer.remove" hidden>PUT AWAY</button></div>
+        <div class="deck-head"><span id="deckLabel">SPECIMENS</span><b id="deckCount"></b></div>
+        <div class="deck-tools"><button type="button" id="deckRemove" data-help="drawer.remove" hidden>PUT AWAY</button><button type="button" id="deckDelete" data-help="drawer.delete" hidden>REMOVE</button></div>
         <div class="deck-stack" id="deckStack" data-help="drawer"></div>
         <p class="deck-note" id="deckNote" data-help="lib.behavior"></p>
         <div class="deck-foot" id="deckFoot"></div>
@@ -4876,7 +4879,8 @@ const HELP = {
   'drawer.slot': { t: 'ADD SPECIMEN', d: 'Opens your whole collection. Choose a specimen and its card joins the deck, in front, and stays there until you put it away.' },
   'deck.picker': { t: 'YOUR SPECIMENS', d: 'Every specimen you have, newest first, with the color and icon of how it was made. Point at one to see what its test found. Click one to add it to the deck and pick it, ready to place; one already in the deck says IN DECK and comes to the front.', tip: 'Esc or CLOSE goes back without adding.' },
   'deck.picker.search': { t: 'SEARCH', d: 'Narrows the list by name, a former name, or the slide it was cut from.' },
-  'drawer.remove': { t: 'PUT AWAY', d: 'Takes the card in front out of the deck. The specimen stays in the Archive, and the slot at the bottom brings it back.', tip: 'Strains already in the dish live on. To delete a specimen, use REMOVE on its card in the Archive.' },
+  'drawer.remove': { t: 'PUT AWAY', d: 'Takes the card in front out of the deck. The specimen stays in the Archive, and the slot at the bottom brings it back.', tip: 'Strains already in the dish live on. REMOVE beside it deletes the specimen instead.' },
+  'drawer.delete': { t: 'REMOVE', d: 'Deletes the specimen in front: it leaves the deck and the Archive, and its files move to saves/removed/specimens, so it can still be brought back by hand. Press it, then SURE? within three seconds.', tip: 'Strains already in the dish live on. PUT AWAY only takes it out of the deck.' },
   'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it, then click the dish to place copies. The copies placed while it is picked form one strain and know each other as kin. Click it again to stop.', tip: 'Scroll over the dish to size a copy, from a third of its size to twice it; its reach and speed scale with it. An orange count means it is not saved yet.' },
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
   'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'At 1 a dish of fresh specimens fills about half its room' },
@@ -9366,6 +9370,9 @@ function loadDrawer(ask = false) {
   return drawer.loading;
 }
 async function readDrawer(ask) {
+  // What is known before the folder is read: anything added while the read is under way (a cut saved meanwhile) is
+  // kept even if the read did not see its file, and only specimens known before can be found gone.
+  const before = new Set(drawer.all);
   try {
     const dir = ask ? await savesFolder() : await silentFolder();
     drawer.blocked = !dir && !!(workFolder || folder);
@@ -9373,23 +9380,35 @@ async function readDrawer(ask) {
     await renameOldNames(dir);
     const saved = await readSpecimens(dir);
     if (saved.duplicates) flash(saved.duplicates + ' DUPLICATE' + (saved.duplicates === 1 ? '' : 'S') + ' REMOVED');
-    // Specimens already known keep their loaded particles and pictures. Unsaved cuts from this session stay too.
+    const deckKeys = drawer.deckRead ? null : await readDeckKeys(dir);
+    // Specimens already known stay the same objects, with their loaded particles and pictures, so a card that is picked
+    // stays picked; their descriptions are refreshed, and a card is redrawn if its description changed.
     const known = new Map(drawer.all.filter(x => x.key).map(x => [x.key, x]));
-    for (const x of saved) {
+    const fresh = saved.map(x => {
       const old = known.get(x.key);
-      if (old) { if (x.url) URL.revokeObjectURL(x.url); x.url = old.url; x.specimen = old.specimen; known.delete(x.key); }
+      if (!old) return x;
+      if (x.url) URL.revokeObjectURL(x.url);
+      if (JSON.stringify(old.meta) !== JSON.stringify(x.meta)) old.card = null;
+      Object.assign(old, { name: x.name, handle: x.handle, meta: x.meta, store: x.store });
+      return old;
+    });
+    const seen = new Set(fresh);
+    // A specimen whose files are gone leaves the deck, and stops being placed if it was picked.
+    for (const x of drawer.all) {
+      if (!x.key || seen.has(x) || !before.has(x)) continue;
+      if (x.url) URL.revokeObjectURL(x.url);
+      if (drawer.pick === x) cancelPlacing();
     }
-    for (const gone of known.values()) { if (gone.url) URL.revokeObjectURL(gone.url); if (drawer.pick === gone) drawer.pick = null; }
-    drawer.all = [...drawer.all.filter(x => !x.key), ...saved];
-    // The deck keeps its order with the fresh copies; the first time, it is read from deck.json. With no deck file yet
-    // the deck starts empty, and the slot brings specimens in.
-    const byKey = new Map(saved.map(x => [x.key, x])), front = drawer.items[drawer.front];
-    const kept = drawer.items.map(x => x.key ? byKey.get(x.key) : x).filter(Boolean);
-    const fromFile = drawer.deckRead ? [] : (await readDeckKeys(dir)).map(k => byKey.get(k)).filter(x => x && !kept.includes(x));
+    drawer.all = [...drawer.all.filter(x => !seen.has(x) && (!x.key || !before.has(x))), ...fresh];
+    // The deck keeps its order; the first time, it is read from deck.json. With no deck file yet the deck starts empty,
+    // and the slot brings specimens in.
+    const alive = new Set(drawer.all), byKey = new Map(drawer.all.filter(x => x.key).map(x => [x.key, x])), front = drawer.items[drawer.front];
+    const kept = drawer.items.filter(x => alive.has(x));
+    const fromFile = deckKeys ? deckKeys.map(k => byKey.get(k)).filter(x => x && !kept.includes(x)) : [];
     drawer.items = [...kept, ...fromFile];
     drawer.deckRead = true;
     // The card in front stays in front when the deck is read again.
-    const at = drawer.items.findIndex(x => x === front || (front?.key && x.key === front.key));
+    const at = drawer.items.indexOf(front);
     drawer.front = at >= 0 ? at : Math.min(drawer.front, drawer.items.length);
     drawer.loaded = true;
   } catch (e) { console.error(e); }
@@ -9433,6 +9452,39 @@ function putAway() {
   renderDrawer();
   saveDeck();
   flash(item.key ? 'PUT AWAY' : 'PUT AWAY FOR NOW');
+}
+// REMOVE: the specimen in front is deleted, its files moved to the removed folder, as REMOVE in the Archive does.
+// Pressed once it asks SURE?; flipping to another card takes the question back.
+const deleting = { item: null, timer: 0 };
+function disarmDelete() {
+  clearTimeout(deleting.timer);
+  deleting.item = null;
+  const b = $('deckDelete');
+  b.textContent = 'REMOVE';
+  b.classList.remove('armed');
+}
+async function deleteFront() {
+  const item = drawer.items[drawer.front], b = $('deckDelete');
+  if (!item || arena.busy) return;
+  if (deleting.item !== item) {
+    disarmDelete();
+    deleting.item = item;
+    b.textContent = 'SURE?';
+    b.classList.add('armed');
+    deleting.timer = setTimeout(disarmDelete, 3000);
+    return;
+  }
+  disarmDelete();
+  try {
+    if (item.key) await removeStored(item, 'specimens', ['.json', '.dlspec', '.webp'], await savesFolder());
+    if (drawer.pick === item) cancelPlacing();
+    drawer.items.splice(drawer.items.indexOf(item), 1);
+    drawer.all.splice(drawer.all.indexOf(item), 1);
+    if (item.url) URL.revokeObjectURL(item.url);
+    renderDrawer();
+    saveDeck();
+    flash('SPECIMEN REMOVED');
+  } catch (e) { console.error(e); flash('REMOVE FAILED'); }
 }
 // The picker: every specimen, to add to the deck.
 async function openDeckPicker() {
@@ -9491,7 +9543,7 @@ function renderDrawer() {
   drawer.front = clamp(drawer.front, 0, count);
   if (!count && drawer.blocked) {
     $('deckCount').textContent = '';
-    $('deckRemove').hidden = true;
+    $('deckRemove').hidden = $('deckDelete').hidden = true;
     $('deckFoot').textContent = '';
     $('deckNote').textContent = '';
     const note = el('div', 'deck-empty'), open = el('button', '', 'SHOW MY SPECIMENS');
@@ -9543,7 +9595,8 @@ function layoutDeck() {
   $('deckLabel').textContent = arena.placing ? 'PLACING' : 'SPECIMENS';
   if (!host || !drawer.slot || (!n && drawer.blocked)) return;
   $('deckCount').textContent = onSlot ? (n ? `${n} IN DECK` : 'EMPTY') : `${drawer.front + 1} / ${n}`;
-  $('deckRemove').hidden = onSlot;
+  $('deckRemove').hidden = $('deckDelete').hidden = onSlot;
+  if (deleting.item && deleting.item !== drawer.items[drawer.front]) disarmDelete();
   $('deckFoot').textContent = arena.placing ? 'CLICK THE DISH TO PLACE · ESC STOPS' : onSlot ? 'CLICK TO ADD A SPECIMEN' : 'SCROLL TO FLIP · CLICK TO PICK';
   $('deckNote').textContent = onSlot ? 'Choose from all your specimens. A card you choose joins the deck and stays until you put it away.' : behaviorLine(drawer.items[drawer.front]?.meta);
   const W = host.clientWidth, H = host.clientHeight;
@@ -10715,6 +10768,7 @@ function initUi() {
   new ResizeObserver(layoutDeck).observe(deckStack);
   // PUT AWAY takes the card in front out of the deck; the specimen stays in the Archive.
   $('deckRemove').addEventListener('click', e => { if (e.detail) e.currentTarget.blur(); putAway(); });
+  $('deckDelete').addEventListener('click', e => { if (e.detail) e.currentTarget.blur(); deleteFront(); });
   $('pickerClose').addEventListener('click', () => $('deckPicker').close());
   $('pickerSearch').addEventListener('input', renderPicker);
   $('deckPicker').addEventListener('close', () => { (document.fullscreenElement || document.body).append($('helpCard')); hideHelp(); });
