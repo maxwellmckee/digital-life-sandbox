@@ -4,6 +4,12 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Patchy, drifting food (PATCHES) and two kinds of food (FOODS).** Food can grow mostly in a few soft patches of
+  sunlight that slowly circle the dish, with the same total, so moving pays again. With two foods, each in its own
+  patches, every particle carries a diet gene from 0 (first food) to 1 (second); specialists digest their food better
+  than generalists, so strains can live side by side on different foods. New dishes start with PATCHES 0.5 and two
+  foods; saved dishes open with even food and one food and run exactly as before. Ideas and their status are now kept
+  in docs/IDEAS.md.
 - **Bodies last: digestion needs real company.** Dishes run for 25,000 to 50,000 steps were spreading into an even
   mush at every FOOD level, because selection lowered every strain's set point: a particle content at low density
   digested as well spread thin and shared its food with fewer. Cooperative digestion now never counts a set point below

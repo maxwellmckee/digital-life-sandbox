@@ -57,9 +57,12 @@
     },
 
     // Two seeded organisms cut and placed in a 1x dish give the same dish every time.
+    // Run with one food and even sunlight, as every dish was before PATCHES and FOODS, so it also shows that old dishes
+    // run exactly as before.
     async 'Incubator fingerprint'() {
       const run = async () => {
         await freshDish('s', 31);
+        Object.assign(arena.params, { patches: 0, foods: 1 });
         await foundAt(fx.a, .5, .5, 1); await idle();
         await foundAt(fx.b, .3, .45, .5); await idle();
         await DL.arenaAdvance(300);
@@ -74,6 +77,7 @@
       const crops = {}, spreads = {};
       for (const key of ['s', 'l', 'm']) {
         await freshDish(key, 31);
+        Object.assign(arena.params, { patches: 0 });
         const s = arena.sim, cx = s.q.w / 2, cy = Math.round(s.q.h / 2 / 4) * 4, R = 200;
         await foundAt(fx.a, .5, cy / s.q.h, .5); await idle();
         await DL.arenaAdvance(12);
@@ -238,6 +242,7 @@
     // the energy its particles store, and the matter they are made of) must fall by at least what living costs.
     async 'Energy only comes from food'() {
       await freshDish('s', 31);
+      Object.assign(arena.params, { patches: .5, foods: 2 });
       await foundAt(fx.a, .5, .5, 1); await idle();
       await foundAt(fx.b, .3, .45, .5); await idle();
       const regrow = ARENA.regrow;
@@ -250,7 +255,7 @@
           for (let i = 0; i < n; i++) if (pos[i * 4] >= 0) { alive++; energy += Math.max(gf[i * 16], 0); upkeep += hunger * (.0004 + .00025 * gf[i * 16 + 5] + .00015 * gf[i * 16 + 6]); }
           const food = await readRegion(s.field[arena.fcur], 0, 0, gw, gh);
           let broth = 0;
-          for (let k = 0; k < gw * gh; k++) broth += food[k * 4 + 1];
+          for (let k = 0; k < gw * gh; k++) broth += food[k * 4 + 1] + (arena.params.foods === 2 ? food[k * 4 + 3] : 0);
           return { all: energy + broth + .3 * alive, upkeep };
         };
         await DL.arenaAdvance(50);
@@ -307,6 +312,47 @@
       if (!meta.ecosystem || !Number.isFinite(meta.ecosystem.score)) wrong.push('not saved with the dish');
       arena.dishId = null;
       return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `made-up dishes: trading ${trading.score}, mush ${mush.score}, crashing ${crash.score}, frozen 0; real dish ${eco.score} (shown ${shown}), saved` };
+    },
+
+    // PATCHES and FOODS. In an empty dish whose food was cleared, food grows back evenly at PATCHES 0, and in patches at
+    // 0.8 with the same total, which later sit elsewhere. With two foods, particles' diets differ and both foods are eaten.
+    async 'Patches and two foods'() {
+      const wrong = [];
+      await freshDish('s', 31);
+      const s = arena.sim, { gw, gh } = arena.d;
+      const regrown = async (patches, clock) => {
+        resetArena();
+        Object.assign(arena.params, { patches, foods: 1 });
+        const empty = new Float32Array(gw * gh * 4);
+        for (let i = 0; i < gw * gh; i++) empty[i * 4 + 3] = 1;
+        for (const t of s.field) device.queue.writeTexture({ texture: t }, empty, { bytesPerRow: gw * 16 }, [gw, gh]);
+        device.queue.writeBuffer(arena.econ, arena.d.econ.clock * 4, new Uint32Array([clock]));
+        await DL.arenaAdvance(64);
+        const f = await readRegion(s.field[arena.fcur], 0, 0, gw, gh), v = [];
+        for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) if (Math.hypot(x + .5 - gw / 2, y + .5 - gh / 2) < gh / 2 - 4) v.push(f[(y * gw + x) * 4 + 1]);
+        const m = v.reduce((a, b) => a + b, 0) / v.length;
+        return { v, mean: m, cv: Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / v.length) / m };
+      };
+      const even = await regrown(0, 0), patchy = await regrown(.8, 0), later = await regrown(.8, 15000);
+      if (even.cv > .05) wrong.push(`food grew unevenly at PATCHES 0 (${even.cv.toFixed(2)})`);
+      if (patchy.cv < .3) wrong.push(`patches barely show (${patchy.cv.toFixed(2)})`);
+      if (Math.abs(patchy.mean / even.mean - 1) > .15) wrong.push(`patches changed the total food (${(patchy.mean / even.mean).toFixed(2)})`);
+      const moved = patchy.v.reduce((t, x, i) => t + Math.abs(x - later.v[i]), 0) / patchy.v.reduce((a, b) => a + b, 0);
+      if (moved < .3) wrong.push(`the patches did not move (${moved.toFixed(2)})`);
+      await freshDish('s', 31);
+      Object.assign(arena.params, { patches: .5, foods: 2 });
+      await foundAt(fx.a, .5, .5, 1); await idle();
+      await foundAt(fx.b, .3, .45, .5); await idle();
+      await DL.arenaAdvance(900);
+      const n = s.q.agents, pos = new Float32Array(await readBack(s.agentBuf, n * 16)), gu = new Uint32Array(await readBack(arena.genes, n * 64));
+      let lo = 1, hi = 0;
+      for (let i = 0; i < n; i++) if (pos[i * 4] >= 0) { const d = ((gu[i * 16 + 15] >>> 6) & 0x3FF) / 1023; lo = Math.min(lo, d); hi = Math.max(hi, d); }
+      if (hi - lo < .05) wrong.push('every particle has the same diet');
+      const f = await readRegion(s.field[arena.fcur], 0, 0, gw, gh);
+      let a = 0, b = 0, cells = 0;
+      for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) if (Math.hypot(x + .5 - gw / 2, y + .5 - gh / 2) < gh / 2 - 4) { a += f[(y * gw + x) * 4 + 1]; b += f[(y * gw + x) * 4 + 3]; cells++; }
+      if (a / cells > .995 || b / cells > .995) wrong.push(`a food was not eaten (first ${(a / cells).toFixed(3)}, second ${(b / cells).toFixed(3)})`);
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `even ${even.cv.toFixed(2)}, patchy ${patchy.cv.toFixed(2)} with ${Math.round(patchy.mean / even.mean * 100)}% of the food, moved ${Math.round(moved * 100)}%; diets ${lo.toFixed(2)} to ${hi.toFixed(2)}, foods left ${(a / cells).toFixed(2)} and ${(b / cells).toFixed(2)}` };
     },
 
     async 'Every help label has its text'() {

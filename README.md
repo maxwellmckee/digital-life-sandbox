@@ -89,8 +89,9 @@ There is nothing to install and no build step. It was built on a desktop NVIDIA 
 
 **Built:** the Microscope (breeding, three species, ecologies, reaction-diffusion hybrids, inherited bodies, living
 cells, barriers, an organism brush, taste learning, the LIFE score), the cutting bench, specimens and the deck, the
-Incubator (six chemicals, food that flows along veins, energy only from food, strains that win or lose ground, carried reaction fields, three dish
-sizes, zoom, saved dishes, framed recordings, a cell finder, an ecosystem score), and the Archive (slides, family tree, specimens, dishes with snapshots),
+Incubator (six chemicals, food that flows along veins, energy only from food, drifting patches of food and two kinds of
+food with a diet gene, strains that win or lose ground, carried reaction fields, three dish sizes, zoom, saved dishes,
+framed recordings, a cell finder, an ecosystem score), and the Archive (slides, family tree, specimens, dishes with snapshots),
 with PNG and MP4 export and Help everywhere.
 
 **Next:**
@@ -98,8 +99,5 @@ with PNG and MP4 export and Help everywhere.
 1. Cohesion that can evolve (homing and crowding as genes), so bodies last because selection favours strains that hold
    together ([research](docs/RESEARCH.md#why-dishes-turned-to-mush)).
 2. Membrane material made by the particles themselves, and whole bodies that divide.
-3. Use the ECOSYSTEM score to compare dishes over long runs, and see which settings and strains make the richest
-   ecosystems.
 
-**Ideas for later:** endosymbiosis-like dependence between strains, a first-run gallery of presets, parameter locks for
-RANDOM, a replay timeline, mutating only part of a body, and small evolvable brains.
+Every idea, with what it is for, its size and whether it is done, is kept in [IDEAS.md](docs/IDEAS.md).

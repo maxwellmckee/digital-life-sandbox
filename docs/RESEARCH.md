@@ -669,6 +669,42 @@ those dishes scored 75 to 88. It now has a fifth part, **structure**: the share 
 dish's 20-pixel census squares, mapped from 0 at 30% to 1 at 70% (mush dishes measure 20 to 45% there, dishes of
 separate bodies 71 to 93%).
 
+### More than one way to win: patchy food and two foods
+
+Specimens arrive in the Incubator with very different genes, but an even dish rewards one strategy, sit still and spend
+little, so strains converge on it and one usually takes over. Ecology's answer is that diversity lasts where there is
+more than one way to make a living: food that varies in place and time, and more than one resource to specialize on
+(resource partitioning). Two particle-level changes add both:
+
+- **PATCHES.** Food grows back mostly in four soft patches of sunlight per food, drawn from the dish's seed, that slowly
+  circle the dish. They are scaled so the dish grows the same total at every setting. In a cleared dish the regrowth
+  varied by 0.75 (as a share of its average) at PATCHES 0.8 against 0 when even, kept 94% of the total, and had moved by
+  62% after 15,000 steps.
+- **Two foods and a diet gene.** Each particle carries a diet from 0 to 1 and digests the two foods in the proportions
+  (1−diet)^1.5 and diet^1.5, so a generalist at 0.5 gets about 71% in all, less than a specialist: specializing pays.
+  Diet mutates at birth like any gene. Each food grows back at half the rate, so the dish holds as much food in all.
+
+With PATCHES 0 and one food every rule takes the path it did before, and the Incubator fingerprint is unchanged, so
+dishes saved earlier open and run exactly as they did.
+
+On the fresh four-strain test dish, 20,000 steps from the same start:
+
+| Setup | Strain shares | Strains above 5% | ECOSYSTEM (coexist, persist, exchange, balance, structure) | Clumped |
+|---|---|---|---|---|
+| Even food, one food (as before) | 19 / 71 / 1 / 9% | 3, one dominant | 69 (76, 98, 52, 89, 47) | 49% |
+| PATCHES 0.6, one food | 42 / 4 / 0 / 53% | 2 | 72 (77, 98, 35, 75, 100) | 79% |
+| PATCHES 0.6, two foods | 34 / 31 / 3 / 32% | 3, evenly | 83 (91, 98, 67, 65, 100) | 78% |
+
+Patches alone kept bodies together (clumped 79% against 49%) but still let two strains crowd out the rest. Adding a
+second food let three strains share the dish almost equally. Limits so far:
+
+- **Diet hardly drifts in 20,000 steps.** The strains kept close to the diets they were placed with (0.21, 0.77, 0.39 and
+  0.83), so the sharing came from founders that already differed, not from strains evolving apart. Longer runs are
+  needed to see whether diets split further.
+- **Behavior did not widen.** The spread in speed between strains stayed about 2.8 times in all three setups. The dish now
+  keeps different strains alive, but it does not yet push them to move differently.
+- One dish and one run per setup: a direction, not a measurement.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
@@ -702,6 +738,7 @@ They were calibrated on each save's thumbnail, because thumbnails show exactly w
 | Cabaret 2024, autopoietic vesicles | A summary of the HTML paper. Force formulas and parameters are only in its code |
 | Agudo-Canalejo & Golestanian 2019, particle life, Ventrella's Clusters | Search summaries only |
 | Spatial sorting, cooperative digestion in yeast, Physarum's slime memory, genetic assimilation | Background knowledge, not re-read for this work |
+| Resource partitioning, coexistence in patchy environments, the specialist–generalist trade-off | Background knowledge, not re-read for this work |
 
 ## Sources
 
