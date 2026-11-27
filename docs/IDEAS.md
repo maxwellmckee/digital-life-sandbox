@@ -70,3 +70,4 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 | Specimen tests: TEST, TEST ALL and a BEHAVIOR line on every specimen card | ba6df22 |
 | Inherited homing and crowding; kept bodies wider than the dish are placed in the middle | 739031a |
 | Predators: a hunting gene, bites on contact, kin immunity, HUNTING slider | 10b54f0 |
+| Gentler, richer dishes: challenges off to start, sunlight 0.009; a new dish waits for PLAY and keeps its starting snapshot | 1e05ed3 |
