@@ -628,7 +628,8 @@ over the last 5,000 steps, with every strain alive. The dips at low food are rea
 shrinks first, and recovers as its particles evolve to spend less. RANDOMIZE draws FOOD from 0.6 up and DEFAULT is
 0.75; twelve RANDOMIZE dishes all kept their four strains, used 49 to 64% of their places, and held at 0.93 to 1.2 times
 what was placed, with the largest strain at 48 to 68%: strains now compete for food. A dish saved before the change
-opens with its FOOD doubled (to at most 1), so the food it gets is the same; dishes that had more than 0.5 now get less.
+opens with its FOOD doubled (to at most 1), so the food it gets is the same; dishes that had more than 0.5 now get less. Sunlight was later raised by half, to
+0.009 (see [Why dishes grew sparse](#why-dishes-grew-sparse)).
 
 ### Why dishes turned to mush
 
@@ -856,6 +857,65 @@ Limits:
   39 dishes with their pictures, not from theory, and may need moving as specimens change.
 - **Not measured yet:** how the shape changes over time, when bodies divide, movement inside a cell, and how a specimen
   does among others.
+
+### Why dishes grew sparse
+
+After patchy food, two foods, inherited cohesion and predators were added, dishes looked slow to take shape and less
+intricate than early ones. To see why, the same eight specimens, in two sets of four slides (set a: Silver Web V, Bold
+Blue-Teal Branches, Bold Azure Islands, Sparse Cyan Ribbons; set b: Dense Azure Honeycomb, Feathered Silver Lace,
+Flowing Blue-Teal Rivers, Silver Spores), were cut and placed two copies each at ×0.4 in a fresh 1× dish (seed 77) and
+run for 20,000 steps on four versions of the app, each with its own default settings. Placed, set a used 53% of the
+dish's places and set b 29%.
+
+| Version | Set a: places used at 1,000 / 5,000 / 20,000 steps | Set b |
+|---|---|---|
+| Before energy was conserved (parent of a5249ee) | 85 / 100 / 100% | 100 / 100 / 100% |
+| Energy conserved, food at half the rate (a5249ee) | 54 / 53 / 68% | 33 / 67 / 73% |
+| Plus digestion needing company (fe0853e) | 50 / 24 / 31% | 26 / 14 / 34% |
+| Plus patches, two foods, inherited cohesion and predators, with new dishes at PATCHES 0.5, TWO foods, HUNTING 0.5 (22f8b88) | 45 / 24 / 8% | 26 / 12 / 19% |
+
+- **Not the step rate.** At 8X every version ran 360 to 480 steps a second in a 1× dish on an RTX 4070; the newest
+  took 1.5 ms a step, no more than older ones.
+- **Slow to take shape was a die-back.** Before energy was conserved, a dish filled within 1,000 to 2,500 steps. Since,
+  the placed copies first shrink, and new growth starts only after 5,000 to 10,000 steps.
+- **The newest default dish starved.** Set a on three seeds ended at 8, 9 and 13% of its places, against 31% every time
+  with the four additions switched off (which reproduced the previous version exactly). With one addition on and the
+  others off, set a ended at 6% with predators, 11% with two foods (losing a strain), 19% with patches and 29% with
+  inherited cohesion; with any one switched off and the other three on, it still fell to 6 to 13%. Its winding-membrane
+  strain broke into dust between 10,000 and 20,000 steps, while survivors' set points rose from 2.8 to 3.5 to 4.7 and
+  they packed into dense clumps.
+- **More food alone did not save it.** With 2.7 times the food (FOOD 1 and twice the sunlight) set a still fell to 28%
+  by 20,000 steps. More food did make set b richer: 19% at the default, 30% at FOOD 1, 45% with twice the sunlight and
+  62% with both, its lace strain spreading across the glass.
+
+Specimens come from the Microscope, where food never runs out and no one hunts, and the dish was already near
+starvation after digestion came to need company; each challenge, on from the start, tipped it over. So new dishes now
+start gentle, with PATCHES 0, ONE food and HUNTING 0 (the sliders are still there), and sunlight grows food back half
+as fast again as before (0.009 instead of 0.006). Twice the sunlight was tried first: at FOOD 1 both sets then filled
+every place by 20,000 steps, so room limited growth again instead of food. Saved dishes open with their FOOD rescaled
+(by two thirds from 0.006, by four thirds from before any rate was recorded) and the specimen test runs at FOOD 0.5, so
+both run exactly as before; the Incubator fingerprint check confirms it.
+
+With the new defaults, places used:
+
+| | 5,000 steps | 10,000 | 20,000 | 40,000 |
+|---|---|---|---|---|
+| Set a | 34% | 43% | 56% | 58% |
+| Set b | 19% | 25% | 53% | 96% |
+| Set a at FOOD 1 | 45% | 59% | 79% | 92% |
+
+Every strain lived. Set a's membrane strain spread into a network of cell-like chambers across the dish, with both of
+its ringed bodies lasting all 40,000 steps; set b's lace strain grew across much of the glass.
+
+Limits:
+
+- **A thrifty strain can still fill the dish.** Set b's lace strain reached 96% of the places by 40,000 steps at the
+  default FOOD, so in long runs room may again become the limit; a lower FOOD keeps it food-limited.
+- **STRUCTURE reads full, lacy dishes as spread out.** With most of the glass in use, the densest tenth of the dish holds
+  only 20 to 37% of its particles at 40,000 steps, though these dishes are networks of chambers rather than an even
+  mush. The score cannot tell the two apart yet.
+- **The challenges are still hard.** Turned on, predators, patches and two foods still shrink a dish of fresh
+  specimens. Specimens bred under the dish's own physics ([IDEAS](IDEAS.md), C3) are probably the real answer.
 
 ### What is new here, honestly
 

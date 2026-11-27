@@ -51,6 +51,8 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 - **Detecting division:** one cell becoming two that both last, followed by the cell finder.
 - **Using the ECOSYSTEM score to compare dishes** over long runs, to see which settings and strains make the richest
   ecosystems.
+- **Telling a network from a mush in STRUCTURE.** A full dish of membrane chambers reads as spread out as an even mush
+  ([Why dishes grew sparse](RESEARCH.md#why-dishes-grew-sparse)).
 - Endosymbiosis-like dependence between strains, a first-run gallery of presets, parameter locks for RANDOM, a replay
   timeline, mutating only part of a body, and small evolvable brains.
 

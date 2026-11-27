@@ -4,6 +4,23 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **A new dish waits for PLAY.** The Incubator no longer runs before anything is placed: a new dish waits, paused,
+  while you place specimens, PLAY glows and the display reads PRESS SPACE TO START. EMPTY makes a new dish that
+  waits again, and the Microscope and the Incubator each keep their own PLAY and PAUSE. The moment a new dish first
+  runs, its picture as placed is kept in memory; its first save adds it as snapshot 0, so the Archive card plays the
+  dish from its start. Dish cards now count SNAPSHOTS rather than SAVES.
+- **Challenges set apart.** PATCHES, HUNTING and FOODS sit under CHALLENGES · OFF TO START in the settings. At 0 a
+  challenge slider reads OFF, dimmed; moving it up lights it and the display says HUNTING ON or PATCHES ON.
+  RANDOMIZE and DEFAULT now set only the four main sliders, as their help always said, so neither turns predators
+  or patches on by surprise.
+- **Fixed:** the readouts left of the dish ran into its tick ring (about 56 pixels in a 1,600-wide window, more in
+  smaller ones). They now fill only the space left of the ring.
+- **Gentler, richer dishes.** A side-by-side test of four versions found that the newest default dish starved:
+  dishes of fresh specimens shrank to 8 to 19% of their places, because predators, two foods and patchy food, all on
+  from the start, each cost a dish already near starvation. New dishes now start with HUNTING 0, PATCHES 0 and ONE
+  food (all still on their sliders), and food grows back half as fast again (0.009 instead of 0.006). Test dishes now
+  hold 53 to 56% of their places at 20,000 steps, with every strain alive. Saved dishes and specimen tests get the same
+  food as before, so they run exactly as they did (RESEARCH.md, "Why dishes grew sparse").
 - **Specimen cards and a deck you fill yourself.** Every specimen in the Archive is now the same card: its picture
   through a porthole, a ridged grip and ring in the color of how it was made (slide cut, kept body, kept cell, wild
   cut), a genus coin, readouts (particles; species or strains with F for a field, such as 3F, or a cell's score; its

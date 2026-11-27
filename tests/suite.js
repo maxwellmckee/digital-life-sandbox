@@ -57,12 +57,12 @@
     },
 
     // Two seeded organisms cut and placed in a 1x dish give the same dish every time.
-    // Run with one food and even sunlight, as every dish was before PATCHES and FOODS, so it also shows that old dishes
-    // run exactly as before.
+    // Run with one food and even sunlight, as every dish was before PATCHES and FOODS, and at the food a dish saved at
+    // FOOD 0.75 when food grew back at 0.006 opens with now, so it also shows that old dishes run exactly as before.
     async 'Incubator fingerprint'() {
       const run = async () => {
         await freshDish('s', 31);
-        Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0, hunting: 0 });
+        Object.assign(arena.params, { food: .75 * (.006 / ARENA.regrow), patches: 0, foods: 1, cohesion: 0, hunting: 0 });
         await foundAt(fx.a, .5, .5, 1); await idle();
         await foundAt(fx.b, .3, .45, .5); await idle();
         await DL.arenaAdvance(300);
@@ -266,8 +266,8 @@
       } finally { ARENA.regrow = regrow; }
     },
 
-    // A dish saved when food grew back twice as fast opens with its FOOD doubled (to at most 1), so it gets the same
-    // food; a dish saved since keeps its FOOD as it is.
+    // A dish saved when food grew back at 0.006 opens at two thirds of its FOOD, and one saved before any rate was
+    // recorded (0.012) at four thirds, so each gets the same food at today's 0.009; one saved now keeps its FOOD.
     async 'Older dishes keep their food'() {
       await freshDish('s', 31);
       await foundAt(fx.a, .5, .5, 1); await idle();
@@ -277,13 +277,15 @@
       const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('dishes');
       const meta = JSON.parse(await (await (await dir.getFileHandle(arena.dishId + '.json')).getFile()).text());
       const file = await (await dir.getFileHandle(arena.dishId + '.dldish')).getFile();
-      const older = { ...meta, params: { ...meta.params }, regrow: undefined };
-      await restoreDish(older, file);
-      const opened = arena.params.food;
+      await restoreDish({ ...meta, params: { ...meta.params }, regrow: .006 }, file);
+      const halved = arena.params.food;
+      await restoreDish({ ...meta, params: { ...meta.params }, regrow: undefined }, file);
+      const oldest = arena.params.food;
       await restoreDish(meta, file);
       const kept = arena.params.food;
       arena.origin = null; arena.dishId = null;
-      return { ok: opened === .6 && kept === .3, detail: `older dish at FOOD 0.3 opens at ${opened}; a new one stays at ${kept}` };
+      const near = (a, b) => Math.abs(a - b) < 1e-9, show = v => +v.toFixed(4);
+      return { ok: near(halved, .2) && near(oldest, .4) && kept === .3, detail: `at FOOD 0.3, a dish saved at 0.006 opens at ${show(halved)}, one from before any rate was recorded at ${show(oldest)}, a new one at ${kept}` };
     },
 
     // The ECOSYSTEM score. On made-up histories: strains trading ground in a steady dish of separate bodies score high; the

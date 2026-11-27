@@ -34,7 +34,7 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
   background:#020405;border-radius:16px;overflow:hidden;
   box-shadow:inset 0 0 0 1px #1a2c2f,inset 0 2px 14px #000c,0 0 0 1px #000,0 18px 50px #000a}
 .stage:fullscreen{border-radius:0}
-.screen{position:relative;width:min(100cqw,calc(100cqh * 16 / 9));height:min(100cqh,calc(100cqw * 9 / 16))}
+.screen{position:relative;width:min(100cqw,calc(100cqh * 16 / 9));height:min(100cqh,calc(100cqw * 9 / 16));container-type:size}
 
 /* Room bar: the three rooms of the lab. */
 .roombar{grid-column:1 / -1;display:flex;align-items:center;gap:18px;min-height:46px;color:#cfe9e2}
@@ -94,8 +94,10 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
   background:repeating-conic-gradient(from 0deg,#6ff0cf66 0 .5deg,transparent .5deg 6deg),repeating-conic-gradient(from 0deg,#6ff0cfaa 0 .7deg,transparent .7deg 30deg);
   -webkit-mask:radial-gradient(circle closest-side,transparent calc(100% - 12px),#000 calc(100% - 12px),#000 calc(100% - 3px),transparent calc(100% - 3px));
   mask:radial-gradient(circle closest-side,transparent calc(100% - 12px),#000 calc(100% - 12px),#000 calc(100% - 3px),transparent calc(100% - 3px))}
-.incubator-hud{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;padding:0 2.5%;pointer-events:none;z-index:2}
-.ihud-col{display:flex;flex-direction:column;gap:22px;width:22%}
+/* The readouts fill the space left of the dish and stop short of its tick ring (26 pixels out) with a small gap: half
+   the screen, less half the dish (as wide as the screen is high), less the margin. */
+.incubator-hud{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;padding:0 1.6cqw;pointer-events:none;z-index:2}
+.ihud-col{display:flex;flex-direction:column;gap:22px;width:calc(50cqw - 50cqh - 1.6cqw - 40px);min-width:0}
 .ihud-col.right{align-items:flex-end;text-align:right}
 .ihud{display:flex;flex-direction:column;gap:6px;pointer-events:auto}
 .ihud em{font-style:normal;font-size:8.5px;letter-spacing:.06em;color:#4a6d66}
@@ -105,7 +107,8 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .ihud i{display:block;height:3px;width:100%;border-radius:2px;background:#13282a;overflow:hidden}
 .ihud i u{display:block;height:100%;background:var(--lumen);box-shadow:0 0 8px var(--lumen)}
 .ihud-title{font-size:clamp(14px,2.6cqh,26px);color:#c9f7ea}
-.ihud-trio{display:flex;gap:16px}
+.ihud-trio{display:flex;justify-content:space-between;gap:8px}
+.ihud-trio .ihud{min-width:0}
 .eco-parts{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center;margin-top:2px}
 .eco-parts span{display:contents;font-size:7.5px;letter-spacing:.12em;color:#4f7a72}
 .eco-parts i{display:block;height:3px;border-radius:2px;background:#13282a;overflow:hidden}
@@ -168,6 +171,10 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
   box-shadow:inset 0 0 0 1px #9ff5dc,0 0 14px #2ff0c455,inset 0 0 12px #2ff0c430}
 .glows.afterglow::after{animation:afterglow .9s cubic-bezier(.2,.6,.3,1)}
 @keyframes afterglow{from{opacity:1}to{opacity:0}}
+/* PLAY glows while a new dish with specimens waits for it. */
+@keyframes readyglow{50%{box-shadow:0 0 0 1px #6ff0cfaa,0 0 16px #2ff0c455}}
+.pad.ready{color:var(--lumen);animation:readyglow 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.pad.ready{animation:none;box-shadow:0 0 0 1px #6ff0cfaa}}
 .stage.afterglow{animation:stageglow 1.1s cubic-bezier(.2,.6,.3,1)}
 @keyframes stageglow{from{box-shadow:inset 0 0 0 1px #6ff0cf99,inset 0 0 40px #2ff0c422,0 0 0 1px #000,0 18px 50px #000a}}
 @media (prefers-reduced-motion:reduce){.glows.afterglow::after{animation-duration:.3s}.stage.afterglow{animation:none}}
@@ -509,6 +516,11 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .row.wide{grid-template-columns:96px minmax(0,1fr)}
 .row output{text-align:right;font-variant-numeric:tabular-nums}
 .row[hidden]{display:none}
+/* PATCHES, HUNTING and FOODS: the challenges, set apart and off in a new dish. A challenge slider at 0 reads OFF, dimmed. */
+.challenges{margin-top:8px;padding-top:7px;border-top:1px solid #1a2c2f}
+.challenges-head{font-size:8.5px;letter-spacing:.18em;color:#4f7a72;margin-bottom:4px}
+.challenges-head em{font-style:normal;color:#3a5a54}
+.row.off>span,.row.off output{color:#46655f}
 .group[hidden]{display:none}
 .saves-row{display:flex;align-items:center;gap:6px;min-width:0}
 #savesName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft)}
@@ -719,7 +731,11 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         <button type="button" data-do="default" data-help="arena.defaults">DEFAULT</button>
       </div></div>
       <div id="arenaSliders"></div>
-      <div class="row wide"><span>FOODS</span><div class="seg" id="segFoods"></div></div>
+      <div class="challenges" id="arenaChallenges">
+        <div class="challenges-head" data-help="arena.challenges">CHALLENGES <em>· OFF TO START</em></div>
+        <div id="challengeSliders"></div>
+        <div class="row wide"><span>FOODS</span><div class="seg" id="segFoods"></div></div>
+      </div>
       <div class="row wide"><span>CELLS</span><div class="seg" id="segCells"></div></div>
       <div id="cellTop" hidden></div>
       <div class="row wide"><span>CHART</span><div class="seg" id="segChart"></div></div>
@@ -2697,6 +2713,8 @@ const batch = {
 };
 let device, ctx, canvasFormat, R = null, P = null;
 let mode = 'solo', running = true, acc = 0, stepLimit = MAX_STEPS_PER_FRAME;
+// Each room keeps its own run state: the Microscope runs from the start, and the Incubator waits for PLAY.
+const roomRunning = { lab: true, arena: false };
 let gpuName = 'GPU', gpuInfo = { vendor: '', architecture: '', fallback: false };
 let lastT = 0, frameMs = 16.7, gpuMs = 8, stepsWindow = 0, windowStart = 0, stepsPerSec = 0, throttleTick = 0;
 let flashText = '', flashUntil = 0;
@@ -3431,6 +3449,9 @@ function frame(now) {
   const items = mode === 'batch' ? batchItems() : [{ sim: mode === 'arena' ? arena.sim : R, genome: mode === 'arena' ? arenaGenome : st, rect: null }];
   if (mode === 'arena' && now >= arena.nextCensusAt) { arena.nextCensusAt = now + 500; arenaCensus(); }
   if (mode === 'arena' && arena.sim && !arena.busy && !cellScope.pending && arena.sim.step >= cellScope.nextStep) { cellScope.nextStep = arena.sim.step + CELLS.every; lookForCells(); }
+  // A dish about to take its first step has its picture taken, kept in memory until its first save. Its draw is queued
+  // before the frame writes its own uniforms and steps, so it shows the dish as placed.
+  if (n > 0 && mode === 'arena' && arena.sim?.step === 0 && arena.founders.length && !arena.origin && !arena.busy) arena.startPicture = dishSnapshot().catch(() => null);
   for (const it of items) writeUniforms(it.sim, it.genome, now);
   const counts = items.map(it => readySpawns(it.sim, it.genome, n));
   const enc = device.createCommandEncoder();
@@ -3488,7 +3509,7 @@ function lcdLines() {
       capture?.live ? captureLabel() : lib.loading ? lib.status : arena.task ? arena.task + '...' : flashing ? flashText
         : arena.bench ? 'CHOOSE A BODY TO CUT' : arena.placing ? 'CLICK TO PLACE'
         : arena.keeping ? 'CLICK A BODY TO KEEP'
-        : !arena.founders.length ? 'PRESS M TO ADD' : 'LINEAGES ' + alive + '/' + arena.founders.length + ' ' + lifeLabel(arena.sim.judged),
+        : !arena.founders.length ? 'PRESS M TO ADD' : !running && arena.sim.step === 0 ? 'PRESS SPACE TO START' : 'LINEAGES ' + alive + '/' + arena.founders.length + ' ' + lifeLabel(arena.sim.judged),
     ];
   }
   const q = R ? R.q : QUALITY[st.quality];
@@ -4484,6 +4505,8 @@ function setMode(m) {
   } else if (mode === 'batch') batch.sourceSnap = snapshot();
   if (m === 'arena') { ensureArena(); loadDrawer(); microscopeView = mode; }
   if (mode === 'arena') { arena.keeping = false; cancelPlacing(); closeBench(); }
+  const room = x => x === 'arena' ? 'arena' : 'lab';
+  if (room(m) !== room(mode)) { roomRunning[room(mode)] = running; running = roomRunning[room(m)]; }
   mode = m;
   acc = 0;
   batch.hover = -1;
@@ -4817,7 +4840,7 @@ const HELP = {
   'pad.reroll': { t: 'REROLL / EMPTY', d: 'Same settings, fresh start: the agents are scattered anew and any inherited body is dropped.', tip: 'In the Incubator this is EMPTY: press it twice to remove every strain. Specimens and saved dishes are kept.' },
   'pad.replay': { t: 'REPLAY', d: 'Restarts this run with the same seed and settings, so it grows the same way again.', tip: 'In the Incubator it places the same strains again and replays the same history. A dish opened from the Archive returns to its last save.' },
   'pad.save': { t: 'SAVE', d: 'Saves the body and rules together, so it reopens exactly as it looks now. In BATCH, saves every tile you picked.', tip: 'In the Incubator it saves the whole dish under DISHES in the Archive. Saving it again updates that entry and adds a snapshot.' },
-  'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation.' },
+  'pad.toggle': { t: 'PAUSE / PLAY', d: 'Freezes or resumes the simulation. The Microscope and the Incubator each keep their own. A new Incubator dish waits, paused, while you place specimens; PLAY starts it, and glows while it waits.' },
   'pad.undo': { t: 'UNDO', d: 'SOLO: undoes the last settings change. BATCH: goes back a generation. Incubator: removes the last copy placed.', tip: 'In a dish opened from the Archive, only copies placed since it was opened can be removed.' },
   'pad.load': { t: 'ARCHIVE', d: 'Opens the Archive: your saved slides as a grid or family tree, and the living specimens and dishes. Open one, name it, breed from it or cut from it.' },
   'pad.cut': { t: 'CUT / KEEP', d: 'Cuts a specimen from what is on screen and puts it on the Incubator\'s cutting bench: in SOLO the organism, in BATCH the slide under the pointer or your last pick.', tip: 'In the Incubator this is KEEP: click a living body to keep everything inside the ring, with every gene it evolved. Scroll to size the ring.' },
@@ -4835,7 +4858,7 @@ const HELP = {
   'lib.test': { t: 'TEST', d: 'Runs a specimen alone in a standard dish for 5,000 steps and describes what it did: the form it takes, how far it travels, how its size changes, and whether its reaction field spreads. TEST ALL does every specimen not tested yet.', tip: 'About 8 seconds each. The dish in the Incubator is set aside and put back exactly as it was. Closing the Archive stops the test.' },
   'lib.behavior': { t: 'BEHAVIOR', d: 'What the specimen did when tested alone in a standard dish (a fresh 1× dish, default settings, PATCHES 0.5, one food, the same every time), measured from the dish, not read from the genes. TRAVEL, HOLD and SIZE light up to five each: how far its bodies traveled, how tightly it held its form, and how its size changed. The sentence says the same in words.', tip: 'HOLD lights fully for one solid body or a ring around another body, four for a ring, three for a net, and one for a body that breaks into many or spreads thin. Untested, the meters stay dark; TEST lights them.' },
   'lib.specimen.add': { t: 'PLACE IN DISH', d: 'Opens the Incubator and lets you place copies of this specimen.' },
-  'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as last saved: every particle and gene, the trails, the broth and any reaction field. Below are its strains and their shares.', tip: 'Point at the picture to replay a snapshot from each save. The 1×, 1.5× or 2× badge is its size, and it always opens at that size.' },
+  'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as last saved: every particle and gene, the trails, the broth and any reaction field. Below are its strains and their shares.', tip: 'Point at the picture to play its snapshots: the dish as it was when it first ran, then one from each save. The 1×, 1.5× or 2× badge is its size, and it always opens at that size.' },
   'lib.dish.open': { t: 'OPEN', d: 'Opens this dish in the Incubator exactly as it was last saved, and it carries on from there.', tip: 'You can add more specimens to it. REPLAY returns to its last save, and SAVE updates this entry and adds a snapshot.' },
   'lib.origin': { t: 'ORIGIN', d: 'Which strains the kept particles came from, and their shares. A body can hold more than one, like a membrane around another strain inside it.' },
   'tree.node': { t: 'FAMILY MEMBER', d: 'Point at it to light up its ancestors and descendants. Click it to find its card below, or double-click to open it.', tip: 'A label like +3 GEN on a line is not a copy. It means 3 generations were bred in between without being saved.' },
@@ -4871,6 +4894,7 @@ const HELP = {
   'arena.cells': { t: 'CELLS', d: 'Cells are structures nobody placed: closed membranes around a living inside. SHOW boxes each one with a name and score; green means an EU cell (one with a body inside, like a nucleus) at 80% or more.', tip: 'The score needs all five: a closed wall, an outline that holds its particles, movement inside, bodies and strains inside, and age. Cells are followed every 150 steps, shown or not.' },
   'arena.cellTop': { t: 'BEST CELLS', d: 'The three best cells, with score, age and the strains inside. Point at one to light it up in the dish; click it to zoom to it.', tip: 'The list holds still while you point at it, so KEEP CELL takes the cell you aimed at. EU cells have a body inside; PR cells do not.' },
   'cell.keep': { t: 'KEEP CELL', d: 'Cuts this cell along its own outline, with every gene its particles evolved, and files it as a specimen marked CELL.' },
+  'arena.challenges': { t: 'CHALLENGES', d: 'Ways to make the dish harder: food in drifting PATCHES, predators (HUNTING) and a second kind of food (FOODS). All are off in a new dish, because specimens come from the Microscope, where food never runs out and no one hunts, and each, on from the start, shrank a dish of fresh specimens to a fraction of its size. Turn one on to see how your strains cope.', tip: 'RANDOMIZE and DEFAULT leave them as they are.' },
   'arena.randomize': { t: 'RANDOMIZE', d: 'Sets the four sliders at random, mostly near the middle of each, never with so little food that the dish starves.', tip: 'Below FOOD 0.75 a dish of fresh specimens can lose strains, so RANDOMIZE keeps it above that.' },
   'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
   bench: { t: 'CUTTING BENCH', d: 'The organism being cut, with its bodies outlined, best first. Click a body to choose it, or anywhere else for a circle, and scroll to size it.', rows: [['STEADY', 'Run on out of sight for 900 steps, this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it reshaped on its own, so it will keep changing in the dish.']], tip: 'A body is a region denser than its surroundings that holds together as the threshold loosens. The cut follows its outline, so passing strands stay behind.' },
@@ -4883,12 +4907,12 @@ const HELP = {
   'drawer.delete': { t: 'REMOVE', d: 'Deletes the specimen in front: it leaves the deck and the Archive, and its files move to saves/removed/specimens, so it can still be brought back by hand. Press it, then SURE? within three seconds.', tip: 'Strains already in the dish live on. PUT AWAY only takes it out of the deck.' },
   'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it, then click the dish to place copies. The copies placed while it is picked form one strain and know each other as kin. Click it again to stop.', tip: 'Scroll over the dish to size a copy, from a third of its size to twice it; its reach and speed scale with it. An orange count means it is not saved yet.' },
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
-  'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'At 1 a dish of fresh specimens fills about half its room' },
+  'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'Plenty: dishes grow rich, and a thrifty strain can come close to filling the dish' },
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together: a particle that strays from its kin turns back, crowding past its set density pushes it out, and it digests best near that density. Each particle also inherits its own HOMING and CROWDING, as multiples of this, which mutate, so a strain can evolve to hold together more or less.', lo: 'Classic slime: bodies fray into spreading networks', hi: 'Bodies stay separate: rings, ribbons and cells that move and compete' },
-  'arena.hunting': { t: 'HUNTING', d: 'How much predation pays. Every particle carries a hunting gene from 0 (grazes) to 1 (hunts): a hunter digests food less well, is drawn to smells unlike its own, and bites strangers it bumps into, taking part of their stored energy. Kin are spared by a kin mark every particle of a placed specimen shares. A particle surrounded by its own kind gives up half as much; a loner or a frayed edge is easy prey.', lo: 'No predation: hunting does nothing', hi: 'Strong bites: hunters can live on other strains, and the dish grows thinner', tip: 'Particles start with their own hunting, mostly near 0 and a few higher, the same spread for every specimen, and it mutates; strains become hunters if hunting pays them. The strain stats show it.' },
-  'arena.patches': { t: 'PATCHES', d: 'Where food grows back. At 0, evenly everywhere. Turned up, mostly in a few soft patches of sunlight that slowly circle the dish, so a body that sits still sees its food drift away and moving pays.', lo: 'Food everywhere: sitting still wins', hi: 'Food in drifting patches: foragers and settlers both have a way to win', tip: 'The total amount of food is the same at every setting. Each lap takes tens of thousands of steps.' },
-  'arena.foods': { t: 'FOODS', d: 'ONE food, or TWO kinds that grow in different patches, the second shown in a warmer color. Each particle\'s diet gene sets how well it digests each: a specialist digests one well, a generalist both but less well, so strains that specialize on different foods can live side by side.', tip: 'With two foods each grows half as fast, so the dish holds as much in all. Diet mutates like any gene; the strain stats show it, from 0 (first food) to 1 (second).' },
+  'arena.hunting': { t: 'HUNTING', d: 'How much predation pays. Every particle carries a hunting gene from 0 (grazes) to 1 (hunts): a hunter digests food less well, is drawn to smells unlike its own, and bites strangers it bumps into, taking part of their stored energy. Kin are spared by a kin mark every particle of a placed specimen shares. A particle surrounded by its own kind gives up half as much; a loner or a frayed edge is easy prey.', lo: 'No predation: hunting does nothing', hi: 'Strong bites: hunters can live on other strains, and the dish grows thinner', tip: 'Particles start with their own hunting, mostly near 0 and a few higher, the same spread for every specimen, and it mutates; strains become hunters if hunting pays them. The strain stats show it. It reads OFF in a new dish; moving it up turns predation on.' },
+  'arena.patches': { t: 'PATCHES', d: 'Where food grows back. At 0, evenly everywhere. Turned up, mostly in a few soft patches of sunlight that slowly circle the dish, so a body that sits still sees its food drift away and moving pays.', lo: 'Food everywhere: sitting still wins', hi: 'Food in drifting patches: foragers and settlers both have a way to win', tip: 'The total amount of food is the same at every setting. Each lap takes tens of thousands of steps. It reads OFF in a new dish; moving it up turns patches on.' },
+  'arena.foods': { t: 'FOODS', d: 'ONE food, or TWO kinds that grow in different patches, the second shown in a warmer color. Each particle\'s diet gene sets how well it digests each: a specialist digests one well, a generalist both but less well, so strains that specialize on different foods can live side by side.', tip: 'With two foods each grows half as fast, so the dish holds as much in all. Diet mutates like any gene; the strain stats show it, from 0 (first food) to 1 (second). A new dish starts with ONE.' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful copies', hi: 'Fast evolution and more failed offspring' },
   'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each strain has over time, stacked in its color. PARTICLES charts each strain's share of the dish.", tip: 'Bodies show whether a strain stays as individuals, divides, or merges into one sprawl.' },
   'arena.founders': { t: 'STRAINS', d: 'Each placed specimen founds a strain: it and all its descendants. Each row shows the strain’s share of the dish and its bodies. Point at one to light it up; click it for its stats and its card in the deck.', tip: 'Each species gets a chemical of its own while any of the six are free; species that share one smell alike. A strain with a reaction field brings the field with it.' },
@@ -6370,7 +6394,7 @@ function buildDishCard(item) {
   img.hidden = !item.url;
   if (item.url) img.src = item.url;
   const stage = el('span', 'chip'), shots = m.snapshots || [];
-  stage.textContent = 'STEP ' + kilo(m.step) + (shots.length > 1 ? ` · ${shots.length} SAVES` : '');
+  stage.textContent = 'STEP ' + kilo(m.step) + (shots.length > 1 ? ` · ${shots.length} SNAPSHOTS` : '');
   thumb.append(img, stage, el('span', 'chip keep body', `${DISHES[m.dish].label} DISH`));
   thumb.dataset.help = 'lib.dish';
   // Pointing at the picture plays the dish's snapshots from its first save to its newest, then holds on the newest.
@@ -6394,7 +6418,7 @@ function buildDishCard(item) {
     if (playing > 0) clearInterval(playing);
     playing = 0;
     if (item.url) img.src = item.url;
-    stage.textContent = 'STEP ' + kilo(m.step) + (shots.length > 1 ? ` · ${shots.length} SAVES` : '');
+    stage.textContent = 'STEP ' + kilo(m.step) + (shots.length > 1 ? ` · ${shots.length} SNAPSHOTS` : '');
   });
   const info = el('div', 'lib-info'), stats = el('div', 'lib-stats'), origin = el('div', 'lib-origin');
   const row = (label, value) => stats.append(el('b', '', label), el('span', '', value));
@@ -6514,11 +6538,12 @@ const ARENA = {
   // patch, so food has to reach it from the broth around it, or it starves with food all around.
   // spread + veinFlow must stay at most 0.25, or food could flow out of a cell faster than it is there.
   coop: .7, settle: .0007, spread: .1, veinFlow: .15,
-  // How fast an eaten-out food cell grows back each step, at FOOD 1 and METABOLISM 1, like sunlight on the broth. Set so
-  // that food, not the dish's fixed number of particle places, limits how far strains grow: at FOOD 1 a dish of fresh
-  // specimens levels off just short of full (docs/RESEARCH.md, "Food sets the limit"). Dishes saved when it was 0.012
-  // have their FOOD rescaled when opened, so they get the same food.
-  regrow: .006,
+  // How fast an eaten-out food cell grows back each step, at FOOD 1 and METABOLISM 1, like sunlight on the broth. Food,
+  // not the dish's fixed number of particle places, limits how far strains grow (docs/RESEARCH.md, "Food sets the
+  // limit"). It was halved to 0.006 when energy was first conserved, and raised by half once digestion needed company and
+  // dishes had grown too poor to hold their shapes; at twice, dishes filled every place at FOOD 1 (docs/RESEARCH.md, "Why
+  // dishes grew sparse"). A dish saved at another rate has its FOOD rescaled when opened, so it gets the same food.
+  regrow: .009,
   // The least density of kin that cooperative digestion is measured against, whatever a particle's set point. Without it
   // a particle with a low set point digests as well spread thin as in a body, and shares its food with fewer, so
   // selection lowered every strain's set point until dishes spread into an even mush (docs/RESEARCH.md, "Why dishes
@@ -6537,15 +6562,20 @@ const ARENA_PARAMS = [
   { k:'hunger', label:'METABOLISM',  min:.2, max:2, step:.01, def:1,   fmt:v=>v.toFixed(2) },
   { k:'homeo',  label:'HOMEOSTASIS', min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
   { k:'drift',  label:'GENE DRIFT',  min:0,  max:1, step:.01, def:.35, fmt:v=>v.toFixed(2) },
-  { k:'patches', label:'PATCHES',    min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
-  { k:'hunting', label:'HUNTING',    min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
+  { k:'patches', label:'PATCHES',    min:0,  max:1, step:.01, def:0,   fmt:v=>v > 0 ? v.toFixed(2) : 'OFF', challenge:true },
+  { k:'hunting', label:'HUNTING',    min:0,  max:1, step:.01, def:0,   fmt:v=>v > 0 ? v.toFixed(2) : 'OFF', challenge:true },
 ];
-/* RANDOMIZE draws each of the settings above from a range where dishes were seen to live, more often near its middle
+const MAIN_PARAMS = ARENA_PARAMS.filter(p => !p.challenge);
+// A new dish starts gentle: PATCHES 0, ONE food and HUNTING 0. Specimens come from the Microscope, where there is no food
+// and no one hunts, so each of these challenges, on from the start, shrank a dish of fresh specimens to a fraction of
+// what it held without them (docs/RESEARCH.md, "Why dishes grew sparse"). They sit apart under CHALLENGES, read OFF at 0,
+// and only the person turns them on: RANDOMIZE and DEFAULT set the four main settings and leave them as they are.
+/* RANDOMIZE draws each of the four main settings from a range where dishes were seen to live, more often near its middle
    (the average of two random numbers). FOOD is the one that kills: since digestion needs real company, a dish of fresh
    specimens at 0.6 lost a strain, so food is drawn from 0.75 up (docs/RESEARCH.md, "Why dishes turned to mush"). */
-const SAFE_SETTINGS = { food: [.75, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65], patches: [.2, .8], hunting: [0, .8] };
+const SAFE_SETTINGS = { food: [.75, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65] };
 function safeSettings(rf = Math.random) {
-  return Object.fromEntries(ARENA_PARAMS.map(p => { const [lo, hi] = SAFE_SETTINGS[p.k]; return [p.k, snapTo(lo + (rf() + rf()) / 2 * (hi - lo), p)]; }));
+  return Object.fromEntries(MAIN_PARAMS.map(p => { const [lo, hi] = SAFE_SETTINGS[p.k]; return [p.k, snapTo(lo + (rf() + rf()) / 2 * (hi - lo), p)]; }));
 }
 function setArenaSettings(values, message) {
   Object.assign(arena.params, values);
@@ -6553,7 +6583,7 @@ function setArenaSettings(values, message) {
   flash(message);
 }
 const arena = {
-  sim: null, d: null, dish: 's', seed: newSeed(), founders: [], params: { ...defaults(ARENA_PARAMS), foods: 2, cohesion: 1 }, keepRadius: .18, fcur: 0, busy: false,
+  sim: null, d: null, dish: 's', seed: newSeed(), founders: [], params: { ...defaults(ARENA_PARAMS), foods: 1, cohesion: 1 }, keepRadius: .18, fcur: 0, busy: false,
   placing: null, keeping: false, history: [], census: null, censusPending: false, nextCensusAt: 0, channels: [], task: '',
   clearArmed: 0, chart: 'bodies', open: -1, rows: null,
   lit: -1, glow: 0, glowLineage: -1, // The strain pointed at in the list, and how far its highlight has faded in.
@@ -6666,6 +6696,7 @@ async function setDishSize(key) {
   const old = arena.sim?.q, offsets = old ? arena.founders.map(f => f.spots.map(p => [(p.x - .5) * old.w, (p.y - .5) * old.h])) : [];
   arena.dish = key;
   arena.dishId = null; // A dish of another size is a new dish.
+  arena.startPicture = null;
   ensureArena();
   const { w, h } = arena.sim.q;
   arena.founders.forEach((f, i) => f.spots.forEach((p, k) => {
@@ -7762,7 +7793,7 @@ async function foundAt(specimen, x, y, size = 1, strain = null) {
 async function replayArena() {
   const done = await arenaWork('REPLAYING', async () => {
     const o = arena.origin;
-    if (!o) resetArena();
+    if (!o) { resetArena(); arena.startPicture = null; }
     const later = o ? arena.founders.slice(o.founders) : arena.founders;
     if (o) { await restoreDish(o.meta, o.file); arena.founders.push(...later); arenaChemistry(); }
     for (const f of later) await stampFounder(f);
@@ -7933,6 +7964,8 @@ function arenaClear() {
   arena.dishId = null;
   arena.seed = newSeed();
   arena.params.cohesion = 1;
+  arena.startPicture = null;
+  running = false; // A new dish waits for PLAY.
   arenaChemistry();
   resetArena();
   syncUi();
@@ -8159,7 +8192,8 @@ function renderArenaPanel() {
       : `${b.name} is on the cutting bench. No separate body was found, so a circle sits on its densest part. Click to move it and scroll to size it. CUT takes it; Esc cancels.`)
     : arena.placing ? `Click the dish to place ${arena.placing.name} at ×${(arena.placeSize || 1).toFixed(2)}. Scroll to size the next copy. Each click adds another copy, and the copies form one strain. ADD places one in an open spot. Esc stops.`
     : arena.keeping ? 'Click a living body to keep it as a specimen. The ring shows what will be kept; scroll to size it. Esc cancels.'
-    : !arena.founders.length ? 'Pick a card from the specimen deck beside the dish, then click the dish to place it. The empty slot at the bottom of the deck adds specimens from your collection. To cut something new, add from your SOLO organism, a slide in the ARCHIVE, or a WILD one.'
+    : !arena.founders.length ? 'Pick a card from the specimen deck beside the dish, then click the dish to place it. The empty slot at the bottom of the deck adds specimens from your collection. To cut something new, add from your SOLO organism, a slide in the ARCHIVE, or a WILD one. A new dish waits, paused; press PLAY when your specimens are in.'
+    : !running && arena.sim.step === 0 ? 'Your specimens are in place and the dish is waiting. Press PLAY (Space) to start it, or keep placing. Its starting picture is kept for when you save it.'
     : 'Each row is a strain: a placed specimen and all its descendants. Point at one to light it up in the dish, or click it to see its bodies and how its genes have drifted. Scroll on the dish to zoom in, and drag to look around.';
   markSeg($('segChart'), arena.chart);
   drawArenaChart();
@@ -8568,6 +8602,9 @@ async function saveDish() {
     const id = before ? arena.dishId : `dish-${timeStamp(new Date())}-${hashText([arena.seed, arena.sim.step, arena.founders.length, Date.now()].join()).toLowerCase()}`;
     const { meta, parts } = await packDish(id), snapshot = await dishSnapshot(), now = meta.createdAt;
     const snapshots = (before?.snapshots || []).filter(x => x.step !== meta.step);
+    // The dish as it was placed, pictured as it first ran, joins its first save as the earliest snapshot.
+    const start = meta.step > 0 && !snapshots.some(x => x.step === 0) ? await arena.startPicture : null;
+    if (start) snapshots.unshift({ step: 0, createdAt: now, file: `${id}.s0.webp` });
     snapshots.push({ step: meta.step, createdAt: now, file: `${id}.s${meta.step}.webp` });
     if (before) Object.assign(meta, { name: before.name, createdAt: before.createdAt, updatedAt: now, ...(before.formerName ? { formerName: before.formerName } : {}) });
     meta.snapshots = snapshots;
@@ -8575,6 +8612,7 @@ async function saveDish() {
     // once all of it is written, and a save that fails leaves the one before.
     await new Blob(parts).stream().pipeThrough(new CompressionStream('gzip')).pipeTo(await open(id + '.dldish'));
     for (const name of [snapshots.at(-1).file, id + '.webp']) { const w = await open(name); await w.write(snapshot); await w.close(); }
+    if (start) { const w = await open(`${id}.s0.webp`); await w.write(start); await w.close(); }
     const w = await open(id + '.json'); await w.write(JSON.stringify(meta, null, 2)); await w.close();
     arena.dishId = id;
     // A dish opened from the Archive now replays from this save.
@@ -8589,6 +8627,7 @@ async function saveDish() {
    specimen it grew from, so it can't be placed again from scratch: REPLAY returns to the moment the dish was saved, and
    UNDO only removes copies placed since. */
 async function restoreDish(meta, file) {
+  arena.startPicture = null;
   await putDish(meta, await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   arena.origin = { meta, file, founders: arena.founders.length };
 }
@@ -8635,8 +8674,9 @@ async function putDish(meta, raw) {
   Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0, hunting: 0 }, meta.params);
   device.queue.writeBuffer(arena.econ, arena.d.econ.clock * 4, new Uint32Array([meta.step]));
   // A dish saved when food grew back at another rate keeps the same food: its FOOD is rescaled, to at most 1.
+  // Not rounded, so a dish saved at another rate gets the food it had.
   const regrew = meta.regrow ?? .012;
-  if (regrew !== ARENA.regrow) arena.params.food = Math.min(1, +(meta.params.food * regrew / ARENA.regrow).toFixed(2));
+  if (regrew !== ARENA.regrow) arena.params.food = Math.min(1, meta.params.food * (regrew / ARENA.regrow));
   arenaChemistry();
   s.step = meta.step;
   if (meta.cells?.tracks) {
@@ -8680,7 +8720,9 @@ async function openDish(item) {
    The card shows one sentence made from them (behaviorLine). The Incubator runs one dish at a time, so the dish in it is
    set aside first and put back exactly as it was. A result stays with its specimen. BEHAVIOR.rules is raised whenever
    the Incubator's rules change (when its fingerprint test needs a new value), and older results then ask for a new test. */
-const BEHAVIOR = { rules: 2, steps: 5000, every: 250, seed: 7357, dish: 's', settings: { patches: .5, foods: 1, cohesion: 1, hunting: 0 }, piece: .05 };
+// The test dish keeps the food it has always had: FOOD 0.5 at today's sunlight is FOOD 0.75 at the rate the tests were
+// first run at (0.006), so results from before stay current.
+const BEHAVIOR = { rules: 2, steps: 5000, every: 250, seed: 7357, dish: 's', settings: { food: .5, patches: .5, foods: 1, cohesion: 1, hunting: 0 }, piece: .05 };
 const tests = { running: false, stop: false, done: 0, total: 0, name: '' };
 const behaviorCurrent = meta => meta?.behavior?.rules === BEHAVIOR.rules;
 // One sentence from a test's measures, for a specimen's card: its form, how far it travels, how its size changes, and
@@ -10480,10 +10522,14 @@ function makeSlider(host, p, source, onInput, onCommit) {
       row.hidden = count === 1 || (p.rel !== undefined && p.rel >= count);
     }
     if (p.only) row.hidden = !p.only(shownGenome());
+    // A challenge at 0 is off: its row dims and reads OFF.
+    if (p.challenge) row.classList.toggle('off', !(v > 0));
   };
   input.addEventListener('input', () => {
+    const was = source()[p.k] > 0;
     source()[p.k] = p.curve ? +p.curve.toValue(+input.value).toFixed(4) : +input.value;
     show();
+    if (p.challenge && was !== source()[p.k] > 0) flash(p.label + (source()[p.k] > 0 ? ' ON' : ' OFF'));
     onInput?.();
   });
   input.addEventListener('change', () => onCommit?.());
@@ -10556,6 +10602,7 @@ function syncUi() {
   }
   $('playPad').setAttribute('aria-pressed', String(running));
   setDots($('playLabel'), running ? 'PAUSE' : 'PLAY');
+  $('playPad').classList.toggle('ready', inArena && !running && !!arena.sim && arena.sim.step === 0 && arena.founders.length > 0);
   $('led').classList.toggle('on', running);
   $('undoPad').disabled = inArena ? !arena.founders.length || arena.busy : inBatch ? !batch.history.length : !history.length && !brush.added;
   const life = lifeOf(g);
@@ -10674,11 +10721,12 @@ function initUi() {
     if (e.detail) b.blur();
     if (b.dataset.do === 'random') {
       setArenaSettings(safeSettings(), 'RANDOM SETTINGS');
-    } else setArenaSettings(defaults(ARENA_PARAMS), 'DEFAULT SETTINGS');
+    } else setArenaSettings(defaults(MAIN_PARAMS), 'DEFAULT SETTINGS');
   });
   ARENA_PARAMS.forEach(p => {
-    makeSlider($('arenaSliders'), p, () => arena.params);
-    $('arenaSliders').lastElementChild.dataset.help = 'arena.' + p.k;
+    const host = $(p.challenge ? 'challengeSliders' : 'arenaSliders');
+    makeSlider(host, p, () => arena.params);
+    host.lastElementChild.dataset.help = 'arena.' + p.k;
   });
   // Placing or keeping: a ring the size of the disc follows the pointer, and a click places a specimen there or keeps
   // what is inside it.
