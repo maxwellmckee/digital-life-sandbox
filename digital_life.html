@@ -133,6 +133,12 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .deck-card.unsaved i{color:#ffc79e}
 .deck-card small.changes{color:#ffd27a}
 .deck-card[hidden]{display:none}
+.deck-card::before{content:'';position:absolute;z-index:1;left:0;top:0;bottom:0;width:4px;border-radius:7px 0 0 7px;
+  background:repeating-linear-gradient(180deg,var(--type,#3fd8b8) 0 3px,#00000080 3px 5px)}
+.deck-card.slot{background:#071113a6;box-shadow:inset 0 0 0 1px #6ff0cf40}
+.deck-card.slot::before{display:none}
+.deck-card.slot span{display:grid;place-items:center;aspect-ratio:16/9;margin:6px 6px 0;border:1px dashed #6ff0cf55;border-radius:6px;color:#6ff0cf;font-size:22px}
+.deck-card.slot:hover span{border-color:#6ff0cfaa}
 .deck-card:hover{box-shadow:0 0 0 1px #6ff0cf66,0 6px 16px #000c}
 .deck-card[aria-pressed=true]{box-shadow:0 0 0 2px var(--active),0 0 16px #2ff0c44d,0 6px 16px #000c}
 .deck-card:focus-visible{outline:2px solid var(--lumen);outline-offset:2px}
@@ -291,6 +297,44 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .lib-info .lib-name{font-size:12px}
 .lib-meta{color:#a9d8cc;font-size:10px;line-height:1.5}
 .lib-actions{display:flex;gap:5px}
+/* Specimen cards: a porthole onto the body, a ridged grip in the color of how it was made, its genus coin, three
+   readouts and the meters from its test. Every card is the same size, whatever it says. */
+#specGrid{grid-template-columns:repeat(auto-fill,248px);justify-content:center}
+.spec-card{--type:#3fd8b8;--grip:#1f8f7d;--deep:#11554e;display:flex;width:248px;height:486px;box-sizing:border-box;border-radius:14px;overflow:hidden;
+  background:radial-gradient(circle at 56% 22%,color-mix(in srgb,var(--type) 11%,transparent) 0,#0b1517 44%,#091214 72%);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--type) 30%,transparent),0 12px 26px #0008}
+.spec-grip{flex:none;width:12px;background:repeating-linear-gradient(180deg,var(--grip) 0 3px,#0000008c 3px 6px);box-shadow:inset -1px 0 0 #0009}
+.spec-body{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 12px 12px}
+.spec-port{position:relative;flex:none;width:188px;height:188px}
+.spec-port>svg{position:absolute;inset:0;width:100%;height:100%}
+.spec-glass{position:absolute;left:20px;top:20px;width:148px;height:148px;border-radius:50%;overflow:hidden;background:#030607;
+  box-shadow:0 0 0 2px var(--type),0 0 0 6px #0b1416,0 0 0 7px #1f3537,0 0 22px 4px color-mix(in srgb,var(--type) 17%,transparent)}
+.spec-glass img{display:block;width:100%;height:100%;object-fit:cover}
+.spec-glass img[hidden]{display:none}
+.spec-coin{position:absolute;left:22px;top:128px;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#1b2b30,#091113);box-shadow:0 0 0 2px var(--type),0 4px 10px #000b;color:#e6fff8;font-size:17px}
+.spec-name{flex:none;max-width:100%;height:12px;display:flex;justify-content:center;color:#f2fffb;font-size:12px}
+.spec-name .dotsvg{max-width:100%}
+.spec-origin{flex:none;width:100%;height:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;font-size:9.5px;color:#8fbfb3}
+.spec-reads{flex:none;align-self:stretch;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.spec-reads>div{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:38px;border-radius:6px;background:#071113}
+.spec-reads b{font-weight:400;font-size:7.5px;letter-spacing:.1em;color:#7fa79d}
+.spec-reads span{font-size:12px;color:#e6fff8}
+.spec-reads .type{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--type) 32%,transparent)}
+.spec-reads .type span{color:var(--type);font-size:14px}
+.spec-meters{flex:none;align-self:stretch;display:flex;flex-direction:column;gap:6px;padding:8px 9px;border-radius:6px;background:#061012}
+.spec-meters div{display:flex;align-items:center;gap:3px}
+.spec-meters b{width:49px;font-weight:400;font-size:8.5px;letter-spacing:.12em;color:#7fa79d}
+.spec-meters i{width:14px;height:6px;border-radius:2px;background:#cfe9e214}
+.spec-meters i.on{background:var(--type);box-shadow:0 0 6px var(--type)}
+.spec-line{flex:none;height:43px;margin:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;font-size:9.5px;line-height:1.5;color:#a9d8cc;text-align:center}
+.spec-actions{align-self:stretch;display:flex;gap:6px;margin-top:auto}
+.spec-actions button{height:28px;padding:0;border:0;border-radius:6px;background:#1d3436;color:#d9fff2;font:inherit;font-size:10px;cursor:pointer}
+.spec-actions button:hover{filter:brightness(1.2)}
+.spec-actions .place{flex:1;min-width:0;background:var(--deep);color:#f2fffb;letter-spacing:.06em;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--type) 32%,transparent)}
+.spec-actions .test{width:46px}
+.spec-actions .remove{width:62px}
+.spec-actions .remove.armed{background:#8a3b1e;color:#fff3ec}
 .lib-actions button{flex:1;min-width:0;height:27px;border:0;border-radius:6px;background:#1d3436;color:#d9fff2;cursor:pointer;font-size:10px}
 .lib-actions button:hover{background:#2a4a4d}
 .lib-actions .breed{background:var(--teal);color:#eafff8}
@@ -471,6 +515,28 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
   background:linear-gradient(#131f22,#0d1618);color:var(--ink);font:12px/1.55 var(--mono);
   box-shadow:inset 0 1px 0 #ffffff12,inset 0 0 0 1px #1a2a2d,0 12px 40px #000a}
 #savesDialog::backdrop{background:#030607b8}
+#deckPicker{width:min(980px,calc(100vw - 40px));height:min(720px,calc(100vh - 40px));max-width:none;max-height:none;padding:0;border:0;border-radius:14px;
+  background:#030607;color:#d9fff2;overflow:hidden;box-shadow:0 12px 40px #000a}
+#deckPicker[open]{display:flex;flex-direction:column}
+#deckPicker::backdrop{background:#030607d9}
+.picker-head{flex:none;display:flex;align-items:center;gap:12px;padding:12px 14px;background:#081012;box-shadow:inset 0 -1px 0 #16262a}
+.picker-head h2{margin:0;font-size:14px;font-weight:400;color:#cfe9e2}
+.picker-head input{flex:1;min-width:0;height:30px;padding:0 10px;border:0;border-radius:7px;background:#142426;color:#d9fff2;font:inherit}
+.picker-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));grid-auto-rows:max-content;align-content:start;gap:12px;padding:14px}
+.pick-tile{--type:#3fd8b8;--grip:#1f8f7d;position:relative;display:flex;align-items:center;gap:12px;min-width:0;padding:10px 12px 10px 20px;border:0;border-radius:10px;
+  background:#0b1517;color:var(--ink);font:inherit;text-align:left;cursor:pointer;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--type) 26%,transparent)}
+.pick-tile::before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;border-radius:10px 0 0 10px;background:repeating-linear-gradient(180deg,var(--grip) 0 3px,#0000008c 3px 6px)}
+.pick-tile:hover{background:#0f1d20}
+.pick-tile:focus-visible{outline:2px solid var(--lumen);outline-offset:2px}
+.pick-port{flex:none;width:58px;height:58px;border-radius:50%;overflow:hidden;background:#030607;box-shadow:0 0 0 2px var(--type),0 0 0 5px #0b1416,0 0 0 6px #1f3537}
+.pick-port img{display:block;width:100%;height:100%;object-fit:cover}
+.pick-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.pick-text b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400;font-size:11.5px;color:#f2fffb}
+.pick-text small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;color:#8fbfb3}
+.pick-type{flex:none;color:var(--type);font-size:15px}
+.pick-tile em{position:absolute;right:10px;top:8px;font-style:normal;font-size:8px;letter-spacing:.12em;color:var(--type)}
+.picker-empty{margin:24px;color:#8fbfb3;text-align:center}
+.picker-empty[hidden]{display:none}
 #savesDialog h2{margin:0 0 8px;font-size:14px}
 #savesDialog p{margin:0 0 11px}
 #savesDialog p[hidden]{display:none}
@@ -566,7 +632,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         </div>
       </div>
       <div class="deck" id="deck" hidden>
-        <div class="deck-head"><span>SPECIMENS</span><b id="deckCount"></b><button type="button" id="deckRemove" data-help="drawer.remove" hidden>REMOVE</button></div>
+        <div class="deck-head"><span>SPECIMENS</span><b id="deckCount"></b><button type="button" id="deckRemove" data-help="drawer.remove" hidden>PUT AWAY</button></div>
         <div class="deck-stack" id="deckStack" data-help="drawer"></div>
         <p class="deck-note" id="deckNote" data-help="lib.behavior"></p>
         <div class="deck-foot" id="deckFoot"></div>
@@ -740,6 +806,15 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
     <button type="button" class="dlg-btn primary" id="treeBreed" data-help="lib.breed">BREED</button>
   </div>
   <p class="lib-empty" id="libEmpty" hidden></p>
+</dialog>
+<dialog id="deckPicker" aria-labelledby="pickerTitle">
+  <header class="picker-head">
+    <h2 id="pickerTitle" data-dots>ADD TO DECK</h2>
+    <input type="search" id="pickerSearch" placeholder="Search your specimens..." aria-label="Search your specimens" data-help="deck.picker.search">
+    <button type="button" class="dlg-btn primary" id="pickerClose">CLOSE</button>
+  </header>
+  <div class="picker-grid" id="pickerGrid" data-help="deck.picker"></div>
+  <p class="picker-empty" id="pickerEmpty" hidden></p>
 </dialog>
 <aside id="helpCard" role="status" hidden></aside>
 
@@ -3427,6 +3502,21 @@ const ICONS = {
   rec:    ['..###..', '.#####.', '#######', '#######', '#######', '.#####.', '..###..'],
   alert:  ['...#...', '..#.#..', '..#.#..', '.#.#.#.', '.#...#.', '#..#..#', '#######'],
   scope:  ['..##...', '..##...', '...##..', '..###.#', '.#..###', '.....#.', '#######'],
+  // How a specimen was made (scope for a slide cut and spark for a wild one, above): a kept body, a kept cell.
+  body:   ['..##...', '.####..', '######.', '#######', '.######', '..####.', '...##..'],
+  cell:   ['..###..', '.#...#.', '#.....#', '#..#..#', '#.....#', '.#...#.', '..###..'],
+  // Genus emblems, after the form each genus is named for.
+  reticulum:  ['#..#..#', '.#.#.#.', '..###..', '###.###', '..###..', '.#.#.#.', '#..#..#'],
+  retiola:    ['.#.#.#.', '#.#.#.#', '.#.#.#.', '#.#.#.#', '.#.#.#.', '#.#.#.#', '.#.#.#.'],
+  favella:    ['.##.##.', '#..#..#', '#..#..#', '.##.##.', '#..#..#', '#..#..#', '.##.##.'],
+  amoeba:     ['.##....', '####...', '.##..#.', '....###', '.#...#.', '###....', '.#.....'],
+  hypha:      ['...#...', '#..#..#', '.#.#.#.', '..###..', '...#...', '...#...', '...#...'],
+  fluvia:     ['#......', '.##....', '...#...', '...##..', '.....#.', '....##.', '...#...'],
+  vitta:      ['##.....', '..##...', '....###', '.......', '###....', '...##..', '.....##'],
+  filum:      ['#..#...', '.#..#..', '..#..#.', '...#..#', '#...#..', '.#...#.', '..#...#'],
+  coccus:     ['#...#..', '.......', '..#...#', '#......', '....#..', '.#.....', '.....#.'],
+  volvox:     ['.#...#.', '###.###', '.#...#.', '...#...', '.#...#.', '###.###', '.#...#.'],
+  plasmodium: ['..###..', '.#...#.', '.....#.', '....#..', '...#...', '.......', '...#...'],
 };
 const LCD_ICONS = ['run', 'gpu', 'spark', 'helix', 'dish', 'book', 'save', 'folder', 'rec', 'alert'];
 const iconFlash = {};
@@ -3671,7 +3761,7 @@ function syncIncubatorHud() {
 
 /* Afterglow: a pressed control lights up and the light fades the way trail does. Nothing moves, so the eye stays on
    the simulation. Changing rooms lights the edge of the stage the same way. */
-const GLOW_TARGETS = '.pad, .seg button, .room, .menu button, .lib-actions button, .dlg-btn, #savesChange, #helpToggle, .help-toggle, .founder-head, .founder-keep, #tasteReset, .deck-card, .tile-acts button';
+const GLOW_TARGETS = '.pad, .seg button, .room, .menu button, .lib-actions button, .spec-actions button, .pick-tile, .dlg-btn, #savesChange, #helpToggle, .help-toggle, .founder-head, .founder-keep, #tasteReset, .deck-card, .tile-acts button';
 function afterglow(target) {
   if (!target) return;
   if (!target.classList.contains('stage')) target.classList.add('glows');
@@ -4723,9 +4813,12 @@ const HELP = {
   'lib.slides.view': { t: 'GRID OR TREE', d: 'GRID shows every save as a card, sorted as you choose. TREE shows your families, parents on the left and children on the right.', tip: 'In the tree, click a slide to light up its family and get OPEN, CUT and BREED for it at the bottom. Double-click to open it.' },
   'lib.view.living': { t: 'LIVING', d: 'What lives in the Incubator. SPECIMENS are bodies you cut or kept, ready to place in a dish. DISHES are whole dishes you saved, which open exactly as they were.', tip: 'The number beside each is how many you have.' },
   'lib.life': { t: 'LIFE SCORE', d: 'How this save scored when it was saved, broken down into its parts below.' },
-  'lib.specimen': { t: 'SPECIMEN', d: 'A living body cut from a slide or kept from the Incubator: its particles with their rules, and the trail beneath.', tip: 'A kept body carries every gene its particles evolved. These are the cards in the deck beside the dish.' },
+  'lib.specimen': { t: 'SPECIMEN', d: 'A living body cut from a slide or kept from the Incubator, seen through a porthole as it will go into a dish: its particles with their rules, and the trail beneath. Point at the card for its details: where it came from, its former name, and for a kept body its set point, speed, sensors and the strains it came from.', tip: 'The grip down the left and the ring are in the color of how it was made. A kept body carries every gene its particles evolved. These are the cards the deck beside the dish draws from.' },
+  'lib.card.type': { t: 'TYPE', d: 'How the specimen was made, shown by the grip, the ring and this icon. Microscope, teal: cut from a slide. Filled body, blue: a body kept from the Incubator, such as the largest body of a strain. Ring with a nucleus, amber: a kept cell. Spark, orange: cut from a wild organism.' },
+  'lib.card.genus': { t: 'GENUS', d: 'The emblem of its genus, the first word of its name, from the form it was measured to have: web (Reticulum), lace (Retiola), honeycomb (Favella), islands (Amoeba), branches (Hypha), rivers (Fluvia), ribbons (Vitta), threads (Filum), spores (Coccus), colony (Volvox), or a question mark (Plasmodium) when not yet measured.' },
+  'lib.card.reads': { t: 'READOUTS', d: 'PARTICLES it holds. Then SPECIES for a cut, STRAINS for a kept body (the strains its particles came from), each with F when it carries a reaction field, or CELL with the score of a kept cell. Then its TYPE.' },
   'lib.test': { t: 'TEST', d: 'Runs a specimen alone in a standard dish for 5,000 steps and describes what it did: the form it takes, how far it travels, how its size changes, and whether its reaction field spreads. TEST ALL does every specimen not tested yet.', tip: 'About 8 seconds each. The dish in the Incubator is set aside and put back exactly as it was. Closing the Archive stops the test.' },
-  'lib.behavior': { t: 'BEHAVIOR', d: 'What the specimen did when tested alone in a standard dish: a fresh 1× dish, default settings, PATCHES 0.5 and one food, the same every time. It is measured from the dish, not read from the genes.', tip: 'A ring has one large hole, a net many small ones; a ring around another body is the cell-like case. Stays put means its bodies typically moved under 120 pixels in all, travels far over 500. Most specimens shrink at first, as they settle to the food the dish can give.' },
+  'lib.behavior': { t: 'BEHAVIOR', d: 'What the specimen did when tested alone in a standard dish (a fresh 1× dish, default settings, PATCHES 0.5, one food, the same every time), measured from the dish, not read from the genes. TRAVEL, HOLD and SIZE light up to five each: how far its bodies traveled, how tightly it held its form, and how its size changed. The sentence says the same in words.', tip: 'HOLD lights fully for one solid body or a ring around another body, four for a ring, three for a net, and one for a body that breaks into many or spreads thin. Untested, the meters stay dark; TEST lights them.' },
   'lib.specimen.add': { t: 'PLACE IN DISH', d: 'Opens the Incubator and lets you place copies of this specimen.' },
   'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as last saved: every particle and gene, the trails, the broth and any reaction field. Below are its strains and their shares.', tip: 'Point at the picture to replay a snapshot from each save. The 1×, 1.5× or 2× badge is its size, and it always opens at that size.' },
   'lib.dish.open': { t: 'OPEN', d: 'Opens this dish in the Incubator exactly as it was last saved, and it carries on from there.', tip: 'You can add more specimens to it. REPLAY returns to its last save, and SAVE updates this entry and adds a snapshot.' },
@@ -4767,8 +4860,11 @@ const HELP = {
   'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
   bench: { t: 'CUTTING BENCH', d: 'The organism being cut, with its bodies outlined, best first. Click a body to choose it, or anywhere else for a circle, and scroll to size it.', rows: [['STEADY', 'Run on out of sight for 900 steps, this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it reshaped on its own, so it will keep changing in the dish.']], tip: 'A body is a region denser than its surroundings that holds together as the threshold loosens. The cut follows its outline, so passing strands stay behind.' },
   'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle, files it in your specimen deck and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
-  drawer: { t: 'SPECIMENS', d: 'Your specimens, newest in front. Scroll over the deck to flip through it, click a card to pick it, then click the dish to place copies. Esc stops.', tip: 'They are saved in saves/specimens and listed in the Archive. Cutting the same body twice makes no second card.' },
-  'drawer.remove': { t: 'REMOVE', d: 'Takes the card in front out of the deck. Press it twice; its files move to the removed folder.', tip: 'Strains already in the dish live on.' },
+  drawer: { t: 'SPECIMEN DECK', d: 'The specimens you are working with, newest in front. Scroll over the deck to flip through it, click a card to pick it, then click the dish to place copies. Esc stops. The empty slot at the bottom adds more from your collection.', tip: 'A new cut or keep joins the deck. The deck is kept in your saves folder, so it is there next time; every specimen is also listed in the Archive. The colored edge shows how each was made.' },
+  'drawer.slot': { t: 'ADD SPECIMEN', d: 'Opens your whole collection. Choose a specimen and its card joins the deck, in front, and stays there until you put it away.' },
+  'deck.picker': { t: 'YOUR SPECIMENS', d: 'Every specimen you have, newest first, with the color and icon of how it was made. Click one to add it to the deck; one already in the deck says IN DECK and comes to the front.', tip: 'Point at one for its details. Esc or CLOSE goes back without adding.' },
+  'deck.picker.search': { t: 'SEARCH', d: 'Narrows the list by name, a former name, or the slide it was cut from.' },
+  'drawer.remove': { t: 'PUT AWAY', d: 'Takes the card in front out of the deck. The specimen stays in the Archive, and the slot at the bottom brings it back.', tip: 'Strains already in the dish live on. To delete a specimen, use REMOVE on its card in the Archive.' },
   'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it, then click the dish to place copies. The copies placed while it is picked form one strain and know each other as kin. Click it again to stop.', tip: 'Scroll over the dish to size a copy, from a third of its size to twice it; its reach and speed scale with it. An orange count means it is not saved yet.' },
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
   'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'At 1 a dish of fresh specimens fills about half its room' },
@@ -6096,38 +6192,91 @@ async function readSpecimens(dir) {
   kept.duplicates = copies.length;
   return kept;
 }
+/* How a specimen was made sets its card's color and type icon: cut from a slide, cut from a wild organism, a body
+   kept from the Incubator (such as a strain's largest), or a kept cell. */
+const CARD_TYPES = {
+  cut: { label: 'SLIDE CUT', icon: 'scope', color: '#3fd8b8', grip: '#1f8f7d', deep: '#11554e' },
+  wild: { label: 'WILD CUT', icon: 'spark', color: '#ff7a4d', grip: '#b8502c', deep: '#5e2a17' },
+  body: { label: 'KEPT BODY', icon: 'body', color: '#6aa8ff', grip: '#3466b5', deep: '#173a6b' },
+  cell: { label: 'KEPT CELL', icon: 'cell', color: '#f2bd55', grip: '#b5862a', deep: '#5a4210' },
+};
+const cardType = m => m.cell ? 'cell' : m.kind === 'kept' ? 'body' : /^[A-Z][a-z]+ W[MDT]/.test(m.name || '') ? 'wild' : 'cut';
+const typeStyle = (node, m) => { const t = CARD_TYPES[cardType(m)]; node.style.setProperty('--type', t.color); node.style.setProperty('--grip', t.grip); node.style.setProperty('--deep', t.deep); return t; };
+// The marks around a card's porthole: one every 10 degrees, longer and in the type's color every 90.
+const PORT_TICKS = (() => {
+  let lines = '';
+  for (let k = 0; k < 36; k++) {
+    const a = k * Math.PI / 18, major = k % 9 === 0, r = major ? 85 : 89, sx = Math.sin(a), cy = Math.cos(a);
+    lines += `<line x1="${(94 + sx * r).toFixed(1)}" y1="${(94 - cy * r).toFixed(1)}" x2="${(94 + sx * 93).toFixed(1)}" y2="${(94 - cy * 93).toFixed(1)}"${major ? ' style="stroke:var(--type)"' : ''}/>`;
+  }
+  return `<svg viewBox="0 0 188 188" aria-hidden="true" stroke="#6ff0cf52" stroke-width="2" stroke-linecap="round">${lines}</svg>`;
+})();
+const shortDate = iso => { const d = new Date(iso); return Number.isFinite(+d) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''; };
+// Where a specimen came from, in one line.
+function originLine(m) {
+  const when = shortDate(m.createdAt);
+  if (m.cell) return [`${m.cell.name}${m.cell.dish ? ' in ' + m.cell.dish : ''}`, when].filter(Boolean).join(' · ');
+  if (m.kind === 'kept') return [`kept at step ${kilo(m.keptAt || 0)}`, when].filter(Boolean).join(' · ');
+  return [m.source?.name ? 'from ' + m.source.name : 'wild', when].filter(Boolean).join(' · ');
+}
+// The middle readout: species for a cut, the strains its particles came from for a kept body, F for a reaction
+// field; a kept cell's score.
+function cardReadout(m) {
+  if (m.cell) return ['CELL', Math.round(m.cell.score * 100) + '%'];
+  const f = m.field ? 'F' : '';
+  if (m.kind === 'kept') return ['STRAINS', Math.max(1, (m.origin || []).filter(o => o.share >= .01).length) + f];
+  return ['SPECIES', (m.g?.count || 1) + f];
+}
+// Everything else about a specimen, for pointing at its card.
+function specimenDetails(m) {
+  const t = m.traits || {}, lines = [m.name, CARD_TYPES[cardType(m)].label + ' · ' + originLine(m)];
+  if (m.formerName) lines.push('Formerly ' + m.formerName);
+  if (m.kind === 'cut') lines.push(`${m.shape === 'circle' ? 'Circle' : 'Body outline'} · ${m.steady === true ? 'held its shape at home' : m.steady === false ? 'kept changing at home' : 'not checked at home'}`);
+  if (m.cell) lines.push(`Cell ${Math.round(m.cell.score * 100)}% · lasted ${kilo(m.cell.age)} steps · ${m.cell.strains.toFixed(1)} strains inside`);
+  if (Number.isFinite(t.setpoint)) lines.push(`Set point ${t.setpoint.toFixed(2)} · speed ${t.speed.toFixed(2)} · sensors ${Math.round(t.angle)}°, reach ${t.reach.toFixed(1)}`);
+  for (const o of (m.origin || []).filter(o => o.share >= .01).slice(0, 4)) lines.push(`${o.name} ${Math.round(o.share * 100)}%`);
+  return lines.join('\n');
+}
 function buildSpecimenCard(item) {
-  const m = item.meta, card = el('article', 'lib-card'), thumb = el('div', 'lib-thumb'), img = el('img');
+  const m = item.meta, card = el('article', 'spec-card'), t = typeStyle(card, m), genus = genusFromName(m.name);
+  card.title = specimenDetails(m);
+  const grip = el('div', 'spec-grip'), body = el('div', 'spec-body');
+  grip.dataset.help = 'lib.card.type';
+  // The porthole, its marks, and the genus coin on its rim.
+  const port = el('div', 'spec-port'), glass = el('div', 'spec-glass'), img = el('img'), coin = el('span', 'spec-coin');
+  port.dataset.help = 'lib.specimen';
+  port.innerHTML = PORT_TICKS;
   img.alt = '';
   img.hidden = !item.url;
   if (item.url) img.src = item.url;
-  thumb.append(img, el('span', 'chip keep body', m.cell ? `CELL · ${Math.round(m.cell.score * 100)}%` : kilo(m.particles) + ' PARTICLES'));
-  thumb.dataset.help = 'lib.specimen';
-  const info = el('div', 'lib-info'), stats = el('div', 'lib-stats'), origin = el('div', 'lib-origin');
-  const t = m.traits || {}, row = (label, value) => stats.append(el('b', '', label), el('span', '', value));
-  const when = new Date(m.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  if (m.kind === 'cut') {
-    // A cut from a slide: where it came from, its shape, and its species.
-    row('CUT FROM', m.source?.name || 'a slide');
-    row('MADE', when);
-    row('SHAPE', `${m.shape === 'circle' ? 'circle' : 'body outline'} · ${m.g?.count || 1} species`);
-    if (m.steady != null) row('AT HOME', m.steady ? 'held its shape' : 'kept changing');
-  } else row('KEPT', `step ${kilo(m.keptAt)} · ${when}`);
-  if (m.cell) row('CELL', `${m.cell.name}${m.cell.dish ? ' in ' + m.cell.dish : ''} · ${Math.round(m.cell.score * 100)}% · lasted ${kilo(m.cell.age)} steps · ${m.cell.strains.toFixed(1)} strains inside`);
-  if (m.formerName) row('FORMERLY', m.formerName);
-  row('BEHAVIOR', behaviorLine(m));
-  stats.lastChild.dataset.help = stats.lastChild.previousSibling.dataset.help = 'lib.behavior';
-  if (Number.isFinite(t.setpoint)) row('SET POINT', t.setpoint.toFixed(2));
-  if (Number.isFinite(t.speed)) row('SPEED', t.speed.toFixed(2));
-  if (Number.isFinite(t.angle)) row('SENSORS', `${Math.round(t.angle)}° · reach ${t.reach.toFixed(1)}`);
-  for (const o of (m.origin || []).filter(o => o.share >= .01).slice(0, 4)) {
-    const s = el('span'), sw = el('i');
-    sw.style.background = o.color;
-    s.append(sw, `${o.name} ${Math.round(o.share * 100)}%`);
-    origin.append(s);
-  }
-  origin.dataset.help = 'lib.origin';
-  const actions = el('div', 'lib-actions'), add = el('button', 'breed', 'PLACE IN DISH'), remove = el('button', 'remove', 'REMOVE');
+  glass.append(img);
+  coin.innerHTML = iconSvg(genus.toLowerCase() in ICONS ? genus.toLowerCase() : 'plasmodium');
+  coin.dataset.help = 'lib.card.genus';
+  port.append(glass, coin);
+  const name = el('div', 'spec-name');
+  setDots(name, m.name);
+  const origin = el('div', 'spec-origin', originLine(m));
+  // Three readouts: particles, species or strains or the cell's score, and the type.
+  const reads = el('div', 'spec-reads'), [midLabel, mid] = cardReadout(m);
+  reads.dataset.help = 'lib.card.reads';
+  const read = (label, value, cls = '') => { const d = el('div', cls); d.append(el('b', '', label)); const v = el('span'); if (value instanceof Node) v.append(value); else v.textContent = value; d.append(v); reads.append(d); return d; };
+  read('PARTICLES', kilo(m.particles || 0));
+  read(midLabel, mid);
+  const typeBox = read('TYPE', '', 'type');
+  typeBox.lastChild.innerHTML = iconSvg(t.icon);
+  typeBox.dataset.help = 'lib.card.type';
+  // The meters from its test, unlit until it is tested.
+  const meters = el('div', 'spec-meters'), lit = behaviorMeters(m) || [0, 0, 0];
+  meters.dataset.help = 'lib.behavior';
+  ['TRAVEL', 'HOLD', 'SIZE'].forEach((label, k) => {
+    const row = el('div');
+    row.append(el('b', '', label));
+    for (let i = 0; i < 5; i++) row.append(el('i', i < lit[k] ? 'on' : ''));
+    meters.append(row);
+  });
+  const line = el('p', 'spec-line', behaviorLine(m));
+  line.dataset.help = 'lib.behavior';
+  const actions = el('div', 'spec-actions'), add = el('button', 'place', 'PLACE IN DISH'), remove = el('button', 'remove', 'REMOVE');
   add.type = remove.type = 'button';
   add.dataset.help = 'lib.specimen.add';
   remove.dataset.help = 'lib.remove';
@@ -6141,15 +6290,15 @@ function buildSpecimenCard(item) {
   });
   actions.append(add);
   if (!behaviorCurrent(m)) {
-    const test = el('button', '', 'TEST');
+    const test = el('button', 'test', 'TEST');
     test.type = 'button';
     test.dataset.help = 'lib.test';
     test.addEventListener('click', () => { if (tests.running) flash('A TEST IS RUNNING'); else testSpecimens([item]); });
     actions.append(test);
   }
   actions.append(remove);
-  info.append(el('div', 'lib-title', m.name), stats, origin, actions);
-  card.append(thumb, info);
+  body.append(port, name, origin, reads, meters, line, actions);
+  card.append(grip, body);
   item.card = card;
 }
 function renderSpecimens() {
@@ -6168,8 +6317,9 @@ async function useSpecimen(item) {
   setMode('arena');
   // The same specimen is a card in the drawer, so it is picked there.
   await loadDrawer();
-  const card = drawer.items.find(x => x.key === item.key);
-  if (card) { pickCard(card); return; }
+  // The specimen joins the deck, in front, and is picked.
+  const card = drawer.all.find(x => x.key === item.key);
+  if (card) { addToDrawer(card); pickCard(card); return; }
   const specimen = await arenaWork('LOADING', async () => {
     const file = await (await item.store.getFileHandle(item.key + '.dlspec')).getFile();
     return unpackSpecimen(file, item.meta);
@@ -7993,7 +8143,7 @@ function renderArenaPanel() {
       : `${b.name} is on the cutting bench. No separate body was found, so a circle sits on its densest part. Click to move it and scroll to size it. CUT takes it; Esc cancels.`)
     : arena.placing ? `Click the dish to place ${arena.placing.name} at ×${(arena.placeSize || 1).toFixed(2)}. Scroll to size the next copy. Each click adds another copy, and the copies form one strain. ADD places one in an open spot. Esc stops.`
     : arena.keeping ? 'Click a living body to keep it as a specimen. The ring shows what will be kept; scroll to size it. Esc cancels.'
-    : !arena.founders.length ? 'Pick a card from the specimen deck beside the dish, then click the dish to place it. To cut something new, add from your SOLO organism, a slide in the ARCHIVE, or a WILD one.'
+    : !arena.founders.length ? 'Pick a card from the specimen deck beside the dish, then click the dish to place it. The empty slot at the bottom of the deck adds specimens from your collection. To cut something new, add from your SOLO organism, a slide in the ARCHIVE, or a WILD one.'
     : 'Each row is a strain: a placed specimen and all its descendants. Point at one to light it up in the dish, or click it to see its bodies and how its genes have drifted. Scroll on the dish to zoom in, and drag to look around.';
   markSeg($('segChart'), arena.chart);
   drawArenaChart();
@@ -8169,7 +8319,7 @@ async function keepAt(x, y, radius, from = '', shape = null) {
       field = { w: fw, h: fh, cx: cx / cell - fx0, cy: cy / cell - fy0, cell, data, palette: first?.palette || 'ORCHID', light: first?.light ?? st.view.fieldLight };
     }
     const specimen = {
-      kind: 'kept', name: freeName(genusFromName(from || origin[0].name), shape?.cell ? 'C' : 'K', `${arena.seed}:${s.step}:${n}:${Math.round(cx)}:${Math.round(cy)}`, new Set(drawer.items.map(x => x.meta.name))),
+      kind: 'kept', name: freeName(genusFromName(from || origin[0].name), shape?.cell ? 'C' : 'K', `${arena.seed}:${s.step}:${n}:${Math.round(cx)}:${Math.round(cy)}`, new Set(drawer.all.map(x => x.meta.name))),
       srcH: DISH_UNIT, radius, crop, field, recipes, agents: out, counts: [n], genes: keptGenes, masked: !!shape, cell: shape?.cell || null,
       meanEmit: emit, chem, origin, keptAt: s.step,
       traits: Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, +v.toFixed(3)])),
@@ -8302,7 +8452,7 @@ async function saveSpecimen(sp, thumb, ask = true) {
   // The same specimen already in the deck is not filed again; its card is used instead.
   if (dir && !drawer.loaded) await loadDrawer();
   const packed = dir ? await packSpecimen(sp) : null, key = specimenKey(meta);
-  for (const x of drawer.items) {
+  for (const x of drawer.all) {
     if (specimenKey(x.meta) !== key) continue;
     if (!x.key ? !dir : packed && await fileSize(x.store, x.key + '.dlspec') === packed.size) return Object.assign(x, { again: true, specimen: x.specimen || sp });
   }
@@ -8527,16 +8677,31 @@ function behaviorLine(meta) {
   if (!behaviorCurrent(meta)) return 'Tested under older rules; test again.';
   if (!b.grows) return `Dies out alone within ${b.steps.toLocaleString('en-US')} steps.`;
   const W = BEHAVIOR_WORDS, S = W.size, g = b.grows;
-  const ring = b.fill < W.solid && b.hole >= W.ring;
-  const form = !b.pieces ? 'Spreads out thinly' : b.pieces >= W.many ? 'Breaks into many small bodies'
-    : ring && b.inside ? `Forms a ring around ${b.inside === 1 ? 'another body' : countWord(b.inside) + ' other bodies'}`
-    : b.pieces > 1 ? `Splits into ${countWord(b.pieces)} bodies`
-    : b.fill >= W.solid ? (b.stretch >= W.stretch ? 'Holds together as one long body' : 'Holds together as one solid body')
-    : ring ? 'Forms a ring' : b.holes > 2 ? 'Forms a net' : 'Holds together loosely';
+  const kind = behaviorForm(b);
+  const form = { thin: 'Spreads out thinly', many: 'Breaks into many small bodies',
+    around: `Forms a ring around ${b.inside === 1 ? 'another body' : countWord(b.inside) + ' other bodies'}`, split: `Splits into ${countWord(b.pieces)} bodies`,
+    long: 'Holds together as one long body', solid: 'Holds together as one solid body', ring: 'Forms a ring', net: 'Forms a net', loose: 'Holds together loosely' }[kind];
   const moves = b.travel < W.travel[0] ? 'stays put' : b.travel < W.travel[1] ? 'drifts' : b.travel < W.travel[2] ? 'wanders' : 'travels far';
   const size = g < S[0] ? 'loses most of its particles' : g < S[1] ? 'shrinks to under half its size' : g < S[2] ? 'slims down'
     : g < S[3] ? 'keeps its size' : g < S[4] ? 'grows' : `grows ${Math.round(g)} times over`;
   return `${form}, ${moves} and ${size}${b.field >= W.field ? '; its reaction field fills most of the dish' : ''}.`;
+}
+// The form a test found, as one word: what the sentence says and how high HOLD lights.
+function behaviorForm(b) {
+  const W = BEHAVIOR_WORDS, ring = b.fill < W.solid && b.hole >= W.ring;
+  return !b.pieces ? 'thin' : b.pieces >= W.many ? 'many' : ring && b.inside ? 'around' : b.pieces > 1 ? 'split'
+    : b.fill >= W.solid ? (b.stretch >= W.stretch ? 'long' : 'solid') : ring ? 'ring' : b.holes > 2 ? 'net' : 'loose';
+}
+// The card's three meters, each 0 to 5: how far it travels (by the same cut-offs as its sentence, and 5 past 800
+// pixels), how tightly it holds its form, and how its size changes. None until it is tested under today's rules.
+function behaviorMeters(meta) {
+  if (!behaviorCurrent(meta)) return null;
+  const b = meta.behavior, W = BEHAVIOR_WORDS;
+  if (!b.grows) return [0, 0, 0];
+  const travel = 1 + [...W.travel, 800].filter(x => b.travel >= x).length;
+  const hold = { solid: 5, long: 5, around: 5, ring: 4, net: 3, loose: 2, split: 2, many: 1, thin: 1 }[behaviorForm(b)];
+  const size = 1 + W.size.slice(0, 4).filter(x => b.grows >= x).length;
+  return [Math.min(5, travel), hold, size];
 }
 async function testsStopped() { tests.stop = true; while (tests.running) await sleep(50); }
 // Measures a specimen in the standard dish. The Incubator must already be set aside and marked busy. Returns null if
@@ -8721,7 +8886,7 @@ async function saveBehavior(item, behavior) {
   const card = item.card;
   if (card && lib.open) { buildSpecimenCard(item); card.replaceWith(item.card); }
   // The same specimen's card in the deck shows it too.
-  const twin = drawer.items.find(x => x.key && x.key === item.key);
+  const twin = drawer.all.find(x => x.key && x.key === item.key);
   if (twin && twin !== item) twin.meta.behavior = behavior;
   if (twin) layoutDeck();
 }
@@ -9169,9 +9334,12 @@ function cellRuns(list) {
 const cellsFromRuns = runs => { const out = []; for (let i = 0; i < runs.length; i += 2) for (let k = 0; k < runs[i + 1]; k++) out.push(runs[i] + k); return out; };
 
 /* ---------- The specimen deck ---------- */
-/* Every specimen you have cut or kept, as a deck of cards beside the dish, newest in front. Scrolling over the deck
-   flips through it, and clicking a card picks it so copies can be placed. `front` is the card in front. */
-const drawer = { items: [], loaded: false, loading: false, pick: null, blocked: false, front: 0, wheel: 0 };
+/* The deck beside the dish holds the specimens you have chosen to work with, newest in front, with an empty slot at the
+   bottom that opens your whole collection (the picker). A new cut or keep joins the deck; PUT AWAY takes a card out,
+   leaving the specimen in the Archive. The deck is kept in the saves folder (deck.json), so it is there next time.
+   Scrolling over the deck flips through it, and clicking a card picks it so copies can be placed. `items` is the deck,
+   `all` every specimen known (saved, and cuts not yet saved), and `front` the card in front: items.length is the slot. */
+const drawer = { items: [], all: [], loaded: false, loading: false, pick: null, blocked: false, front: 0, wheel: 0, deckRead: false, slot: null, saving: 0 };
 // The saves folder, only if access is already allowed, so opening the Incubator never interrupts with a prompt.
 async function silentFolder() {
   const target = workFolder || folder;
@@ -9193,30 +9361,106 @@ async function readDrawer(ask) {
     await renameOldNames(dir);
     const saved = await readSpecimens(dir);
     if (saved.duplicates) flash(saved.duplicates + ' DUPLICATE' + (saved.duplicates === 1 ? '' : 'S') + ' REMOVED');
-    // Cards already in the drawer keep their loaded particles. Unsaved cuts from this session stay too.
-    const known = new Map(drawer.items.filter(x => x.key).map(x => [x.key, x]));
+    // Specimens already known keep their loaded particles and pictures. Unsaved cuts from this session stay too.
+    const known = new Map(drawer.all.filter(x => x.key).map(x => [x.key, x]));
     for (const x of saved) {
       const old = known.get(x.key);
       if (old) { if (x.url) URL.revokeObjectURL(x.url); x.url = old.url; x.specimen = old.specimen; known.delete(x.key); }
     }
     for (const gone of known.values()) { if (gone.url) URL.revokeObjectURL(gone.url); if (drawer.pick === gone) drawer.pick = null; }
+    drawer.all = [...drawer.all.filter(x => !x.key), ...saved];
+    // The deck keeps its order with the fresh copies; the first time, it is read from deck.json. With no deck file yet
+    // the deck starts empty, and the slot brings specimens in.
+    const byKey = new Map(saved.map(x => [x.key, x])), front = drawer.items[drawer.front];
+    const kept = drawer.items.map(x => x.key ? byKey.get(x.key) : x).filter(Boolean);
+    const fromFile = drawer.deckRead ? [] : (await readDeckKeys(dir)).map(k => byKey.get(k)).filter(x => x && !kept.includes(x));
+    drawer.items = [...kept, ...fromFile];
+    drawer.deckRead = true;
     // The card in front stays in front when the deck is read again.
-    const front = drawer.items[drawer.front];
-    drawer.items = [...drawer.items.filter(x => !x.key), ...saved];
-    drawer.front = Math.max(0, drawer.items.findIndex(x => x === front || (front?.key && x.key === front.key)));
+    const at = drawer.items.findIndex(x => x === front || (front?.key && x.key === front.key));
+    drawer.front = at >= 0 ? at : Math.min(drawer.front, drawer.items.length);
     drawer.loaded = true;
   } catch (e) { console.error(e); }
 }
+async function readDeckKeys(dir) {
+  try {
+    const deck = JSON.parse(await readText(await dir.getFileHandle('deck.json')));
+    return deck?.format === 'digital-life-deck' && Array.isArray(deck.keys) ? deck.keys.filter(k => typeof k === 'string') : [];
+  } catch { return []; }
+}
+// Writes the deck's order to the saves folder, a moment after it last changed. Unsaved cuts stay for this session only.
+function saveDeck() {
+  clearTimeout(drawer.saving);
+  drawer.saving = setTimeout(async () => {
+    try {
+      const dir = await silentFolder();
+      if (!dir || !drawer.deckRead) return;
+      const w = await (await dir.getFileHandle('deck.json', { create: true })).createWritable();
+      await w.write(JSON.stringify({ format: 'digital-life-deck', version: 1, keys: drawer.items.filter(x => x.key).map(x => x.key) }, null, 2));
+      await w.close();
+    } catch (e) { console.error(e); }
+  }, 400);
+}
 function addToDrawer(item) {
   // A specimen that was already in the deck comes to the front instead of being added twice.
+  if (!drawer.all.includes(item)) drawer.all.unshift(item);
   const at = drawer.items.indexOf(item);
   if (at >= 0) drawer.items.splice(at, 1);
   delete item.again;
   drawer.items.unshift(item);
   drawer.front = 0;
   renderDrawer();
+  saveDeck();
+}
+// PUT AWAY: the card in front leaves the deck; the specimen stays in the Archive, and the slot can bring it back.
+function putAway() {
+  const item = drawer.items[drawer.front];
+  if (!item || arena.busy) return;
+  if (drawer.pick === item) cancelPlacing();
+  drawer.items.splice(drawer.front, 1);
+  renderDrawer();
+  saveDeck();
+  flash(item.key ? 'PUT AWAY' : 'PUT AWAY FOR NOW');
+}
+// The picker: every specimen, to add to the deck.
+async function openDeckPicker() {
+  if (arena.busy) return;
+  if (!drawer.loaded || drawer.blocked) await loadDrawer(true);
+  $('pickerSearch').value = '';
+  renderPicker();
+  const dlg = $('deckPicker');
+  if (!dlg.open) dlg.showModal();
+  dlg.append($('helpCard'));
+  $('pickerSearch').focus();
+}
+function renderPicker() {
+  const words = $('pickerSearch').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const list = drawer.all.filter(x => words.every(w => [x.meta.name, x.meta.formerName || '', x.meta.source?.name || ''].join(' ').toLowerCase().includes(w)));
+  $('pickerGrid').replaceChildren(...list.map(item => {
+    const m = item.meta, tile = el('button', 'pick-tile'), t = typeStyle(tile, m), port = el('span', 'pick-port'), img = el('img'), text = el('span', 'pick-text'), type = el('span', 'pick-type');
+    tile.type = 'button';
+    tile.title = specimenDetails(m);
+    img.alt = '';
+    if (item.url) img.src = item.url;
+    port.append(img);
+    text.append(el('b', '', m.name), el('small', '', originLine(m)));
+    type.innerHTML = iconSvg(t.icon);
+    tile.append(port, text, type);
+    if (drawer.items.includes(item)) tile.append(el('em', '', 'IN DECK'));
+    tile.addEventListener('click', () => {
+      $('deckPicker').close();
+      const was = drawer.items.includes(item);
+      addToDrawer(item);
+      flash(was ? 'TO THE FRONT' : 'ADDED TO THE DECK');
+    });
+    return tile;
+  }));
+  $('pickerEmpty').hidden = list.length > 0;
+  $('pickerEmpty').textContent = drawer.all.length ? 'Nothing matches that search.'
+    : drawer.blocked ? 'Allow folder access to see the specimens you have saved.' : 'No specimens yet. Press CUT in the Microscope, or KEEP a living body in the Incubator.';
 }
 async function pickCard(item) {
+  if (item === 'slot') { openDeckPicker(); return; }
   // A card picked from behind comes to the front.
   const at = drawer.items.indexOf(item);
   if (at >= 0 && at !== drawer.front) { drawer.front = at; layoutDeck(); }
@@ -9233,24 +9477,29 @@ function renderDrawer() {
   const host = $('deckStack');
   if (!host) return;
   const count = drawer.items.length;
-  drawer.front = clamp(drawer.front, 0, Math.max(0, count - 1));
-  if (!count) {
+  drawer.front = clamp(drawer.front, 0, count);
+  if (!count && drawer.blocked) {
     $('deckCount').textContent = '';
     $('deckRemove').hidden = true;
     $('deckFoot').textContent = '';
     $('deckNote').textContent = '';
-    const note = el('div', 'deck-empty');
-    note.append(el('b', '', 'NO SPECIMENS YET'));
-    if (drawer.blocked) {
-      const open = el('button', '', 'SHOW MY SPECIMENS');
-      open.type = 'button';
-      open.addEventListener('click', () => loadDrawer(true));
-      note.append(el('span', '', 'Allow folder access to see the specimens you have saved.'), el('br'), open);
-    } else note.append(el('span', '', (workFolder || folder)
-      ? 'Press CUT in the Microscope, or ADD FROM SOLO, ARCHIVE or WILD, and the body you cut lands here.'
-      : 'Bodies you cut collect here. SET FOLDER to keep them between sessions.'));
+    const note = el('div', 'deck-empty'), open = el('button', '', 'SHOW MY SPECIMENS');
+    open.type = 'button';
+    open.addEventListener('click', () => loadDrawer(true));
+    note.append(el('b', '', 'YOUR SPECIMENS'), el('span', '', 'Allow folder access to see the specimens you have saved.'), el('br'), open);
     host.replaceChildren(note);
     return;
+  }
+  // The slot at the bottom of the deck, which opens the picker.
+  if (!drawer.slot) {
+    const slot = el('button', 'deck-card slot'), plus = el('span');
+    slot.type = 'button';
+    slot.dataset.help = 'drawer.slot';
+    slot.setAttribute('aria-label', 'Add a specimen to the deck');
+    plus.innerHTML = '+';
+    slot.append(plus, el('b', '', 'ADD SPECIMEN'));
+    slot.addEventListener('click', e => { if (e.detail) slot.blur(); pickCard('slot'); });
+    drawer.slot = slot;
   }
   host.replaceChildren(...drawer.items.map(item => {
     if (!item.card) {
@@ -9263,12 +9512,13 @@ function renderDrawer() {
       // A cut says whether its body held its shape at home, the way the bench found it.
       const tag = el('small', m.steady === false ? 'changes' : '', (m.kind === 'cut' ? 'CUT' : m.cell ? `CELL ${Math.round(m.cell.score * 100)}%` : 'KEPT') + (m.steady === true ? ' · STEADY' : m.steady === false ? ' · CHANGES' : ''));
       card.append(img, tag, el('i', '', kilo(m.particles)), el('b', '', m.name));
+      typeStyle(card, m);
       card.addEventListener('click', e => { if (e.detail) card.blur(); pickCard(item); });
       item.card = card;
     }
     item.card.setAttribute('aria-pressed', String(drawer.pick === item));
     return item.card;
-  }));
+  }), drawer.slot);
   layoutDeck();
 }
 // The card in front sits in the middle at full size. The cards before it stand behind it above, and the cards after
@@ -9276,12 +9526,12 @@ function renderDrawer() {
 // out of sight, so flipping brings them in from the edge.
 const DECK = { show: 2, gap: 10, scale: [1, .84, .7, .6], tilt: [0, 24, 40, 50], fade: [1, .55, .25, 0] };
 function layoutDeck() {
-  const host = $('deckStack'), n = drawer.items.length;
-  if (!host || !n) return;
-  $('deckCount').textContent = `${drawer.front + 1} / ${n}`;
-  $('deckRemove').hidden = false;
-  $('deckFoot').textContent = arena.placing ? 'CLICK THE DISH TO PLACE · ESC STOPS' : n > 1 ? 'SCROLL TO FLIP · CLICK TO PICK' : 'CLICK TO PICK';
-  $('deckNote').textContent = behaviorLine(drawer.items[drawer.front]?.meta);
+  const host = $('deckStack'), n = drawer.items.length, onSlot = drawer.front >= n;
+  if (!host || !drawer.slot || (!n && drawer.blocked)) return;
+  $('deckCount').textContent = onSlot ? (n ? `${n} IN DECK` : 'EMPTY') : `${drawer.front + 1} / ${n}`;
+  $('deckRemove').hidden = onSlot;
+  $('deckFoot').textContent = arena.placing ? 'CLICK THE DISH TO PLACE · ESC STOPS' : onSlot ? 'CLICK TO ADD A SPECIMEN' : 'SCROLL TO FLIP · CLICK TO PICK';
+  $('deckNote').textContent = onSlot ? 'Choose from all your specimens. A card you choose joins the deck and stays until you put it away.' : behaviorLine(drawer.items[drawer.front]?.meta);
   const W = host.clientWidth, H = host.clientHeight;
   if (!W || !H) return;
   const { show, gap, scale, tilt, fade } = DECK, rad = Math.PI / 180;
@@ -9291,8 +9541,7 @@ function layoutDeck() {
   const cardH = Math.min(W * 9 / 16 + 24, (H - 4 * gap) / reach), cardW = Math.max(60, (cardH - 24) * 16 / 9);
   const heights = scale.map((s, d) => cardH * s * Math.cos(tilt[d] * rad)), offsets = [0];
   for (let d = 1; d < scale.length; d++) offsets[d] = offsets[d - 1] + heights[d - 1] / 2 + gap + heights[d] / 2;
-  drawer.items.forEach((item, k) => {
-    const card = item.card;
+  [...drawer.items.map(x => x.card), drawer.slot].forEach((card, k) => {
     if (!card) return;
     const d = k - drawer.front, a = Math.min(Math.abs(d), show + 1), side = Math.sign(d);
     Object.assign(card.style, {
@@ -9311,7 +9560,7 @@ function showInDeck(f) {
   layoutDeck();
 }
 function flipDeck(step) {
-  const to = clamp(drawer.front + step, 0, drawer.items.length - 1);
+  const to = clamp(drawer.front + step, 0, drawer.items.length);
   if (to === drawer.front) return false;
   drawer.front = to;
   layoutDeck();
@@ -10447,30 +10696,14 @@ function initUi() {
     const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
     if (!step) return;
     e.preventDefault();
-    if (flipDeck(step)) drawer.items[drawer.front].card?.focus();
+    if (flipDeck(step)) (drawer.items[drawer.front]?.card || drawer.slot)?.focus();
   });
   new ResizeObserver(layoutDeck).observe(deckStack);
-  // REMOVE takes the card in front out of the deck: pressed twice, its files move to the removed folder, as in the Archive.
-  let removeArmed = 0;
-  $('deckRemove').addEventListener('click', async e => {
-    const b = e.currentTarget, item = drawer.items[drawer.front];
-    if (e.detail) b.blur();
-    if (!item || arena.busy) return;
-    if (!removeArmed) {
-      b.textContent = 'SURE?'; b.classList.add('armed');
-      removeArmed = setTimeout(() => { removeArmed = 0; b.textContent = 'REMOVE'; b.classList.remove('armed'); }, 3000);
-      return;
-    }
-    clearTimeout(removeArmed); removeArmed = 0; b.textContent = 'REMOVE'; b.classList.remove('armed');
-    try {
-      if (item.key) await removeStored(item, 'specimens', ['.json', '.dlspec', '.webp'], await savesFolder());
-      if (drawer.pick === item) cancelPlacing();
-      drawer.items.splice(drawer.items.indexOf(item), 1);
-      if (item.url) URL.revokeObjectURL(item.url);
-      renderDrawer();
-      flash('SPECIMEN REMOVED');
-    } catch (err) { console.error(err); flash('REMOVE FAILED'); }
-  });
+  // PUT AWAY takes the card in front out of the deck; the specimen stays in the Archive.
+  $('deckRemove').addEventListener('click', e => { if (e.detail) e.currentTarget.blur(); putAway(); });
+  $('pickerClose').addEventListener('click', () => $('deckPicker').close());
+  $('pickerSearch').addEventListener('input', renderPicker);
+  $('deckPicker').addEventListener('close', () => { (document.fullscreenElement || document.body).append($('helpCard')); hideHelp(); });
   // The arena page's own buttons: where to add from, and what to do with the world.
   for (const b of $('arenaAdd').children) b.addEventListener('click', e => {
     if (e.detail) b.blur();

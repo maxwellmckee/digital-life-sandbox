@@ -4,6 +4,12 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Specimen cards and a deck you fill yourself.** Every specimen in the Archive is now the same card: its picture
+  through a porthole, a ridged grip and ring in the color of how it was made (slide cut, kept body, kept cell, wild
+  cut), a genus coin, readouts (particles; species or strains with F for a field, such as 3F, or a cell's score; its
+  type icon), and TRAVEL, HOLD and SIZE meters from its test. The Incubator's deck now holds only the specimens you
+  choose: an empty slot at its bottom opens your collection, new cuts and keeps join it, PUT AWAY takes a card out
+  without deleting it, and the deck is kept in `saves/deck.json`. Help covers each new part.
 - **Predators (HUNTING).** Every particle carries a hunting gene from 0 to 1. Hunters digest food less well, are drawn
   to smells unlike their own and bite strangers they touch, keeping half of what they take; a particle surrounded by its
   kin is hard to bite. Kin are spared by a kin mark that every particle of a placed specimen shares and that drifts by
