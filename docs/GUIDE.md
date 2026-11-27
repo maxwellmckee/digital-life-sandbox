@@ -186,6 +186,16 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - Each species shows in its organism's own colors, unless another species already shows in them, in which case it borrows a free gradient. A strain's swatch blends the colors of the chemicals it gives off.
 
 **Specimens.** A cut specimen holds the particles inside its outline with their species' rules, and the trail beneath. A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath; a kept cell holds those inside its outline instead. Both are saved in `saves/specimens/`, appear as cards in the specimen deck, and are listed in the Archive under **SPECIMENS**, where each card shows where it came from. Specimens can be removed there. Cutting the same body from the same moment twice brings the existing card to the front instead of making a second one, and duplicates already in the folder move to `removed/specimens/` when the deck or Archive reads them. Added back to an Incubator, a kept specimen's particles keep their own genes and set points.
+
+**Testing specimens.** Each specimen card in the Archive has a **BEHAVIOR** line: one sentence on what the specimen did when tested alone in a standard dish, such as "Forms a ring, stays put and shrinks to under half its size." The same line shows under the deck in the Incubator for the card in front.
+- **TEST** on a card, or **TEST ALL** above the cards, runs the test: a fresh 1× dish with the default settings, PATCHES 0.5 and one food, the same seed every time, and the specimen in the middle at its true size, for 5,000 steps. It takes about 8 seconds a specimen; the bar above the cards shows how far it has got, and **STOP** or closing the Archive stops it.
+- The sentence is measured from the dish, never read from the genes:
+  - **Form**, at the end: one solid or long body, a ring (one large hole), a ring around another body (the cell-like case), a net (many small holes), split into two or three bodies, broken into many (four or more, each holding at least 5% of its particles), or spread too thin to form a body.
+  - **Travel**: how far its bodies moved in all, in pixels of a dish 1,080 high, counting a typical stretch so a shed piece doesn't read as a jump: stays put (under 120), drifts, wanders, or travels far (over 500).
+  - **Size**: its particles at the end against those placed. Most specimens shrink at first, as they settle to the food the dish can give.
+  - **Field**: whether its reaction field ends up covering most of the dish.
+- The Incubator runs one dish at a time, so the dish in it is set aside during a test and put back exactly as it was, ready to carry on.
+- The result is saved in the specimen's description file. If the Incubator's rules change in a later version, older results say so and TEST ALL runs them again.
 - The world is round: the largest circle that fits the picture. Particles, food, trail and placed specimens all stay inside the glass.
 - The dish sizes, measured on an RTX 4070 with a well-filled dish. Each holds 60 frames a second; a larger dish costs more per step, so its fastest speed is lower. Up to 16 strains, each thinned to at most 40% of the dish's particle places.
 

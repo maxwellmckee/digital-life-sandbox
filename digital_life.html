@@ -136,6 +136,9 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .deck-card:hover{box-shadow:0 0 0 1px #6ff0cf66,0 6px 16px #000c}
 .deck-card[aria-pressed=true]{box-shadow:0 0 0 2px var(--active),0 0 16px #2ff0c44d,0 6px 16px #000c}
 .deck-card:focus-visible{outline:2px solid var(--lumen);outline-offset:2px}
+.deck-note{flex:none;height:4.2em;margin:0;overflow:hidden;font-size:10px;line-height:1.4;color:#a9d8cc;text-align:center}
+.spec-note{font-size:9.5px;letter-spacing:.12em;color:#7fa79d}
+#specTest.armed{background:#8a3b1e;color:#fff3ec}
 .deck-foot{font-size:8.5px;letter-spacing:.12em;line-height:1.7;color:#4f7a72;text-align:center}
 .deck-empty{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);padding:16px 14px;border-radius:8px;
   border:1.5px dashed #24383b;color:var(--ink-soft);font-size:10px;line-height:1.6;text-align:center}
@@ -565,6 +568,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
       <div class="deck" id="deck" hidden>
         <div class="deck-head"><span>SPECIMENS</span><b id="deckCount"></b><button type="button" id="deckRemove" data-help="drawer.remove" hidden>REMOVE</button></div>
         <div class="deck-stack" id="deckStack" data-help="drawer"></div>
+        <p class="deck-note" id="deckNote" data-help="lib.behavior"></p>
         <div class="deck-foot" id="deckFoot"></div>
       </div>
       <div class="bench" id="bench" hidden>
@@ -716,6 +720,10 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
   <div class="slides-bar" id="slidesBar">
     <div class="seg" id="slidesView" role="group" aria-label="Show slides as" data-help="lib.slides.view"></div>
     <div class="seg" id="libSort" role="group" aria-label="Sort saves" data-help="lib.sort"></div>
+  </div>
+  <div class="slides-bar" id="specBar" hidden>
+    <button type="button" class="dlg-btn" id="specTest" data-help="lib.test">TEST ALL</button>
+    <span class="spec-note" id="specTestNote" data-help="lib.test"></span>
   </div>
   <div class="lib-grid" id="specGrid" hidden></div>
   <div class="lib-grid" id="dishGrid" hidden></div>
@@ -4580,6 +4588,8 @@ const HELP = {
   'lib.view.living': { t: 'LIVING', d: 'What lives in the Incubator. SPECIMENS are bodies you cut or kept, ready to place in a dish. DISHES are whole dishes you saved, which open exactly as they were.', tip: 'The number beside each is how many you have.' },
   'lib.life': { t: 'LIFE SCORE', d: 'How this save scored when it was saved, broken down into its parts below.' },
   'lib.specimen': { t: 'SPECIMEN', d: 'A living body cut from a slide or kept from the Incubator: its particles with their rules, and the trail beneath.', tip: 'A kept body carries every gene its particles evolved. These are the cards in the deck beside the dish.' },
+  'lib.test': { t: 'TEST', d: 'Runs a specimen alone in a standard dish for 5,000 steps and describes what it did: the form it takes, how far it travels, how its size changes, and whether its reaction field spreads. TEST ALL does every specimen not tested yet.', tip: 'About 8 seconds each. The dish in the Incubator is set aside and put back exactly as it was. Closing the Archive stops the test.' },
+  'lib.behavior': { t: 'BEHAVIOR', d: 'What the specimen did when tested alone in a standard dish: a fresh 1× dish, default settings, PATCHES 0.5 and one food, the same every time. It is measured from the dish, not read from the genes.', tip: 'A ring has one large hole, a net many small ones; a ring around another body is the cell-like case. Stays put means its bodies typically moved under 120 pixels in all, travels far over 500. Most specimens shrink at first, as they settle to the food the dish can give.' },
   'lib.specimen.add': { t: 'PLACE IN DISH', d: 'Opens the Incubator and lets you place copies of this specimen.' },
   'lib.dish': { t: 'SAVED DISH', d: 'A whole Incubator dish as last saved: every particle and gene, the trails, the broth and any reaction field. Below are its strains and their shares.', tip: 'Point at the picture to replay a snapshot from each save. The 1×, 1.5× or 2× badge is its size, and it always opens at that size.' },
   'lib.dish.open': { t: 'OPEN', d: 'Opens this dish in the Incubator exactly as it was last saved, and it carries on from there.', tip: 'You can add more specimens to it. REPLAY returns to its last save, and SAVE updates this entry and adds a snapshot.' },
@@ -5430,8 +5440,8 @@ async function useSave(item, breedIt) {
   const data = item.data;
   const name = itemName(item);
   closeLibrary();
-  // CUT puts this save on the cutting bench in the Incubator, from any room.
-  if (breedIt === 'cut') { arenaFromSave(data, name); return; }
+  // CUT puts this save on the cutting bench in the Incubator, from any room, once a running test has put the dish back.
+  if (breedIt === 'cut') { if (tests.running) await testsStopped(); arenaFromSave(data, name); return; }
   // With body inheritance, a recipe save first regrows so its children have a grown structure to inherit.
   await applySave(data, !breedIt || st.inherit === 'body');
   if (breedIt) { batch.sourceSnap = null; setMode('batch'); }
@@ -5740,7 +5750,7 @@ function setLibView(view, slides = lib.slides) {
   $('libGrid').hidden = !onSlides || slides !== 'grid';
   $('libTree').hidden = !onSlides || slides !== 'tree';
   $('libSort').hidden = slides !== 'grid';
-  $('specGrid').hidden = view !== 'specimens';
+  $('specGrid').hidden = $('specBar').hidden = view !== 'specimens';
   $('dishGrid').hidden = view !== 'dishes';
   renderLibrary();
 }
@@ -5909,7 +5919,7 @@ function closeLibrary() { if ($('library').open) $('library').close(); }
 // files are the same size: the same body cut twice from the same moment, or kept twice from a paused dish. The name of
 // the organism a cut came from is left out too: an unsaved organism's name can change once its LIFE score is measured.
 const specimenKey = meta => {
-  const { id, createdAt, name, formerName, source, ...rest } = meta;
+  const { id, createdAt, name, formerName, source, behavior, ...rest } = meta;
   return JSON.stringify({ ...rest, from: source?.saveId ?? null });
 };
 const fileSize = async (store, name) => { try { return (await (await store.getFileHandle(name)).getFile()).size; } catch { return -1; } };
@@ -5968,6 +5978,8 @@ function buildSpecimenCard(item) {
   } else row('KEPT', `step ${kilo(m.keptAt)} · ${when}`);
   if (m.cell) row('CELL', `${m.cell.name}${m.cell.dish ? ' in ' + m.cell.dish : ''} · ${Math.round(m.cell.score * 100)}% · lasted ${kilo(m.cell.age)} steps · ${m.cell.strains.toFixed(1)} strains inside`);
   if (m.formerName) row('FORMERLY', m.formerName);
+  row('BEHAVIOR', behaviorLine(m));
+  stats.lastChild.dataset.help = stats.lastChild.previousSibling.dataset.help = 'lib.behavior';
   if (Number.isFinite(t.setpoint)) row('SET POINT', t.setpoint.toFixed(2));
   if (Number.isFinite(t.speed)) row('SPEED', t.speed.toFixed(2));
   if (Number.isFinite(t.angle)) row('SENSORS', `${Math.round(t.angle)}° · reach ${t.reach.toFixed(1)}`);
@@ -5990,7 +6002,15 @@ function buildSpecimenCard(item) {
     remove.textContent = 'SURE?';
     armed = setTimeout(() => { armed = 0; remove.classList.remove('armed'); remove.textContent = 'REMOVE'; }, 3000);
   });
-  actions.append(add, remove);
+  actions.append(add);
+  if (!behaviorCurrent(m)) {
+    const test = el('button', '', 'TEST');
+    test.type = 'button';
+    test.dataset.help = 'lib.test';
+    test.addEventListener('click', () => { if (tests.running) flash('A TEST IS RUNNING'); else testSpecimens([item]); });
+    actions.append(test);
+  }
+  actions.append(remove);
   info.append(el('div', 'lib-title', m.name), stats, origin, actions);
   card.append(thumb, info);
   item.card = card;
@@ -6001,11 +6021,13 @@ function renderSpecimens() {
   const all = (lib.specimens || []).length;
   $('libCount').textContent = list.length === all ? '' : `${list.length} of ${all}`;
   $('libEmpty').hidden = list.length > 0;
+  syncTestBar();
   $('libEmpty').textContent = all ? 'Nothing matches that search.' : 'No specimens yet. Press CUT on a save to cut a body from it, or in the Incubator press KEEP and click a living body.';
   markView();
 }
 async function useSpecimen(item) {
   closeLibrary();
+  if (tests.running) await testsStopped();
   setMode('arena');
   // The same specimen is a card in the drawer, so it is picked there.
   await loadDrawer();
@@ -6133,6 +6155,7 @@ async function removeSpecimen(item) {
   renderLibrary();
 }
 function libraryClosed() {
+  tests.stop = true;
   const items = lib.items, removed = lib.removed;
   [...(lib.specimens || []), ...(lib.dishes || [])].forEach(x => { if (x.url) URL.revokeObjectURL(x.url); (x.snapUrls || []).forEach(u => u && URL.revokeObjectURL(u)); });
   lib.specimens = [];
@@ -6564,6 +6587,10 @@ function writeArenaUniforms(s, now, view = st.view) {
 }
 function simulateArena(pass, s, n) {
   if (arena.busy || n <= 0) return;
+  stepArena(pass, s, n);
+}
+// The steps themselves. A specimen test runs them while the Incubator is busy, so nothing else steps the dish.
+function stepArena(pass, s, n) {
   const { w, h, agents } = s.q, groups = Math.ceil(agents / 256), gx = Math.ceil(arena.d.gw / 8), gy = Math.ceil(arena.d.gh / 8);
   for (let i = 0; i < n; i++) {
     // Births, then each particle reports how much it can digest, then the food is shared out among them, then they live:
@@ -7665,19 +7692,24 @@ function censusClump(u, grid, strains) {
   const all = v.reduce((a, b) => a + b, 0);
   return all ? v.slice(0, Math.max(1, Math.round(v.length / 10))).reduce((a, b) => a + b, 0) / all : 0;
 }
-// Counts each lineage a couple of times a second: particles, genes and bodies, for the chart and the founder list.
-function arenaCensus() {
-  if (arena.censusPending || !arena.sim || arena.busy) return;
-  arena.censusPending = true;
-  const s = arena.sim, step = s.step, run = s.run, enc = device.createCommandEncoder();
+// Counts the dish into `read`, a buffer that can be mapped for reading.
+function submitCensus(read) {
+  const s = arena.sim, enc = device.createCommandEncoder();
   enc.clearBuffer(arena.censusBuf);
   const pass = enc.beginComputePass();
   pass.setBindGroup(0, arena.censusBG[arena.fcur]);
   pass.setPipeline(P.arenaPeople); pass.dispatchWorkgroups(Math.ceil(s.q.agents / 256));
   pass.setPipeline(P.arenaPantry); pass.dispatchWorkgroups(Math.ceil(arena.d.gw / 8), Math.ceil(arena.d.gh / 8));
   pass.end();
-  enc.copyBufferToBuffer(arena.censusBuf, 0, arena.censusRead, 0, arena.d.censusBytes);
+  enc.copyBufferToBuffer(arena.censusBuf, 0, read, 0, arena.d.censusBytes);
   device.queue.submit([enc.finish()]);
+}
+// Counts each lineage a couple of times a second: particles, genes and bodies, for the chart and the founder list.
+function arenaCensus() {
+  if (arena.censusPending || !arena.sim || arena.busy) return;
+  arena.censusPending = true;
+  const s = arena.sim, step = s.step, run = s.run;
+  submitCensus(arena.censusRead);
   const read = arena.censusRead, grid = arena.d.grid;
   read.mapAsync(GPUMapMode.READ).then(() => {
     const u = new Uint32Array(read.getMappedRange().slice(0)), S = ARENA_SLOTS, cells = grid.w * grid.h;
@@ -8114,7 +8146,8 @@ async function saveSpecimen(sp, thumb, ask = true) {
    the genes of the living particles in place order, trail maps A and B, the broth, the field, the two recipe maps, and
    the body map of each strain that had one, as 16-bit numbers. */
 const DISH_MAGIC = 0x48534944, DISH_TRAIL_BITS = 0xFFFFE000;
-async function packDish(id) {
+// Trails are rounded as in a save unless `exact`, as when a dish is set aside for a specimen test.
+async function packDish(id, exact = false) {
   const s = arena.sim, d = arena.d, { w, h, agents } = s.q, { gw, gh } = d;
   const places = new Float32Array(await readBack(s.agentBuf, agents * 16)), all = new Uint32Array(await readBack(arena.genes, agents * 64)), live = [];
   for (let i = 0; i < agents; i++) if (places[i * 4] >= 0) live.push(i);
@@ -8123,7 +8156,7 @@ async function packDish(id) {
   live.forEach((i, j) => genes.set(all.subarray(i * 16, i * 16 + 16), j * 16));
   const trail = async texture => {
     const f = await readRegion(texture, 0, 0, w, h), u = new Uint32Array(f.buffer);
-    for (let i = 0; i < u.length; i++) u[i] &= DISH_TRAIL_BITS;
+    if (!exact) for (let i = 0; i < u.length; i++) u[i] &= DISH_TRAIL_BITS;
     return f;
   };
   const grids = [];
@@ -8204,7 +8237,11 @@ async function saveDish() {
    specimen it grew from, so it can't be placed again from scratch: REPLAY returns to the moment the dish was saved, and
    UNDO only removes copies placed since. */
 async function restoreDish(meta, file) {
-  const raw = await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  await putDish(meta, await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  arena.origin = { meta, file, founders: arena.founders.length };
+}
+// Puts a dish back from its packed contents (see packDish), from a file or from a dish set aside for a test.
+async function putDish(meta, raw) {
   const [magic, version, w, h, agents, gw, gh, live, cells] = new Uint32Array(raw, 0, 16), size = DISHES[meta.dish];
   if (magic !== DISH_MAGIC || version !== 1 || !size || size.w !== w || size.h !== h || size.agents !== agents) throw new Error('not a dish file');
   arena.dish = meta.dish;
@@ -8241,7 +8278,6 @@ async function restoreDish(meta, file) {
   if (regrew !== ARENA.regrow) arena.params.food = Math.min(1, +(meta.params.food * regrew / ARENA.regrow).toFixed(2));
   arenaChemistry();
   s.step = meta.step;
-  arena.origin = { meta, file, founders: arena.founders.length };
   if (meta.cells?.tracks) {
     const G = cellGrid();
     cellScope.tracks = meta.cells.tracks.map(t => ({ ...t, r: cellShape(G, cellsFromRuns(t.runs)), members: null, seen: true }));
@@ -8252,6 +8288,7 @@ async function restoreDish(meta, file) {
 }
 async function openDish(item) {
   closeLibrary();
+  if (tests.running) await testsStopped();
   setMode('arena');
   closeBench();
   if (arena.placing) cancelPlacing();
@@ -8265,6 +8302,243 @@ async function openDish(item) {
   syncUi();
   flash('DISH OPENED');
   flashIcon('dish');
+}
+
+/* ---------- Specimen tests ---------- */
+/* TEST runs a specimen alone in a standard dish to see how it behaves: a fresh 1× dish with the default settings,
+   PATCHES 0.5 and one food, the same seed every time, and the specimen placed in the middle at its true size. It runs
+   5,000 steps, counted every 250, and is measured from what the dish shows, never from its genes (docs/RESEARCH.md,
+   "Testing specimens"):
+     travel   how far its bodies moved, in pixels of a dish 1080 high: at each count, how far the bodies still there
+              since the last count moved, weighted by their particles; the typical (median) count times the counts;
+     grows    its particles at the end over those placed;
+     pieces   separate bodies at the end holding at least 5% of its particles;
+     form     at the end, on 8-pixel squares, the piece holding most particles: how much of its outline it fills, its
+              holes, and how stretched it is (fill, holes, hole, stretch);
+     field    the share of the glass its reaction field covers at the end.
+   The card shows one sentence made from them (behaviorLine). The Incubator runs one dish at a time, so the dish in it is
+   set aside first and put back exactly as it was. A result stays with its specimen. BEHAVIOR.rules is raised whenever
+   the Incubator's rules change (when its fingerprint test needs a new value), and older results then ask for a new test. */
+const BEHAVIOR = { rules: 1, steps: 5000, every: 250, seed: 7357, dish: 's', settings: { patches: .5, foods: 1 }, piece: .05 };
+const tests = { running: false, stop: false, done: 0, total: 0, name: '' };
+const behaviorCurrent = meta => meta?.behavior?.rules === BEHAVIOR.rules;
+// One sentence from a test's measures, for a specimen's card: its form, how far it travels, how its size changes, and
+// whether its reaction field spreads. The cut-offs are in BEHAVIOR_WORDS.
+const BEHAVIOR_WORDS = { solid: .7, ring: .3, stretch: 2.5, many: 4, travel: [120, 300, 500], size: [.2, .5, .8, 1.25, 2], field: .5 };
+const countWord = n => ['no', 'one', 'two', 'three', 'four', 'five', 'six'][n] || String(n);
+function behaviorLine(meta) {
+  const b = meta?.behavior;
+  if (!b) return 'Not tested yet.';
+  if (!behaviorCurrent(meta)) return 'Tested under older rules; test again.';
+  if (!b.grows) return `Dies out alone within ${b.steps.toLocaleString('en-US')} steps.`;
+  const W = BEHAVIOR_WORDS, S = W.size, g = b.grows;
+  const ring = b.fill < W.solid && b.hole >= W.ring;
+  const form = !b.pieces ? 'Spreads out thinly' : b.pieces >= W.many ? 'Breaks into many small bodies'
+    : ring && b.inside ? `Forms a ring around ${b.inside === 1 ? 'another body' : countWord(b.inside) + ' other bodies'}`
+    : b.pieces > 1 ? `Splits into ${countWord(b.pieces)} bodies`
+    : b.fill >= W.solid ? (b.stretch >= W.stretch ? 'Holds together as one long body' : 'Holds together as one solid body')
+    : ring ? 'Forms a ring' : b.holes > 2 ? 'Forms a net' : 'Holds together loosely';
+  const moves = b.travel < W.travel[0] ? 'stays put' : b.travel < W.travel[1] ? 'drifts' : b.travel < W.travel[2] ? 'wanders' : 'travels far';
+  const size = g < S[0] ? 'loses most of its particles' : g < S[1] ? 'shrinks to under half its size' : g < S[2] ? 'slims down'
+    : g < S[3] ? 'keeps its size' : g < S[4] ? 'grows' : `grows ${Math.round(g)} times over`;
+  return `${form}, ${moves} and ${size}${b.field >= W.field ? '; its reaction field fills most of the dish' : ''}.`;
+}
+async function testsStopped() { tests.stop = true; while (tests.running) await sleep(50); }
+// Measures a specimen in the standard dish. The Incubator must already be set aside and marked busy. Returns null if
+// the test was stopped.
+async function behaviorRun(sp) {
+  // The strains set aside are let go of first, so making the test dish leaves them as they are.
+  Object.assign(arena, { founders: [], rows: null, origin: null, dishId: null, seed: BEHAVIOR.seed, dish: BEHAVIOR.dish });
+  Object.assign(arena.params, defaults(ARENA_PARAMS), BEHAVIOR.settings);
+  ensureArena();
+  resetArena();
+  const spot = { ...discInDish(.5, .5, sp.radius), size: 1 }, f = { specimen: sp, x: spot.x, y: spot.y, spots: [spot], lineage: 0 };
+  arena.founders.push(f);
+  arenaChemistry();
+  await stampFounder(f, 0);
+  const s = arena.sim, { w, h } = s.q, grid = arena.d.grid, cells = grid.w * grid.h;
+  const read = device.createBuffer({ size: arena.d.censusBytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const track = { track: null };
+  let start = 0, n = 0, pieces = 0, before = new Map();
+  const moves = [];
+  try {
+    for (let t = 0; t <= BEHAVIOR.steps; t += BEHAVIOR.every) {
+      for (let left = t ? BEHAVIOR.every : 0; left > 0;) {
+        if (tests.stop) return null;
+        const k = Math.min(left, 50);
+        writeArenaUniforms(s, 0);
+        const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+        stepArena(pass, s, k);
+        pass.end();
+        device.queue.submit([enc.finish()]);
+        await device.queue.onSubmittedWorkDone();
+        left -= k;
+      }
+      submitCensus(read);
+      await read.mapAsync(GPUMapMode.READ);
+      const u = new Uint32Array(read.getMappedRange().slice(0));
+      read.unmap();
+      n = u[0];
+      if (!t) start = n;
+      trackBodies(track, u.subarray(CENSUS_GRID, CENSUS_GRID + cells), t, grid);
+      // How far its bodies moved since the last count: each body that is still there, weighted by its particles.
+      const bodies = track.track.bodies;
+      let moved = 0, weight = 0;
+      for (const b of bodies) {
+        const was = before.get(b.id);
+        if (was) { moved += Math.hypot((b.cx - was.cx) * w, (b.cy - was.cy) * h) * b.mass; weight += b.mass; }
+      }
+      if (weight) moves.push(moved / weight);
+      before = new Map(bodies.map(b => [b.id, b]));
+      pieces = bodies.filter(b => b.mass >= BEHAVIOR.piece * n).length;
+    }
+  } finally { read.destroy(); }
+  const form = n ? await behaviorShape() : null;
+  // A typical count's movement, times the counts: small pieces jitter, and the odd jump when one sheds a piece would
+  // otherwise read as travel.
+  moves.sort((a, b) => a - b);
+  const travel = moves.length ? moves[moves.length >> 1] * moves.length : 0;
+  return {
+    rules: BEHAVIOR.rules, steps: BEHAVIOR.steps, testedAt: new Date().toISOString(),
+    grows: +(start ? n / start : 0).toFixed(2), pieces: n ? pieces : 0,
+    travel: Math.round(travel * DISH_UNIT / h), ...form, field: sp.field ? await fieldCover() : 0,
+  };
+}
+// The shape the particles take at the end, on 8-pixel squares; a square with at least 2 particles is body. For the piece
+// holding the most particles: how much of its outline (its holes filled in) it fills, how many holes it has, its largest
+// hole as a share of its outline, how stretched it is (the ratio of its long and short axes), and how many other pieces
+// holding at least 5% of the particles lie inside its holes.
+async function behaviorShape() {
+  const s = arena.sim, { w, h, agents } = s.q, gw = Math.ceil(w / 8), gh = Math.ceil(h / 8), g = new Uint16Array(gw * gh);
+  const pos = new Float32Array(await readBack(s.agentBuf, agents * 16));
+  for (let i = 0; i < agents; i++) {
+    if (pos[i * 4] < 0) continue;
+    g[Math.min(gh - 1, Math.floor(pos[i * 4 + 1] / 8)) * gw + Math.min(gw - 1, Math.floor(pos[i * 4] / 8))]++;
+  }
+  const mask = new Uint8Array(gw * gh);
+  for (let k = 0; k < mask.length; k++) mask[k] = g[k] >= 2 ? 1 : 0;
+  const { regions } = labelRegions(mask, gw, gh);
+  if (!regions.length) return null;
+  const mass = regions.map(r => r.cells.reduce((a, p) => a + g[p], 0)), total = mass.reduce((a, b) => a + b, 0);
+  const main = regions[mass.indexOf(Math.max(...mass))], filled = fillRegion(main.cells, gw, gh), hollow = new Uint8Array(gw * gh);
+  let area = 0;
+  for (let k = 0; k < filled.length; k++) if (filled[k]) { area++; hollow[k] = 1; }
+  for (const p of main.cells) hollow[p] = 0;
+  const holes = labelRegions(hollow, gw, gh).regions.map(r => r.cells.length).filter(a => a >= 4);
+  const inside = regions.filter((r, i) => r !== main && mass[i] >= BEHAVIOR.piece * total && r.cells.filter(p => hollow[p]).length * 2 >= r.cells.length).length;
+  let mx = 0, my = 0, xx = 0, yy = 0, xy = 0;
+  for (const p of main.cells) { mx += p % gw; my += Math.floor(p / gw); }
+  mx /= main.cells.length; my /= main.cells.length;
+  for (const p of main.cells) { const dx = p % gw - mx, dy = Math.floor(p / gw) - my; xx += dx * dx; yy += dy * dy; xy += dx * dy; }
+  const tr = (xx + yy) / 2, det = Math.sqrt(Math.max(0, ((xx - yy) / 2) ** 2 + xy * xy)), long = tr + det, short = Math.max(tr - det, 1e-6);
+  return { fill: +(main.cells.length / area).toFixed(2), holes: holes.length, hole: +(Math.max(0, ...holes) / area).toFixed(2), stretch: +Math.sqrt(long / short).toFixed(1), inside };
+}
+// The share of the glass where the reaction field is alive at the end.
+async function fieldCover() {
+  const { gw, gh } = arena.d, f = await readRegion(arena.rd[0], 0, 0, gw, gh), R = gh / 2 - 3;
+  let glass = 0, on = 0;
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+    if (Math.hypot(x + .5 - gw / 2, y + .5 - gh / 2) > R) continue;
+    glass++;
+    if (f[(y * gw + x) * 4 + 1] > .05) on++;
+  }
+  return +(on / glass).toFixed(2);
+}
+// Takes the dish out of the Incubator, in memory, so a test can use it. Returns what putBackDish needs.
+async function setAsideDish() {
+  const keep = { dish: arena.dish, founders: arena.founders, seed: arena.seed, params: { ...arena.params } };
+  if (!arena.sim) return keep;
+  // The dish is packed as a save would be, so it comes back exactly; the strains keep their own objects, so REPLAY,
+  // UNDO and their specimens work as before.
+  const { meta, parts } = await packDish(arena.dishId || 'set-aside', true);
+  return Object.assign(keep, {
+    packed: { meta, raw: await new Blob(parts).arrayBuffer() },
+    origin: arena.origin, dishId: arena.dishId, census: arena.census, history: arena.history, open: arena.open, zoom: { ...arena.zoom },
+    cells: Object.fromEntries(['tracks', 'next', 'step', 'nextStep', 'prevSample', 'listed', 'held', 'lit'].map(k => [k, cellScope[k]])),
+  });
+}
+async function putBackDish(keep) {
+  arena.dish = keep.dish;
+  if (!keep.packed) {
+    // There was no dish yet, so the one made for the test goes.
+    if (arena.sim) destroyArena();
+    Object.assign(arena, { founders: keep.founders, seed: keep.seed, origin: null, dishId: null, census: null, rows: null });
+    Object.assign(arena.params, keep.params);
+    return;
+  }
+  await putDish(keep.packed.meta, keep.packed.raw);
+  Object.assign(arena, { founders: keep.founders, origin: keep.origin, dishId: keep.dishId, seed: keep.seed, census: keep.census, history: keep.history, open: keep.open, rows: null });
+  Object.assign(arena.params, keep.params);
+  arenaChemistry();
+  Object.assign(cellScope, keep.cells);
+  arena.zoom = keep.zoom;
+  syncZoom();
+  await device.queue.onSubmittedWorkDone();
+}
+// Tests the given Archive specimens one after another, saving each result with its specimen as it comes.
+async function testSpecimens(items) {
+  if (tests.running || !items.length) return;
+  if (arena.bench) { flash('FINISH CUTTING FIRST'); return; }
+  if (capture) { flash('STOP RECORDING FIRST'); return; }
+  if (arena.busy) { flash('INCUBATOR IS BUSY'); return; }
+  if (arena.placing) cancelPlacing();
+  if (arena.keeping) cancelKeeping();
+  Object.assign(tests, { running: true, stop: false, done: 0, total: items.length, name: '' });
+  arena.busy = true;
+  arena.task = 'TESTING';
+  syncTestBar();
+  let keep = null, failed = 0;
+  try {
+    for (let i = 0; i < 100 && arena.censusPending; i++) await sleep(20);
+    keep = await setAsideDish();
+    for (const item of items) {
+      if (tests.stop) break;
+      tests.name = item.meta.name;
+      syncTestBar();
+      try {
+        const sp = item.specimen || await unpackSpecimen(await (await item.store.getFileHandle(item.key + '.dlspec')).getFile(), item.meta);
+        const result = await behaviorRun(sp);
+        if (!result) break;
+        await saveBehavior(item, result);
+        tests.done++;
+      } catch (e) { console.error(e); failed++; }
+    }
+  } catch (e) { console.error(e); failed++; }
+  // Nothing was changed if the dish could not be set aside.
+  if (keep) try { await putBackDish(keep); } catch (e) { console.error(e); failed++; }
+  Object.assign(tests, { running: false, stop: false, name: '' });
+  arena.busy = false;
+  arena.task = '';
+  syncUi();
+  renderArenaPanel();
+  syncTestBar();
+  if (failed) flash(failed === 1 ? '1 TEST FAILED' : failed + ' TESTS FAILED');
+  else flash(tests.done === 1 ? '1 SPECIMEN TESTED' : tests.done + ' SPECIMENS TESTED');
+}
+// Keeps a result with its specimen, in its description file, and shows it on its card at once.
+async function saveBehavior(item, behavior) {
+  item.meta.behavior = behavior;
+  if (item.store && item.key) {
+    const w = await (await item.store.getFileHandle(item.key + '.json')).createWritable();
+    await w.write(JSON.stringify(item.meta, null, 2));
+    await w.close();
+  }
+  const card = item.card;
+  if (card && lib.open) { buildSpecimenCard(item); card.replaceWith(item.card); }
+  // The same specimen's card in the deck shows it too.
+  const twin = drawer.items.find(x => x.key && x.key === item.key);
+  if (twin && twin !== item) twin.meta.behavior = behavior;
+  if (twin) layoutDeck();
+}
+function syncTestBar() {
+  const b = $('specTest'), note = $('specTestNote');
+  if (!b) return;
+  const all = lib.specimens || [], left = all.filter(x => !behaviorCurrent(x.meta)).length;
+  b.textContent = tests.running ? 'STOP' : 'TEST ALL';
+  b.disabled = !tests.running && !left;
+  b.classList.toggle('armed', tests.running);
+  note.textContent = tests.running ? `TESTING ${Math.min(tests.done + 1, tests.total)} OF ${tests.total} · ${tests.name.toUpperCase()}`
+    : !all.length ? '' : left ? `${left} NOT TESTED · ABOUT ${Math.max(1, Math.round(left * 8 / 60))} MIN` : 'ALL TESTED';
 }
 
 /* ---------- Cells ---------- */
@@ -8769,6 +9043,7 @@ function renderDrawer() {
     $('deckCount').textContent = '';
     $('deckRemove').hidden = true;
     $('deckFoot').textContent = '';
+    $('deckNote').textContent = '';
     const note = el('div', 'deck-empty');
     note.append(el('b', '', 'NO SPECIMENS YET'));
     if (drawer.blocked) {
@@ -8811,6 +9086,7 @@ function layoutDeck() {
   $('deckCount').textContent = `${drawer.front + 1} / ${n}`;
   $('deckRemove').hidden = false;
   $('deckFoot').textContent = arena.placing ? 'CLICK THE DISH TO PLACE · ESC STOPS' : n > 1 ? 'SCROLL TO FLIP · CLICK TO PICK' : 'CLICK TO PICK';
+  $('deckNote').textContent = behaviorLine(drawer.items[drawer.front]?.meta);
   const W = host.clientWidth, H = host.clientHeight;
   if (!W || !H) return;
   const { show, gap, scale, tilt, fade } = DECK, rad = Math.PI / 180;
@@ -10041,6 +10317,7 @@ function initUi() {
   $('libSearch').addEventListener('input', e => { lib.query = e.target.value; renderLibrary(); });
   $('libFile').addEventListener('click', () => { closeLibrary(); loadSave(); });
   $('libClose').addEventListener('click', closeLibrary);
+  $('specTest').addEventListener('click', () => { if (tests.running) { tests.stop = true; return; } testSpecimens((lib.specimens || []).filter(x => !behaviorCurrent(x.meta))); });
   $('library').addEventListener('close', libraryClosed);
   for (const b of $('libView').querySelectorAll('button')) b.addEventListener('click', e => { setLibView(b.dataset.value); if (e.detail) b.blur(); });
   segmented($('slidesView'), [['grid', 'GRID'], ['tree', 'TREE']], v => setLibView('slides', v));

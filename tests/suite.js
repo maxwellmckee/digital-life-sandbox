@@ -355,6 +355,53 @@
       return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `even ${even.cv.toFixed(2)}, patchy ${patchy.cv.toFixed(2)} with ${Math.round(patchy.mean / even.mean * 100)}% of the food, moved ${Math.round(moved * 100)}%; diets ${lo.toFixed(2)} to ${hi.toFixed(2)}, foods left ${(a / cells).toFixed(2)} and ${(b / cells).toFixed(2)}` };
     },
 
+    // TEST sets the dish aside and puts it back exactly, measures a specimen the same way every time, and describes it.
+    async 'Specimen test'() {
+      const wrong = [];
+      const start = async () => {
+        await freshDish('s', 31);
+        await foundAt(fx.a, .5, .5, 1); await idle();
+        await foundAt(fx.b, .3, .45, .5); await idle();
+        await DL.arenaAdvance(200);
+      };
+      await start();
+      await DL.arenaAdvance(300);
+      const plain = await dishHash();
+      // Every particle place, and the genes of every living particle (an empty place gets new genes when one is born there).
+      const held = async () => {
+        const n = arena.sim.q.agents, pos = new Float32Array(await readBack(arena.sim.agentBuf, n * 16)), gu = new Uint32Array(await readBack(arena.genes, n * 64)), live = [];
+        for (let i = 0; i < n; i++) if (pos[i * 4] >= 0) live.push(...gu.subarray(i * 16, i * 16 + 16));
+        return (await dishHash()) + '-' + fnv(new Uint8Array(Uint32Array.from(live).buffer));
+      };
+      await start();
+      const before = await held();
+      const founders = arena.founders, items = [{ meta: { name: 'A' }, specimen: fx.a }, { meta: { name: 'A again' }, specimen: fx.a }];
+      await testSpecimens(items);
+      if (arena.founders !== founders || arena.sim.step !== 200 || arena.busy) wrong.push('the dish was not put back as it was');
+      if (await held() !== before) wrong.push('the dish put back holds different particles or genes');
+      await DL.arenaAdvance(300);
+      if (await dishHash() !== plain) wrong.push('the dish runs differently after the test');
+      const [a, b] = items.map(x => x.meta.behavior);
+      const same = a && b && ['travel', 'grows', 'pieces', 'fill', 'holes', 'hole', 'stretch', 'field'].every(k => a[k] === b[k]);
+      if (!same) wrong.push(`two tests differ: ${JSON.stringify(a)} and ${JSON.stringify(b)}`);
+      if (a && !behaviorCurrent(items[0].meta)) wrong.push('a fresh result counts as untested');
+      // Made-up results read as they should.
+      const line = r => behaviorLine({ behavior: { rules: BEHAVIOR.rules, ...r } });
+      const ring = { travel: 40, grows: 1, pieces: 1, fill: .4, holes: 1, hole: .6, stretch: 1.1, field: 0 };
+      const expect = [
+        [ring, 'Forms a ring, stays put and keeps its size.'],
+        [{ ...ring, fill: .9, holes: 0, hole: 0, travel: 800, grows: .1 }, 'Holds together as one solid body, travels far and loses most of its particles.'],
+        [{ ...ring, holes: 9, hole: .1, grows: .6, field: .8 }, 'Forms a net, stays put and slims down; its reaction field fills most of the dish.'],
+        [{ ...ring, pieces: 7, travel: 200, grows: 3.2 }, 'Breaks into many small bodies, drifts and grows 3 times over.'],
+        [{ ...ring, pieces: 2, inside: 1, travel: 400, grows: .4 }, 'Forms a ring around another body, wanders and shrinks to under half its size.'],
+        [{ ...ring, pieces: 0, grows: 0 }, `Dies out alone within ${BEHAVIOR.steps.toLocaleString('en-US')} steps.`],
+        [{ ...ring, pieces: 0, grows: .6 }, 'Spreads out thinly, stays put and slims down.'],
+      ];
+      for (const [r, want] of expect) { const got = line({ steps: BEHAVIOR.steps, ...r }); if (got !== want) wrong.push(`"${got}" should read "${want}"`); }
+      if (behaviorLine({ behavior: { ...ring, rules: BEHAVIOR.rules - 1 } }) === line(ring)) wrong.push('an out-of-date result is shown as current');
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `the dish came back exactly; ${fx.a.name}: "${behaviorLine(items[0].meta)}"` };
+    },
+
     async 'Every help label has its text'() {
       const keys = new Set(), take = () => document.querySelectorAll('[data-help]').forEach(e => keys.add(e.dataset.help));
       DL.goRoom('lab'); await sleep(200); take();

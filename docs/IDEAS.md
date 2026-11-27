@@ -36,7 +36,7 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 
 | | Idea | Why | Size | Status |
 |---|---|---|---|---|
-| C1 | **A test dish for every specimen.** Each runs alone in a small standard dish for a few thousand steps; its card shows how much it moves, holds together, grows and divides. | You could see and compare how specimens behave, not only how they look. | Medium | idea |
+| C1 | **A test dish for every specimen.** Each runs alone in a small standard dish for a few thousand steps; its card shows how much it moves, holds together, grows and divides. | You could see and compare how specimens behave, not only how they look. | Medium | **in progress**: built (TEST, BEHAVIOR line), not yet committed |
 | C2 | **A diversity breeding mode for BATCH**, which fills in behaviors your collection does not have yet (novelty search, MAP-Elites) instead of steering toward past picks. | Steering toward what you liked narrows the search over time; this widens it on purpose. | Medium | idea |
 | C3 | **Breed slides under the Incubator's physics**, with real food in the Microscope. | Specimens would arrive already adapted to the dish and keep their differences. | Medium to large | idea |
 | C4 | **Let trail deposit mutate.** It is 1 in every saved slide. | Frees one gene that never varies. | Small | idea |

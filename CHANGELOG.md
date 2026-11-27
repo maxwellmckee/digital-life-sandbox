@@ -4,6 +4,11 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Specimen tests and a BEHAVIOR line on every specimen card.** TEST (on a card) or TEST ALL (in the Archive's
+  SPECIMENS) runs a specimen alone in a standard dish for 5,000 steps and sums up what it did in one sentence: its form
+  (solid, ring, net, or split into pieces), how far it travels, how its size changes, and whether its reaction field
+  spreads. It is measured from the dish, not read from the genes. The same line shows under the Incubator's deck. The
+  dish in the Incubator is set aside during a test and put back exactly as it was.
 - **Patchy, drifting food (PATCHES) and two kinds of food (FOODS).** Food can grow mostly in a few soft patches of
   sunlight that slowly circle the dish, with the same total, so moving pays again. With two foods, each in its own
   patches, every particle carries a diet gene from 0 (first food) to 1 (second); specialists digest their food better

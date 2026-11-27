@@ -705,6 +705,49 @@ second food let three strains share the dish almost equally. Limits so far:
   keeps different strains alive, but it does not yet push them to move differently.
 - One dish and one run per setup: a direction, not a measurement.
 
+### Testing specimens
+
+Specimens differ in genes, but until now nothing showed how each one *behaves*. TEST runs a specimen alone in a
+standard dish (a fresh 1× dish, default settings, PATCHES 0.5, one food, one fixed seed, placed in the middle at its true
+size) for 5,000 steps and describes what the dish shows. Nothing in the test reads a gene, so the description stays a
+description of emergent behavior.
+
+What was measured, and why, from all 39 saved specimens (about 8 seconds each on an RTX 4070; all 39 took 5.2 minutes):
+
+- **Share of particles in bodies** was the first idea for "holds together". On the census's 20-pixel squares it was
+  99 to 100% for every specimen, so it told them apart not at all. It was dropped.
+- **Form** comes instead from an 8-pixel grid of particle positions at the end. For the piece holding the most
+  particles: how much of its outline it fills, its holes, how stretched it is, and whether other pieces sit inside it.
+  Read against pictures of the 39 dishes, a filled share of 0.7 or more is a solid body; a largest hole of at least 30%
+  of the outline is a ring; three or more smaller holes make a net. Other pieces inside a ring's hole make it "a ring
+  around another body", the cell-like case: 11 of the 39 ended that way.
+- **Ground covered** (every square a body ever filled over the most it filled at once) was muddied by shrinking: a
+  body that shrinks while it wanders inside its old outline scores as still. **Total path** of the bodies' centres was
+  inflated by small pieces jittering: one specimen that broke into many read 500 pixels against 102 typically. Travel is
+  therefore each count's typical (median) movement, weighted by particles, times the number of counts. Most specimens
+  measured 17 to 113 pixels; eight drifted 125 to 254; three really travelled, 369 to 562.
+- **Size** is particles at the end over those placed, and **field** the share of the glass the reaction field covers.
+
+How the 39 read:
+
+| | Result |
+|---|---|
+| Form | 11 a ring around another body, 9 a net, 6 a ring, 4 one solid body, 5 split into two or three, 4 broken into many |
+| Travel | 28 stay put, 8 drift, 2 wander, 1 travels far |
+| Size | 1 grows, 2 keep their size, 12 slim down, 15 shrink to under half, 9 lose most of their particles |
+| Field | 16 fill most of the dish with their reaction field |
+
+Limits:
+
+- **Most specimens shrink.** Bodies cut in the Microscope, where food never runs out, are packed more densely than the
+  Incubator's food can keep, so 36 of the 39 lost more than a fifth of their particles. Size mostly says how hard that
+  settling is, and a longer test might show which ones recover.
+- **Most stay put**, as expected from what the dish rewards (see [More than one way to win](#more-than-one-way-to-win-patchy-food-and-two-foods)).
+- **One run, one seed.** A specimen's sentence describes one standard run. The cut-offs were chosen by comparing these
+  39 dishes with their pictures, not from theory, and may need moving as specimens change.
+- **Not measured yet:** how the shape changes over time, when bodies divide, movement inside a cell, and how a specimen
+  does among others.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
