@@ -20,8 +20,8 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 
 | | Idea | Why | Size | Status |
 |---|---|---|---|---|
-| A1 | **Patchy, drifting food.** Food grows in slowly moving patches, like sunlight, instead of evenly everywhere. | Moving pays again: fast foragers that follow the patches and slow, frugal settlers can both do well. | Small to medium | **in progress**: built (PATCHES), not yet committed |
-| A2 | **Two kinds of food.** Each strain digests some kinds better than others, set by a gene. | Strains can specialize and live side by side instead of one winning (resource partitioning). | Medium | **in progress**: built (FOODS, diet gene), not yet committed |
+| A1 | **Patchy, drifting food.** Food grows in slowly moving patches, like sunlight, instead of evenly everywhere. | Moving pays again: fast foragers that follow the patches and slow, frugal settlers can both do well. | Small to medium | **done** (PATCHES), 13676e0 |
+| A2 | **Two kinds of food.** Each strain digests some kinds better than others, set by a gene. | Strains can specialize and live side by side instead of one winning (resource partitioning). | Medium | **done** (FOODS, diet gene), 13676e0 |
 | A3 | **Predators.** A gene that lets particles eat other strains' particles. | Hunters and prey, chases, arms races, and a real reason to stay in a tight body. | Medium to large | idea |
 
 ## B. Particles that do more than one thing
@@ -62,3 +62,4 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 | Energy only from food (leak fixed); food limits growth | a5249ee |
 | ECOSYSTEM score | 4599ddd |
 | Digestion needs a minimum density of kin; STRUCTURE added to the score | fe0853e |
+| Patchy, drifting food (PATCHES) and two kinds of food with a diet gene (FOODS) | 13676e0 |
