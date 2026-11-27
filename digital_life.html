@@ -785,9 +785,12 @@ const DISH_UNIT = 1080;
 function dishLayout(key) {
   const d = DISHES[key], gw = Math.ceil(d.w / 4), gh = Math.ceil(d.h / 4), cells = gw * gh;
   const grid = { w: Math.ceil(d.w / 20), h: Math.ceil(d.h / 20) }, mark = { w: Math.ceil(d.w / 8), h: Math.ceil(d.h / 8) };
-  // Where each kind of counter sits in the dish's one counter buffer, in 32-bit words. See ECON_* in the shaders.
-  const econ = { crowd: 0, crowdB: cells, returned: 2 * cells, recipe: 3 * cells, clock: 8 * cells, words: 8 * cells + 4 };
-  return { key, ...d, gw, gh, grid, mark, econ, censusBytes: (CENSUS_GRID + 16 * grid.w * grid.h) * 4 };
+  // Where each kind of counter sits in the dish's one counter buffer, in 32-bit words. See ECON_* in the shaders. Predation
+  // adds a grid of 2-pixel patches and four counters per particle place.
+  const occ = { w: Math.ceil(d.w / 2), h: Math.ceil(d.h / 2) }, o = 8 * cells + 4, a = d.agents;
+  const econ = { crowd: 0, crowdB: cells, returned: 2 * cells, recipe: 3 * cells, clock: 8 * cells,
+    occ: o, bites: o + occ.w * occ.h, target: o + occ.w * occ.h + a, request: o + occ.w * occ.h + 2 * a, pay: o + occ.w * occ.h + 3 * a, words: o + occ.w * occ.h + 4 * a };
+  return { key, ...d, gw, gh, grid, mark, occ, econ, censusBytes: (CENSUS_GRID + 16 * grid.w * grid.h) * 4 };
 }
 // Barriers are brush strokes rasterized onto one fixed grid, so a drawing means the same thing at every quality level.
 const WALL_W = 1920, WALL_H = 1080, WALL_MAX_COVER = .92;
@@ -1194,7 +1197,7 @@ struct Arena {
   hunger: f32, drift: f32, crowd: f32, sigma: f32,
   eat: f32, regrow: f32, wear: f32, veins: f32,
   scale: f32, homing: f32, spread: f32, veinFlow: f32,
-  foods: f32, cohesion: f32, pad5: f32, pad6: f32,
+  foods: f32, cohesion: f32, hunting: f32, pad6: f32,
 }
 // The food grid of this dish size (see dishCode).
 const FIELD_SIZE = vec2u(#GW#u, #GH#u);
@@ -1262,6 +1265,30 @@ const WGSL_ARENA = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(10) var trailB: texture_2d<f32>;
 // The reaction field: U in red, the living chemical V in green.
 @group(0) @binding(11) var field: texture_2d<f32>;
+// Each particle's second gene record: x its hunting, from 0 (grazes) to 1 (hunts); y its kin mark, a point on a circle
+// from 0 to 1 that every particle of a placed specimen shares and that drifts slowly by mutation; z and w are spare.
+@group(0) @binding(12) var<storage, read_write> genesB: array<vec4f>;
+// Predation's counters, in the counter buffer: which particle stands on each 2-pixel patch, and per particle the bites
+// asked of it, the particle it bit and how much it asked, and the share it gave.
+const ECON_OCC = #OCC#u;
+const OCC_SIZE = vec2u(#OW#u, #OH#u);
+const ECON_BITES = #BITES#u;
+const ECON_TARGET = #TARGET#u;
+const ECON_REQUEST = #REQUEST#u;
+const ECON_PAY = #PAY#u;
+// Predation's constants (ARENA.predation): a full hunter's bite on an unguarded stranger, per step at HUNTING 1; the
+// share of it the hunter keeps (the rest is lost, as in real food chains); how fully kin around a particle guard it; and
+// how strongly a full hunter is drawn to smells unlike its own. Bites are counted in 2^20ths.
+const BITE = #BITE#;
+const EFFICIENCY = #EFFICIENCY#;
+const GUARD = #GUARD#;
+const HUNT_PULL = #HUNTPULL#;
+const BITE_UNITS = 1048576.0;
+// Kin immunity, as in bacteria that kill on contact but spare cells carrying the same immunity gene: a bite is full when
+// two kin marks lie KIN_RANGE or more apart on their circle, and nothing between particles with the same mark. How far a
+// mark drifts at a birth, at full GENE DRIFT.
+const KIN_RANGE = 0.1;
+const KIN_DRIFT = 0.02;
 // Energy and matter: a particle is BODY units of matter plus its stored energy. Dividing splits both, and dying
 // returns both to the food field. Living costs energy that is not returned, so sunlight-like regrowth keeps it going.
 const DIVIDE = 1.0;
@@ -1297,7 +1324,7 @@ fn wobble(rng: ptr<function, u32>) -> vec3f {
 // How good a spot looks: Particle Lenia's energy with the trail as its field. Chemicals pull or push by the
 // particle's responses, food pulls by its forage gene, and crowding past its set point pushes back.
 // Returns the score and how much of its kin the particle senses there.
-fn score(p: vec2f, a: f32, reach: f32, g: Gene, rl: vec3f, rh: vec3f, pull: f32) -> vec2f {
+fn score(p: vec2f, a: f32, reach: f32, g: Gene, rl: vec3f, rh: vec3f, pull: f32, hunt: f32) -> vec2f {
   let at = p + vec2f(cos(a), sin(a)) * reach;
   if (!insideDish(at)) { return vec2f(-1e9, 0.0); }
   let q = vec2i(floor(at));
@@ -1312,6 +1339,10 @@ fn score(p: vec2f, a: f32, reach: f32, g: Gene, rl: vec3f, rh: vec3f, pull: f32)
   let fd = textureLoad(food, vec2i(fieldCell(at)), 0);
   let e = eats(g.field);
   v += g.forage * (fd.g * e.x + fd.a * e.y) * together(u, g.setpoint);
+  // A hunter is drawn to smells unlike its own: chemicals it gives off little of.
+  if (arena.hunting > 0.0 && hunt > 0.0) {
+    v += HUNT_PULL * arena.hunting * hunt * (dot(ta.rgb, vec3f(1.0) - lo3(g.emit)) + dot(tb.rgb, vec3f(1.0) - hi3(g.emit))) * arena.norm;
+  }
   let over = max(u - g.setpoint, 0.0);
   let crowd = select(arena.crowd, arena.crowd * crowdingOf(g), arena.cohesion > 0.5);
   return vec2f(v - crowd * over * over, u);
@@ -1331,10 +1362,12 @@ fn senseHere(p: vec2f, rl: vec3f, rh: vec3f) -> f32 {
 // How much a particle can digest where it stands, in 1024ths. Food is digested with the help of the chemicals a particle
 // is drawn to, like enzymes shared among kin: a loner can barely eat whatever its set point, and past its set point it
 // chokes. Together these give a body one shared fate.
-fn digestUnits(p: vec2f, g: Gene) -> u32 {
+// A hunter digests food less well the more it hunts, so hunting and grazing trade off.
+fn digestUnits(p: vec2f, g: Gene, hunt: f32) -> u32 {
   let u = senseHere(p, lo3(g.resp), hi3(g.resp));
   let x = u - g.setpoint;
-  return u32(together(u, g.setpoint) * exp(-x * x / (2.0 * arena.sigma * arena.sigma)) * 1024.0 + 0.5);
+  let graze = select(1.0, 1.0 - hunt, arena.hunting > 0.0);
+  return u32(together(u, g.setpoint) * exp(-x * x / (2.0 * arena.sigma * arena.sigma)) * graze * 1024.0 + 0.5);
 }
 
 // Before the food is shared out, each particle reports how much it can digest where it stands. Each cell's food is
@@ -1348,7 +1381,7 @@ fn report(@builtin(global_invocation_id) id: vec3u) {
   let cell = fieldCell(a.pos);
   let k = cell.y * FIELD_SIZE.x + cell.x;
   let g = genes[i];
-  let units = f32(digestUnits(a.pos, g));
+  let units = f32(digestUnits(a.pos, g, genesB[i].x));
   let e = eats(g.field);
   atomicAdd(&econ[k], u32(units * e.x + 0.5));
   if (e.y > 0.0) { atomicAdd(&econ[ECON_EATERS_B + k], u32(units * e.y + 0.5)); }
@@ -1404,8 +1437,14 @@ fn birth(@builtin(global_invocation_id) id: vec3u) {
     let cr = shifted(crowdingOf(g), 0.15, 0.0, 4.0, &rng);
     g.lineage = strainOf(g) | (u32(hm * 1023.0 + 0.5) << 8u) | (u32(cr * 1023.0 + 0.5) << 20u);
   }
+  var gb = genesB[c - 1u];
+  if (arena.hunting > 0.0) {
+    gb.x = shifted(gb.x, 0.12, 0.0, 1.0, &rng);
+    gb.y = fract(gb.y + (rand(&rng) + rand(&rng) - 1.0) * arena.drift * KIN_DRIFT + 1.0);
+  }
   agents[i] = Agent(p, heading, rng);
   genes[i] = g;
+  genesB[i] = gb;
 }
 
 @compute @workgroup_size(256)
@@ -1421,9 +1460,10 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   let rl = lo3(g.resp);
   let rh = hi3(g.resp);
   let pull = unpack2x16float(g.field).y;
-  let sf = score(a.pos, a.angle, g.dist, g, rl, rh, pull);
-  let sl = score(a.pos, a.angle + g.angle, g.dist, g, rl, rh, pull);
-  let sr = score(a.pos, a.angle - g.angle, g.dist, g, rl, rh, pull);
+  let hunt = genesB[i].x;
+  let sf = score(a.pos, a.angle, g.dist, g, rl, rh, pull, hunt);
+  let sl = score(a.pos, a.angle + g.angle, g.dist, g, rl, rh, pull, hunt);
+  let sr = score(a.pos, a.angle - g.angle, g.dist, g, rl, rh, pull, hunt);
   let f = sf.x;
   let l = sl.x;
   let r = sr.x;
@@ -1447,7 +1487,7 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   // take exactly what was eaten there.
   let cell = fieldCell(a.pos);
   let x = u - g.setpoint;
-  let units = f32(digestUnits(a.pos, g));
+  let units = f32(digestUnits(a.pos, g, genesB[i].x));
   let e = eats(g.field);
   let shareA = f32(u32(units * e.x + 0.5)) / 1024.0;
   let shareB = f32(u32(units * e.y + 0.5)) / 1024.0;
@@ -1458,6 +1498,14 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   let rations = textureLoad(food, vec2i(cell), 0);
   let cost = arena.hunger * (BASAL + MOVE_COST * g.speed / arena.scale + DEPOSIT_COST * g.deposit);
   g.energy = min(g.energy + rations.r * shareA + rations.b * shareB - cost, MAX_ENERGY);
+  // A hunter takes its share of what its prey gave (see bite and defend).
+  if (arena.hunting > 0.0) {
+    let t = atomicLoad(&econ[ECON_TARGET + i]);
+    if (t > 0u) {
+      let caught = f32(atomicLoad(&econ[ECON_REQUEST + i])) / BITE_UNITS * f32(atomicLoad(&econ[ECON_PAY + t - 1u])) / 65536.0;
+      g.energy = min(g.energy + caught * EFFICIENCY, MAX_ENERGY);
+    }
+  }
   let k = cell.y * FIELD_SIZE.x + cell.x;
   if (g.energy <= 0.0 || rand(&rng) < arena.wear) {
     atomicAdd(&econ[ECON_RETURNED + k], u32((BODY + max(g.energy, 0.0)) * 1024.0));
@@ -1508,6 +1556,68 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
 fn clear(@builtin(global_invocation_id) id: vec3u) {
   if (id.x < arena.agents) { atomicStore(&claims[id.x], 0u); }
   if (id.x == 0u) { atomicAdd(&econ[ECON_CLOCK], 1u); }
+  if (arena.hunting > 0.0) {
+    if (id.x < OCC_SIZE.x * OCC_SIZE.y) { atomicStore(&econ[ECON_OCC + id.x], 0u); }
+    if (id.x < arena.agents) {
+      atomicStore(&econ[ECON_BITES + id.x], 0u);
+      atomicStore(&econ[ECON_TARGET + id.x], 0u);
+      atomicStore(&econ[ECON_REQUEST + id.x], 0u);
+      atomicStore(&econ[ECON_PAY + id.x], 0u);
+    }
+  }
+}
+
+/* Predation, while HUNTING is above 0: three passes after birth, all between particles that touch. */
+// Each particle marks the 2-pixel patch it stands on; the highest-numbered one there wins, the same every run.
+fn occAt(p: vec2f) -> u32 {
+  let c = min(vec2u(max(p, vec2f(0.0)) * 0.5), OCC_SIZE - vec2u(1u));
+  return ECON_OCC + c.y * OCC_SIZE.x + c.x;
+}
+@compute @workgroup_size(256)
+fn occupy(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= arena.agents) { return; }
+  let a = agents[i];
+  if (a.pos.x < 0.0) { return; }
+  atomicMax(&econ[occAt(a.pos)], i + 1u);
+}
+// A hunter bites the particle on the patch just ahead of it, by how much it hunts and by how far apart their kin marks
+// are, so it spares its own body, sister species and all, and bites strangers.
+@compute @workgroup_size(256)
+fn bite(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= arena.agents) { return; }
+  let a = agents[i];
+  let h = genesB[i].x;
+  if (a.pos.x < 0.0 || h <= 0.0) { return; }
+  let mouth = a.pos + vec2f(cos(a.angle), sin(a.angle)) * 2.0;
+  if (!insideDish(mouth)) { return; }
+  let o = atomicLoad(&econ[occAt(mouth)]);
+  if (o == 0u || o == i + 1u) { return; }
+  let apart = abs(genesB[i].y - genesB[o - 1u].y);
+  let strange = clamp(min(apart, 1.0 - apart) / KIN_RANGE, 0.0, 1.0);
+  let want = u32(BITE * arena.hunting * h * strange * BITE_UNITS + 0.5);
+  if (want == 0u) { return; }
+  atomicAdd(&econ[ECON_BITES + o - 1u], want);
+  atomicStore(&econ[ECON_TARGET + i], o);
+  atomicStore(&econ[ECON_REQUEST + i], want);
+}
+// The bitten particle gives what it is asked, up to its stored energy, but less the thicker its kin are around it (the
+// same company digestion measures): a particle deep in its body is hard to bite, a loner or a frayed edge easy. It
+// notes the share it gave, and each hunter takes its part of that as it lives.
+@compute @workgroup_size(256)
+fn defend(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= arena.agents) { return; }
+  let asked = atomicLoad(&econ[ECON_BITES + i]);
+  if (asked == 0u) { return; }
+  var g = genes[i];
+  let u = senseHere(agents[i].pos, lo3(g.resp), hi3(g.resp));
+  let want = f32(asked) / BITE_UNITS;
+  let give = min(want * (1.0 - GUARD * together(u, g.setpoint)), max(g.energy, 0.0));
+  g.energy -= give;
+  genes[i] = g;
+  atomicStore(&econ[ECON_PAY + i], u32(give / want * 65536.0 + 0.5));
 }`;
 
 // Food regrows toward one unit per cell, spreads slightly, and is shared among the particles eating in each cell by how
@@ -1782,11 +1892,12 @@ struct Job { count: u32, imprint: u32, pad1: u32, pad2: u32 }
 @group(0) @binding(1) var<uniform> job: Job;
 @group(0) @binding(2) var<storage, read> slots: array<u32>;
 @group(0) @binding(3) var<storage, read> newAgents: array<Agent>;
-@group(0) @binding(4) var<storage, read> newGenes: array<array<f32, 26>>;
+@group(0) @binding(4) var<storage, read> newGenes: array<array<f32, 28>>;
 @group(0) @binding(5) var<storage, read_write> agents: array<Agent>;
 @group(0) @binding(6) var<storage, read_write> genes: array<Gene>;
 @group(0) @binding(7) var trail: texture_2d<f32>;
 @group(0) @binding(8) var trailB: texture_2d<f32>;
+@group(0) @binding(9) var<storage, read_write> genesB: array<vec4f>;
 fn sensedAt(p: vec2f, rl: vec3f, rh: vec3f) -> f32 {
   let q = clamp(vec2i(floor(p)), vec2i(0), vec2i(arena.size) - vec2i(1));
   return sensed(textureLoad(trail, q, 0), textureLoad(trailB, q, 0), rl, rh);
@@ -1816,6 +1927,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let s = slots[id.x];
   agents[s] = a;
   genes[s] = g;
+  genesB[s] = vec4f(clamp(n[26], 0.0, 1.0), fract(n[27]), 0.0, 0.0);
 }`;
 
 // The dish's own blur and fade, for all six chemicals at once: each fades and spreads at its own rate. Veins grow from
@@ -1885,7 +1997,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 // Counts each lineage's particles and sums its genes, so drift can be followed, and maps where each lineage lives on a
 // coarse grid of 20-pixel cells, from which separate bodies are found and tracked. Also adds up the food left in the
 // world. The grid's size and the census's length come with the dish size (dishLayout).
-const ARENA_SLOTS = 64, ARENA_STATS = 17;
+const ARENA_SLOTS = 64, ARENA_STATS = 18;
 const CENSUS_FOOD = ARENA_STATS * ARENA_SLOTS, CENSUS_GRID = CENSUS_FOOD + 4;
 const WGSL_ARENA_CENSUS = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(0) var<uniform> arena: Arena;
@@ -1893,6 +2005,7 @@ const WGSL_ARENA_CENSUS = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(2) var<storage, read> genes: array<Gene>;
 @group(0) @binding(3) var<storage, read_write> census: array<atomic<u32>>;
 @group(0) @binding(4) var food: texture_2d<f32>;
+@group(0) @binding(5) var<storage, read> genesB: array<vec4f>;
 const SLOTS = ${ARENA_SLOTS}u;
 const GRID = vec2u(#CW#u, #CH#u);
 fn tally(stat: u32, lineage: u32, v: f32) { atomicAdd(&census[stat * SLOTS + lineage], u32(max(v, 0.0))); }
@@ -1914,6 +2027,7 @@ fn people(@builtin(global_invocation_id) id: vec3u) {
   tally(14u, l, dietOf(g.field) * 256.0);
   tally(15u, l, homingOf(g) * 256.0);
   tally(16u, l, crowdingOf(g) * 256.0);
+  tally(17u, l, genesB[id.x].x * 256.0);
   let el = lo3(g.emit);
   let eh = hi3(g.emit);
   for (var c = 0u; c < 3u; c++) {
@@ -1955,7 +2069,9 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 // The Incubator's shaders are built for one dish size at a time: each #NAME# in them becomes that dish's grid sizes
 // and counter places.
 function dishCode(code, d) {
-  const marks = { GW: d.gw, GH: d.gh, EATERSB: d.econ.crowdB, RETURNED: d.econ.returned, RECIPE: d.econ.recipe, CLOCK: d.econ.clock, CW: d.grid.w, CH: d.grid.h, MW: d.mark.w, MH: d.mark.h };
+  const marks = { GW: d.gw, GH: d.gh, EATERSB: d.econ.crowdB, RETURNED: d.econ.returned, RECIPE: d.econ.recipe, CLOCK: d.econ.clock, CW: d.grid.w, CH: d.grid.h, MW: d.mark.w, MH: d.mark.h,
+    OCC: d.econ.occ, OW: d.occ.w, OH: d.occ.h, BITES: d.econ.bites, TARGET: d.econ.target, REQUEST: d.econ.request, PAY: d.econ.pay,
+    BITE: ARENA.predation.bite.toFixed(6), EFFICIENCY: ARENA.predation.efficiency.toFixed(6), GUARD: ARENA.predation.guard.toFixed(6), HUNTPULL: ARENA.predation.pull.toFixed(6) };
   return code.replace(/#(\w+)#/g, (_, k) => String(marks[k]));
 }
 
@@ -2556,14 +2672,14 @@ async function initGpu() {
     color: bgl([uni(F), raw(F), tex, smp, raw(F)]),
     blur: bgl([tex, smp]),
     composite: bgl([uni(F), tex, tex, smp]),
-    arena: bgl([uni(C), sto, sto, sto, sto, sto, uni(C), raw(C), raw(C), sto, raw(C), raw(C)]),
+    arena: bgl([uni(C), sto, sto, sto, sto, sto, uni(C), raw(C), raw(C), sto, raw(C), raw(C), sto]),
     arenaFood: bgl([uni(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, sto, raw(C), raw(C), uni(C)]),
     arenaRecipe: bgl([uni(C), sto, raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } },
       { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }]),
     arenaField: bgl([uni(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, raw(C), raw(C), raw(C), raw(C), uni(C)]),
     arenaStamp: bgl([uni(C), raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }]),
-    arenaPlace: bgl([uni(C), uni(C), ro, ro, ro, sto, sto, raw(C), raw(C)]),
-    arenaCensus: bgl([uni(C), ro, ro, sto, raw(C)]),
+    arenaPlace: bgl([uni(C), uni(C), ro, ro, ro, sto, sto, raw(C), raw(C), sto]),
+    arenaCensus: bgl([uni(C), ro, ro, sto, raw(C), ro]),
     arenaMark: bgl([uni(C), uni(C), ro, ro, sto]),
     arenaDiffuse: bgl([uni(C), sto, sto, raw(C), raw(C), { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } },
       { visibility: C, storageTexture: { access: 'write-only', format: 'rgba32float' } }, raw(C)]),
@@ -2634,6 +2750,9 @@ function dishPipelines(d) {
     arenaBirth: comp(L.arena, arena, 'birth'),
     arenaLive: comp(L.arena, arena, 'live'),
     arenaClear: comp(L.arena, arena, 'clear'),
+    arenaOccupy: comp(L.arena, arena, 'occupy'),
+    arenaBite: comp(L.arena, arena, 'bite'),
+    arenaDefend: comp(L.arena, arena, 'defend'),
     arenaFood: comp(L.arenaFood, at(WGSL_ARENA_FOOD)),
     arenaReturn: comp(L.arenaFood, at(WGSL_ARENA_RETURN)),
     arenaPlace: comp(L.arenaPlace, at(WGSL_ARENA_PLACE)),
@@ -4655,6 +4774,7 @@ const HELP = {
   'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'At 1 a dish of fresh specimens fills about half its room' },
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
   'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together: a particle that strays from its kin turns back, crowding past its set density pushes it out, and it digests best near that density. Each particle also inherits its own HOMING and CROWDING, as multiples of this, which mutate, so a strain can evolve to hold together more or less.', lo: 'Classic slime: bodies fray into spreading networks', hi: 'Bodies stay separate: rings, ribbons and cells that move and compete' },
+  'arena.hunting': { t: 'HUNTING', d: 'How much predation pays. Every particle carries a hunting gene from 0 (grazes) to 1 (hunts): a hunter digests food less well, is drawn to smells unlike its own, and bites strangers it bumps into, taking part of their stored energy. Kin are spared by a kin mark every particle of a placed specimen shares. A particle surrounded by its own kind gives up half as much; a loner or a frayed edge is easy prey.', lo: 'No predation: hunting does nothing', hi: 'Strong bites: hunters can live on other strains, and the dish grows thinner', tip: 'Particles start with their own hunting, mostly near 0 and a few higher, the same spread for every specimen, and it mutates; strains become hunters if hunting pays them. The strain stats show it.' },
   'arena.patches': { t: 'PATCHES', d: 'Where food grows back. At 0, evenly everywhere. Turned up, mostly in a few soft patches of sunlight that slowly circle the dish, so a body that sits still sees its food drift away and moving pays.', lo: 'Food everywhere: sitting still wins', hi: 'Food in drifting patches: foragers and settlers both have a way to win', tip: 'The total amount of food is the same at every setting. Each lap takes tens of thousands of steps.' },
   'arena.foods': { t: 'FOODS', d: 'ONE food, or TWO kinds that grow in different patches, the second shown in a warmer color. Each particle\'s diet gene sets how well it digests each: a specialist digests one well, a generalist both but less well, so strains that specialize on different foods can live side by side.', tip: 'With two foods each grows half as fast, so the dish holds as much in all. Diet mutates like any gene; the strain stats show it, from 0 (first food) to 1 (second).' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful copies', hi: 'Fast evolution and more failed offspring' },
@@ -6210,6 +6330,12 @@ const ARENA = {
   palettes: ['ROSE', 'KELP', 'GLACIER', 'SOLAR', 'ORCHID', 'ABYSS', 'EMBER', 'VIOLET', 'BIOLUME', 'SUNSET', 'PRISM'],
   // A founder keeps its full density unless it would take more than 40% of the world. Thinning a body loosens it.
   maxFounders: 16, energy: .6, forage: .25, grow: 900, tries: 3, maxShare: .4,
+  // A placed particle's starting hunting, from a random number of its own between 0 and 1: cubed, so most start near 0 and
+  // about one in five above 0.5, the same spread for every specimen (docs/RESEARCH.md, "Predators").
+  huntStart: u => u ** 3,
+  // Predation's physics (docs/RESEARCH.md, "Predators"); see BITE and its neighbors in the dish's shader.
+  // At HUNTING 1 a full hunter can take a tenth of an unguarded stranger's energy a step; HUNTING scales bites and pull.
+  predation: { bite: .1, efficiency: .5, guard: .5, pull: 4 },
   // One fixed scale for the chemicals keeps every imprinted set point meaningful as the founders change.
   norm: 1 / 12,
   // How a species of one kind treats a stranger's chemical. A species with partners at home treats strangers with half
@@ -6235,21 +6361,23 @@ const ARENA = {
 };
 // The dish's chemicals: three in each of its two trail maps.
 const CHEM = 6;
-// A new particle's genes as 26 plain numbers: energy, lineage, sensor angle, reach, turn, speed, deposit, set point,
-// six emissions, forage, six responses, its pull toward its field, its field recipe, its diet, and its homing and
-// crowding (multiples of the dish's HOMEOSTASIS, 1 to start). Kept specimens saved before homing and crowding have 24.
-const GENE_IN = 26;
+// A new particle's genes as 28 plain numbers: energy, lineage, sensor angle, reach, turn, speed, deposit, set point,
+// six emissions, forage, six responses, its pull toward its field, its field recipe, its diet, its homing and crowding
+// (multiples of the dish's HOMEOSTASIS, 1 to start), its hunting and its kin mark. Kept specimens saved before have 24
+// or 26.
+const GENE_IN = 28;
 const ARENA_PARAMS = [
   { k:'food',   label:'FOOD',        min:0,  max:1, step:.01, def:.75, fmt:v=>v.toFixed(2) },
   { k:'hunger', label:'METABOLISM',  min:.2, max:2, step:.01, def:1,   fmt:v=>v.toFixed(2) },
   { k:'homeo',  label:'HOMEOSTASIS', min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
   { k:'drift',  label:'GENE DRIFT',  min:0,  max:1, step:.01, def:.35, fmt:v=>v.toFixed(2) },
   { k:'patches', label:'PATCHES',    min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
+  { k:'hunting', label:'HUNTING',    min:0,  max:1, step:.01, def:.5,  fmt:v=>v.toFixed(2) },
 ];
 /* RANDOMIZE draws each of the settings above from a range where dishes were seen to live, more often near its middle
    (the average of two random numbers). FOOD is the one that kills: since digestion needs real company, a dish of fresh
    specimens at 0.6 lost a strain, so food is drawn from 0.75 up (docs/RESEARCH.md, "Why dishes turned to mush"). */
-const SAFE_SETTINGS = { food: [.75, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65], patches: [.2, .8] };
+const SAFE_SETTINGS = { food: [.75, 1], hunger: [.5, 1.6], homeo: [.2, .85], drift: [.1, .65], patches: [.2, .8], hunting: [0, .8] };
 function safeSettings(rf = Math.random) {
   return Object.fromEntries(ARENA_PARAMS.map(p => { const [lo, hi] = SAFE_SETTINGS[p.k]; return [p.k, snapTo(lo + (rf() + rf()) / 2 * (hi - lo), p)]; }));
 }
@@ -6316,13 +6444,15 @@ function ensureArena() {
     sim: s,
     trailB, trailBViews: views(trailB), rd: field, rdViews: views(field), recA, recAViews: views(recA), recB, recBViews: views(recB),
     depositB: buf(w * h * 12, B.STORAGE | B.COPY_DST),
-    econ: buf(d.econ.words * 4, B.STORAGE | B.COPY_DST),
+    econ: buf(d.econ.words * 4, B.STORAGE | B.COPY_DST | B.COPY_SRC),
     recipeBuf: buf(66 * 16, B.UNIFORM | B.COPY_DST),
     chemBuf: buf(80, B.UNIFORM | B.COPY_DST),
     viewBuf: buf(96, B.UNIFORM | B.COPY_DST),
     uniform: buf(96, B.UNIFORM | B.COPY_DST),
     lightBuf: buf(9 * 16, B.UNIFORM | B.COPY_DST),
     genes: buf(n * 64, B.STORAGE | B.COPY_DST | B.COPY_SRC),
+    // The second gene record: hunting, and three spare.
+    genesB: buf(n * 16, B.STORAGE | B.COPY_DST | B.COPY_SRC),
     claims: buf(n * 4, B.STORAGE | B.COPY_DST),
     censusBuf: buf(d.censusBytes, B.STORAGE | B.COPY_SRC | B.COPY_DST),
     censusRead: buf(d.censusBytes, B.MAP_READ | B.COPY_DST),
@@ -6334,7 +6464,7 @@ function ensureArena() {
   const group = (layout, res) => device.createBindGroup({ layout, entries: res.map((r, binding) => ({ binding, resource: r.usage !== undefined ? { buffer: r } : r })) });
   const tb = arena.trailBViews, rd = arena.rdViews, ra = arena.recAViews, rb = arena.recBViews;
   arena.liveBG = [0, 1].map(t => [0, 1].map(f => group(P.L.arena,
-    [arena.uniform, s.agentBuf, arena.genes, arena.claims, s.depositBuf, arena.econ, arena.recipeBuf, s.trailViews[t], s.fieldViews[f], arena.depositB, tb[t], rd[0]])));
+    [arena.uniform, s.agentBuf, arena.genes, arena.claims, s.depositBuf, arena.econ, arena.recipeBuf, s.trailViews[t], s.fieldViews[f], arena.depositB, tb[t], rd[0], arena.genesB])));
   arena.foodBG = [0, 1].map(f => [0, 1].map(t => group(P.L.arenaFood, [arena.uniform, s.fieldViews[f], s.fieldViews[1 - f], arena.econ, s.trailViews[t], tb[t], arena.lightBuf])));
   arena.diffuseBG = [0, 1].map(t => group(P.L.arenaDiffuse, [arena.chemBuf, s.depositBuf, arena.depositB, s.trailViews[t], tb[t], s.trailViews[1 - t], tb[1 - t], s.wallView]));
   // The recipe maps are read from one of each pair and written to the other; the field steps run on the fresh ones.
@@ -6343,7 +6473,7 @@ function ensureArena() {
   arena.colorBG = [0, 1].map(f => [0, 1].map(t => group(P.L.colorArena, [arena.viewBuf, s.trailViews[t], tb[t], P.lutView, P.sampler, s.fieldViews[f], arena.mark, rd[0]])));
   s.probeTrailBG = [0, 1].map(t => group(P.L.probeTrail, [s.simBuf, s.trailViews[t], tb[t], P.probeCells]));
   arena.markBG = group(P.L.arenaMark, [arena.uniform, arena.markJob, s.agentBuf, arena.genes, arena.mark]);
-  arena.censusBG = [0, 1].map(f => group(P.L.arenaCensus, [arena.uniform, s.agentBuf, arena.genes, arena.censusBuf, s.fieldViews[f]]));
+  arena.censusBG = [0, 1].map(f => group(P.L.arenaCensus, [arena.uniform, s.agentBuf, arena.genes, arena.censusBuf, s.fieldViews[f], arena.genesB]));
   // Outside the round glass is wall, so trail and chemical never spread there.
   const mask = new Uint8Array(WALL_W * WALL_H), R = dishRadius(s.q) / s.q.h * WALL_H;
   for (let y = 0; y < WALL_H; y++) for (let x = 0; x < WALL_W; x++) {
@@ -6356,7 +6486,7 @@ function ensureArena() {
 function destroyArena() {
   destroySim(arena.sim);
   for (const t of [...arena.trailB, ...arena.rd, ...arena.recA, ...arena.recB]) t.destroy();
-  for (const k of ['depositB', 'econ', 'recipeBuf', 'chemBuf', 'viewBuf', 'uniform', 'lightBuf', 'genes', 'claims', 'censusBuf', 'censusRead', 'placeJob', 'stampJob', 'mark', 'markJob']) arena[k].destroy();
+  for (const k of ['depositB', 'econ', 'recipeBuf', 'chemBuf', 'viewBuf', 'uniform', 'lightBuf', 'genes', 'genesB', 'claims', 'censusBuf', 'censusRead', 'placeJob', 'stampJob', 'mark', 'markJob']) arena[k].destroy();
   if (cellScope.gpu) { for (const b of ['light', 'sample', 'read', 'job']) cellScope.gpu[b].destroy(); cellScope.gpu = null; }
   arena.sim = null;
   arena.glowLineage = -1;
@@ -6412,7 +6542,7 @@ function resetArena() {
   for (const t of s.field) device.queue.writeTexture({ texture: t }, food, { bytesPerRow: gw * 16 }, [gw, gh]);
   for (const t of arena.rd) device.queue.writeTexture({ texture: t }, broth, { bytesPerRow: gw * 16 }, [gw, gh]);
   const enc = device.createCommandEncoder();
-  for (const b of [arena.genes, arena.claims, arena.econ, s.depositBuf, arena.depositB]) enc.clearBuffer(b);
+  for (const b of [arena.genes, arena.genesB, arena.claims, arena.econ, s.depositBuf, arena.depositB]) enc.clearBuffer(b);
   for (const view of [...s.trailViews, ...arena.trailBViews]) enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] }).end();
   for (const view of [...arena.recAViews, ...arena.recBViews]) enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] }).end();
   device.queue.submit([enc.finish()]);
@@ -6567,6 +6697,7 @@ function writeArenaUniforms(s, now, view = st.view) {
   af[16] = 1; af[17] = rules.homing ? p.homeo : 0; af[18] = ARENA.spread; af[19] = ARENA.veinFlow;
   af[20] = p.foods === 2 ? 2 : 1;
   af[21] = p.cohesion ? 1 : 0;
+  af[22] = p.hunting || 0;
   device.queue.writeBuffer(arena.uniform, 0, data);
   device.queue.writeBuffer(arena.lightBuf, 0, sunPatches(p.patches || 0, af[20]));
   // The field recipes, by number. 0 means no field. Then how strongly each chemical's trail seeds a field: the Microscope
@@ -6611,16 +6742,19 @@ function simulateArena(pass, s, n) {
 // The steps themselves. A specimen test runs them while the Incubator is busy, so nothing else steps the dish.
 function stepArena(pass, s, n) {
   const { w, h, agents } = s.q, groups = Math.ceil(agents / 256), gx = Math.ceil(arena.d.gw / 8), gy = Math.ceil(arena.d.gh / 8);
+  const hunting = arena.params.hunting > 0, early = hunting ? [P.arenaClaim, P.arenaBirth, P.arenaOccupy, P.arenaBite, P.arenaDefend, P.arenaReport] : [P.arenaClaim, P.arenaBirth, P.arenaReport];
+  const clearGroups = hunting ? Math.ceil(Math.max(agents, arena.d.occ.w * arena.d.occ.h) / 256) : groups;
   for (let i = 0; i < n; i++) {
-    // Births, then each particle reports how much it can digest, then the food is shared out among them, then they live:
-    // eat their share, pay for living, and move.
+    // Births, then (with HUNTING) bites between touching particles, then each particle reports how much it can digest,
+    // then the food is shared out among them, then they live: eat their share and any catch, pay for living, and move.
     pass.setBindGroup(0, arena.liveBG[s.cur][arena.fcur]);
-    for (const stage of [P.arenaClaim, P.arenaBirth, P.arenaReport]) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
+    for (const stage of early) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
     pass.setPipeline(P.arenaFood); pass.setBindGroup(0, arena.foodBG[arena.fcur][s.cur]);
     pass.dispatchWorkgroups(gx, gy);
     arena.fcur = 1 - arena.fcur;
     pass.setBindGroup(0, arena.liveBG[s.cur][arena.fcur]);
-    for (const stage of [P.arenaLive, P.arenaClear]) { pass.setPipeline(stage); pass.dispatchWorkgroups(groups); }
+    pass.setPipeline(P.arenaLive); pass.dispatchWorkgroups(groups);
+    pass.setPipeline(P.arenaClear); pass.dispatchWorkgroups(clearGroups);
     // The dead give their matter back to the broth within the same step.
     pass.setPipeline(P.arenaReturn); pass.setBindGroup(0, arena.foodBG[arena.fcur][s.cur]);
     pass.dispatchWorkgroups(gx, gy);
@@ -7322,6 +7456,11 @@ async function stampSpot(f, spot, index) {
   for (let i = 0; i < s.q.agents; i++) if (pos[i * 4] < 0) free.push(i);
   // A specimen from a smaller picture is enlarged, so each of its particles becomes several close neighbors.
   const r = mulberry((arena.seed ^ Math.imul(f.lineage + 1, 0x9E3779B1) ^ Math.imul(index, 0x85EBCA6B)) >>> 0), rf = () => r() / 4294967296, a = sp.agents;
+  // Each particle's starting hunting comes from a stream of its own, so placing draws nothing else differently.
+  const hr = mulberry((arena.seed ^ Math.imul(f.lineage + 1, 0x2545F491) ^ Math.imul(index + 1, 0x68E31DA5) ^ 0x48554E54) >>> 0), hf = () => hr() / 4294967296;
+  // The kin mark every particle of this strain starts with: one body, one mark, sister species included. Every copy
+  // placed into the strain shares it.
+  const mark = mulberry((arena.seed ^ Math.imul(f.lineage + 1, 0x7FEB352D) ^ 0x4B494E) >>> 0)() / 4294967296;
   const reps = scale * scale * keep, deg = Math.PI / 180, max = Math.min(free.length, Math.ceil(a.dx.length * (Math.floor(reps) + 1)));
   const agentData = new ArrayBuffer(max * 16), af = new Float32Array(agentData), au = new Uint32Array(agentData), genes = new Float32Array(max * GENE_IN);
   // A kept particle's own chemistry moves to this dish's chemicals. Toward a chemical its strain doesn't give off, it
@@ -7355,6 +7494,8 @@ async function stampSpot(f, spot, index) {
         genes[o + 22] = g[22] ? keptRecipes[g[22] - 1] || 0 : 0;
         genes[o + 23] = g[23] || 0;
         genes[o + 24] = g[24]; genes[o + 25] = g[25];
+        genes[o + 26] = g[26] >= 0 ? g[26] : ARENA.huntStart(hf());
+        genes[o + 27] = g[27] >= 0 ? g[27] : mark;
       } else {
         genes.set([ARENA.energy, 0, s0.sensorAngle * deg * m[0], s0.sensorDist * m[1] * size, s0.turnSpeed * deg * m[2],
           s0.moveSpeed * m[3] * size, s0.deposit, 0], o);
@@ -7365,6 +7506,8 @@ async function stampSpot(f, spot, index) {
         if (sp.field) { genes[o + 21] = sp.field.pull[k] || 0; genes[o + 22] = recipe; }
         genes[o + 23] = diet;
         genes[o + 24] = genes[o + 25] = 1;
+        genes[o + 26] = ARENA.huntStart(hf());
+        genes[o + 27] = mark;
       }
       genes[o + 1] = f.lineage;
       n++;
@@ -7381,7 +7524,7 @@ async function stampSpot(f, spot, index) {
     enc = device.createCommandEncoder();
     pass = enc.beginComputePass();
     pass.setPipeline(P.arenaPlace);
-    pass.setBindGroup(0, device.createBindGroup({ layout: P.L.arenaPlace, entries: [arena.uniform, arena.placeJob, ...temps, s.agentBuf, arena.genes, s.trailViews[s.cur], arena.trailBViews[s.cur]]
+    pass.setBindGroup(0, device.createBindGroup({ layout: P.L.arenaPlace, entries: [arena.uniform, arena.placeJob, ...temps, s.agentBuf, arena.genes, s.trailViews[s.cur], arena.trailBViews[s.cur], arena.genesB]
       .map((res, binding) => ({ binding, resource: res.usage !== undefined ? { buffer: res } : res })) }));
     pass.dispatchWorkgroups(Math.ceil(n / 256));
     pass.end();
@@ -7742,7 +7885,7 @@ function arenaCensus() {
       const n = u[i], avg = (k, scale) => n ? u[k * S + i] / scale / n : 0;
       const traits = n ? {
         setpoint: avg(2, 256), speed: avg(3, 256), angle: avg(4, 256) * 180 / Math.PI, reach: avg(5, 16), deposit: avg(6, 256),
-        forage: avg(7, 256) - 1, diet: avg(14, 256), homing: avg(15, 256), crowding: avg(16, 256), emit: Array.from({ length: CHEM }, (_, c) => avg(8 + c, 256)),
+        forage: avg(7, 256) - 1, diet: avg(14, 256), homing: avg(15, 256), crowding: avg(16, 256), hunting: avg(17, 256), emit: Array.from({ length: CHEM }, (_, c) => avg(8 + c, 256)),
       } : null;
       if (i < 16) trackBodies(f, u.subarray(CENSUS_GRID + i * cells, CENSUS_GRID + (i + 1) * cells), step, grid);
       if (traits && !f.start) f.start = traits;
@@ -7765,7 +7908,7 @@ const kilo = n => n >= 1e4 ? Math.round(n / 1000) + 'K' : n >= 1000 ? (n / 1000)
 const FOUNDER_STATS = [
   ['particles', 'PARTICLES'], ['bodies', 'BODIES'], ['largest', 'LARGEST BODY'], ['oldest', 'OLDEST BODY'], ['divisions', 'DIVISIONS'],
   ['deaths', 'BODY DEATHS'], ['life', 'TYPICAL LIFESPAN'], ['energy', 'ENERGY'], ['setpoint', 'SET POINT'], ['speed', 'SPEED'],
-  ['angle', 'SENSOR ANGLE'], ['reach', 'SENSOR REACH'], ['deposit', 'DEPOSIT'], ['forage', 'FORAGING'], ['diet', 'DIET'], ['homing', 'HOMING'], ['crowding', 'CROWDING'], ['chem', 'CHEMISTRY'],
+  ['angle', 'SENSOR ANGLE'], ['reach', 'SENSOR REACH'], ['deposit', 'DEPOSIT'], ['forage', 'FORAGING'], ['diet', 'DIET'], ['homing', 'HOMING'], ['crowding', 'CROWDING'], ['hunting', 'HUNTING'], ['chem', 'CHEMISTRY'],
 ];
 function buildFounderRows() {
   arena.lit = -1; // The rows are replaced, so the pointer is no longer over one.
@@ -7840,6 +7983,7 @@ function renderArenaPanel() {
     set('diet', arena.params.foods === 2 ? pair('diet', 2) : 'one food');
     set('homing', arena.params.cohesion ? pair('homing', 2, '×') : 'fixed in this older dish');
     set('crowding', arena.params.cohesion ? pair('crowding', 2, '×') : 'fixed in this older dish');
+    set('hunting', arena.params.hunting > 0 ? pair('hunting', 2) : 'off in this dish');
     set('chem', s0 && now ? chemSwatches(s0.emit, now.emit) : '—');
     r.keep.disabled = !largest.mass || arena.busy;
   });
@@ -7960,6 +8104,7 @@ async function keepAt(x, y, radius, from = '', shape = null) {
     const s = arena.sim, { w, h, agents } = s.q, R = radius * DISH_UNIT, cx = clamp(x, 0, 1) * w, cy = clamp(y, 0, 1) * h;
     const pos = new Float32Array(await readBack(s.agentBuf, agents * 16)), rngs = new Uint32Array(pos.buffer);
     const raw = await readBack(arena.genes, agents * 64), genes = new Float32Array(raw), gu = new Uint32Array(raw), inside = [];
+    const genesB = new Float32Array(await readBack(arena.genesB, agents * 16));
     for (let i = 0; i < agents; i++) {
       const px = pos[i * 4], py = pos[i * 4 + 1];
       if (px >= 0 && (shape ? shape.inside(px, py) : (px - cx) ** 2 + (py - cy) ** 2 <= R * R)) inside.push(i);
@@ -7985,6 +8130,8 @@ async function keepAt(x, y, radius, from = '', shape = null) {
       keptGenes[k + 1] = gu[o + 1] & 0xFF;
       keptGenes[k + 24] = arena.params.cohesion ? ((gu[o + 1] >>> 8) & 0xFFF) / 1023 : 1;
       keptGenes[k + 25] = arena.params.cohesion ? (gu[o + 1] >>> 20) / 1023 : 1;
+      keptGenes[k + 26] = genesB[i * 4];
+      keptGenes[k + 27] = genesB[i * 4 + 1];
       keptGenes.set(e, k + 8); keptGenes[k + 14] = genes[o + 11]; keptGenes.set(r, k + 15);
       const fieldWord = gu[o + 15], recipe = fieldWord & 0x3F;
       keptGenes[k + 23] = ((fieldWord >>> 6) & 0x3FF) / 1023;
@@ -8037,8 +8184,8 @@ async function keepAt(x, y, radius, from = '', shape = null) {
   flashIcon('dish');
 }
 /* Specimen files. Version 3 holds both kinds: a cut, whose particles follow their species' rules (with any inherited
-   multipliers), and a kept body, whose particles carry every gene they evolved in the Incubator, as 26 numbers each (24
-   before homing and crowding; the header says which), with
+   multipliers), and a kept body, whose particles carry every gene they evolved in the Incubator, as 28 numbers each (24
+   before homing and crowding, 26 before hunting; the header says which), with
    the trails of all six of the dish's chemicals. Version 2 files, kept bodies from the three-chemical dish, and version 1
    files, which only held kept bodies, still open. */
 async function packSpecimen(sp) {
@@ -8074,9 +8221,9 @@ function readSpecies(list) {
     return s;
   });
 }
-// Older kept genes become today's 26. From the three-chemical dish they were 16 numbers: the first eight as now, then
+// Older kept genes become today's 28. From the three-chemical dish they were 16 numbers: the first eight as now, then
 // three emissions, forage and three responses, with nothing given off or sensed on the other three chemicals. Before
-// homing and crowding they were today's first 24. Either way homing and crowding start at 1, the dish's own.
+// homing and crowding they were today's first 24, which then start at 1, the dish's own; before hunting, the first 26.
 function oldKeptGenes(old, n, stride) {
   const g = new Float32Array(n * GENE_IN);
   for (let j = 0; j < n; j++) {
@@ -8086,8 +8233,11 @@ function oldKeptGenes(old, n, stride) {
       g.set(old.subarray(o + 8, o + 11), k + 8);
       g[k + 14] = old[o + 11];
       g.set(old.subarray(o + 12, o + 15), k + 15);
-    } else g.set(old.subarray(o, o + 24), k);
-    g[k + 24] = g[k + 25] = 1;
+    } else g.set(old.subarray(o, o + Math.min(stride, 27)), k);
+    if (stride < 26) g[k + 24] = g[k + 25] = 1;
+    // A particle that never had hunting or a kin mark draws them when placed, as a cut specimen's particles do (-1).
+    if (stride < 27) g[k + 26] = -1;
+    g[k + 27] = -1;
   }
   return g;
 }
@@ -8101,7 +8251,7 @@ async function unpackSpecimen(blob, meta) {
   const hasGenes = version === 1 || !!(flags & 1), hasMult = version >= 2 && !!(flags & 2), hasB = version === 3 && !!(flags & 4);
   const hasField = version === 3 && !!(flags & 8) && !!meta.field, fw = fieldSize & 0xFFFF, fh = fieldSize >>> 16;
   const geneWords = !hasGenes ? 0 : version === 3 ? stride : 16, kindWords = version >= 2 ? Math.ceil(n / 4) : 0, plane = cw * ch * 4;
-  if (version === 3 && hasGenes && stride !== GENE_IN && stride !== 24) return null;
+  if (version === 3 && hasGenes && stride !== GENE_IN && stride !== 27 && stride !== 26 && stride !== 24) return null;
   const words = 8 + plane * (hasB ? 2 : 1) + (hasField ? fw * fh * 4 : 0) + n * 4 + kindWords + (hasMult ? n * 4 : 0) + n * geneWords;
   if (raw.byteLength !== words * 4) return null;
   let o = 8;
@@ -8183,10 +8333,13 @@ const DISH_MAGIC = 0x48534944, DISH_TRAIL_BITS = 0xFFFFE000;
 async function packDish(id, exact = false) {
   const s = arena.sim, d = arena.d, { w, h, agents } = s.q, { gw, gh } = d;
   const places = new Float32Array(await readBack(s.agentBuf, agents * 16)), all = new Uint32Array(await readBack(arena.genes, agents * 64)), live = [];
+  const allB = new Uint32Array(await readBack(arena.genesB, agents * 16));
   for (let i = 0; i < agents; i++) if (places[i * 4] >= 0) live.push(i);
   // An empty place's genes are written afresh when a particle is born into it, so only the living keep theirs.
   const genes = new Uint32Array(live.length * 16);
   live.forEach((i, j) => genes.set(all.subarray(i * 16, i * 16 + 16), j * 16));
+  const genesB = new Uint32Array(live.length * 4);
+  live.forEach((i, j) => genesB.set(allB.subarray(i * 4, i * 4 + 4), j * 4));
   const trail = async texture => {
     const f = await readRegion(texture, 0, 0, w, h), u = new Uint32Array(f.buffer);
     if (!exact) for (let i = 0; i < u.length; i++) u[i] &= DISH_TRAIL_BITS;
@@ -8195,8 +8348,8 @@ async function packDish(id, exact = false) {
   const grids = [];
   for (const t of [s.field[arena.fcur], arena.rd[0], arena.recA[arena.rcur], arena.recB[arena.rcur]]) grids.push(await readRegion(t, 0, 0, gw, gh));
   const labels = arena.founders.map(f => f.track?.labels ? Int16Array.from(f.track.labels) : null), cells = d.grid.w * d.grid.h;
-  const header = new Uint32Array([DISH_MAGIC, 1, w, h, agents, gw, gh, live.length, cells, 0, 0, 0, 0, 0, 0, 0]);
-  const parts = [header, places, genes, await trail(s.trail[s.cur]), await trail(arena.trailB[s.cur]), ...grids];
+  const header = new Uint32Array([DISH_MAGIC, 2, w, h, agents, gw, gh, live.length, cells, 0, 0, 0, 0, 0, 0, 0]);
+  const parts = [header, places, genes, genesB, await trail(s.trail[s.cur]), await trail(arena.trailB[s.cur]), ...grids];
   for (const l of labels) if (l) parts.push(l, new Uint8Array((4 - l.byteLength % 4) % 4));
   const c = arena.census, strains = arena.founders.map((f, i) => ({ name: f.specimen.name, color: f.color, particles: c?.counts[i] ?? 0 }));
   const alive = strains.filter(x => x.particles);
@@ -8276,7 +8429,7 @@ async function restoreDish(meta, file) {
 // Puts a dish back from its packed contents (see packDish), from a file or from a dish set aside for a test.
 async function putDish(meta, raw) {
   const [magic, version, w, h, agents, gw, gh, live, cells] = new Uint32Array(raw, 0, 16), size = DISHES[meta.dish];
-  if (magic !== DISH_MAGIC || version !== 1 || !size || size.w !== w || size.h !== h || size.agents !== agents) throw new Error('not a dish file');
+  if (magic !== DISH_MAGIC || (version !== 1 && version !== 2) || !size || size.w !== w || size.h !== h || size.agents !== agents) throw new Error('not a dish file');
   arena.dish = meta.dish;
   ensureArena();
   if (arena.d.gw !== gw || arena.d.gh !== gh || arena.d.grid.w * arena.d.grid.h !== cells) throw new Error('dish grids differ');
@@ -8290,6 +8443,13 @@ async function putDish(meta, raw) {
   for (let i = 0, j = 0; i < agents && j < live; i++) if (places[i * 4] >= 0) { genes.set(kept.subarray(j * 16, j * 16 + 16), i * 16); j++; }
   o += live * 64;
   device.queue.writeBuffer(arena.genes, 0, genes);
+  // Version 2 holds each living particle's second gene record (its hunting); a dish from before has none, so none hunt.
+  if (version === 2) {
+    const genesB = new Uint32Array(agents * 4), keptB = new Uint32Array(raw, o, live * 4);
+    for (let i = 0, j = 0; i < agents && j < live; i++) if (places[i * 4] >= 0) { genesB.set(keptB.subarray(j * 4, j * 4 + 4), i * 4); j++; }
+    o += live * 16;
+    device.queue.writeBuffer(arena.genesB, 0, genesB);
+  }
   const put = (texture, tw, th) => device.queue.writeTexture({ texture }, take(tw * th * 16), { bytesPerRow: tw * 16 }, [tw, th]);
   put(s.trail[0], w, h); put(arena.trailB[0], w, h);
   put(s.field[0], gw, gh); put(arena.rd[0], gw, gh); put(arena.recA[0], gw, gh); put(arena.recB[0], gw, gh);
@@ -8304,8 +8464,9 @@ async function putDish(meta, raw) {
     };
   });
   Object.assign(arena, { rows: null, open: -1, seed: meta.seed, recipes: meta.recipes.map(rc => ({ ...rc })), history: meta.history.map(e => ({ ...e })) });
-  // A dish from before PATCHES, FOODS or inherited cohesion runs on as it did: even food, one food, fixed cohesion.
-  Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0 }, meta.params);
+  // A dish from before PATCHES, FOODS, inherited cohesion or HUNTING runs on as it did: even food, one food, fixed
+  // cohesion, no hunting.
+  Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0, hunting: 0 }, meta.params);
   device.queue.writeBuffer(arena.econ, arena.d.econ.clock * 4, new Uint32Array([meta.step]));
   // A dish saved when food grew back at another rate keeps the same food: its FOOD is rescaled, to at most 1.
   const regrew = meta.regrow ?? .012;
@@ -8353,7 +8514,7 @@ async function openDish(item) {
    The card shows one sentence made from them (behaviorLine). The Incubator runs one dish at a time, so the dish in it is
    set aside first and put back exactly as it was. A result stays with its specimen. BEHAVIOR.rules is raised whenever
    the Incubator's rules change (when its fingerprint test needs a new value), and older results then ask for a new test. */
-const BEHAVIOR = { rules: 2, steps: 5000, every: 250, seed: 7357, dish: 's', settings: { patches: .5, foods: 1, cohesion: 1 }, piece: .05 };
+const BEHAVIOR = { rules: 2, steps: 5000, every: 250, seed: 7357, dish: 's', settings: { patches: .5, foods: 1, cohesion: 1, hunting: 0 }, piece: .05 };
 const tests = { running: false, stop: false, done: 0, total: 0, name: '' };
 const behaviorCurrent = meta => meta?.behavior?.rules === BEHAVIOR.rules;
 // One sentence from a test's measures, for a specimen's card: its form, how far it travels, how its size changes, and

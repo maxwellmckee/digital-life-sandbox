@@ -168,6 +168,13 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - **SETTINGS: RANDOMIZE** sets the four sliders below at random, more often near the middle of each, and never with less than 0.75 food, below which a dish of fresh specimens can lose strains. **DEFAULT** puts them back (FOOD 0.75).
 - **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. HOMEOSTASIS sets how reliably lost particles turn back, how hard crowding pushes out, and how narrowly they digest around their target density. At 0 the Incubator behaves like classic slime and bodies fray into spreading networks. From about 0.5, bodies stay separate individuals.
 - **Inherited cohesion.** Each particle also carries its own **homing** (how reliably it turns back when lost) and **crowding** (how hard it is pushed out of places denser than its set point), as multiples of HOMEOSTASIS. Both start at 1 and mutate with GENE DRIFT, so a strain can evolve to hold together more or less, and holding together can win or lose. A kept body keeps them. Dishes saved before this open with both fixed at 1, so they run exactly as they did.
+- **HUNTING** (a slider under the settings) sets how much predation pays; 0 turns it off. Every particle carries a **hunting** gene from 0 (grazes) to 1 (hunts):
+  - A hunter digests food less well the more it hunts, is drawn to smells unlike its own, and bites strangers it bumps into, taking part of their stored energy. Only half of what it takes reaches it; the rest is lost, as in real food chains. A particle drained of energy dies and its matter returns to the broth.
+  - **Kin are spared by a kin mark**, a gene every particle of a placed specimen shares, sister species included, like the immunity genes that let bacteria kill strangers on contact but spare their kin. It drifts slowly by mutation, so distant lineages can become strangers to each other.
+  - **Safety in numbers:** a particle surrounded by its own kind gives up only half as much to a bite, measured the same way digestion measures company. Loners and frayed edges are easy prey.
+  - In tests, a strain whose particles came to hunt grew, ate its prey down and crashed; afterwards three strains shared the dish for 70,000 steps with none taking over, in a much thinner dish. Higher HUNTING thins the dish more.
+  - Particles start with their own hunting, drawn separately for each: most near 0, about one in five above 0.5, the same spread for every specimen. Which strains end up hunting is decided in the dish, and the strain stats show it.
+  - New dishes start at HUNTING 0.5; RANDOMIZE draws it from 0 to 0.8. Dishes saved before open at 0, with no one hunting, so they run exactly as they did.
 
 **What you can see:**
 
@@ -180,7 +187,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
   - its largest and oldest body;
   - divisions, body deaths and typical body lifespan;
   - energy;
-  - how each gene has drifted since it was placed: set point, speed, sensor angle and reach, deposit, foraging, diet (with two foods), homing and crowding (as multiples of HOMEOSTASIS; "fixed in this older dish" for a dish saved before they existed), and chemistry shown as a color swatch.
+  - how each gene has drifted since it was placed: set point, speed, sensor angle and reach, deposit, foraging, diet (with two foods), homing and crowding (as multiples of HOMEOSTASIS; "fixed in this older dish" for a dish saved before they existed), hunting (with HUNTING above 0), and chemistry shown as a color swatch.
   - **KEEP LARGEST BODY** saves that body as a specimen.
 - **How bodies are found:** where a lineage is dense on a grid of 20-pixel cells (96x54 in a 1× dish), each connected patch is a body. Bodies are followed by overlap between counts, twice a second. One body becoming two counts as a division. The counts are approximate, since a thin bridge that flickers can look like a split.
 - **Clicking a strain row** also flips the specimen deck to that strain's card, if it is in the deck.

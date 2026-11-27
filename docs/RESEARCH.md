@@ -759,6 +759,61 @@ spread of homing and crowding, as their set points already have, so there is var
 letting a particle feel the cost of straying itself, by measuring "lost" against the kin-density minimum as digestion
 does, so a particle that strays too far starves sooner.
 
+### Predators
+
+Long runs ended with one strain taking over and filling the dish. In ecology, predators prevent that: a hunter does
+best on whatever is commonest ("kill the winner"), and prey that stay together are safer than loners. HUNTING adds this
+at the particle level:
+
+- **A hunting gene**, 0 (grazes) to 1 (hunts), in each particle's second gene record. A hunter digests food in
+  proportion to 1 − hunting, is drawn to smells unlike its own, and bites the particle standing on the 2-pixel patch just
+  ahead of it.
+- **Kin immunity.** A bite is full only between particles whose kin marks lie 0.1 or more apart on a circle; every
+  particle of a placed specimen starts with its strain's mark, which drifts slowly by mutation. This is how bacteria
+  that kill on contact spare their kin, and it keeps a specimen's sister species from eating each other.
+  Two other ways were tried first. Comparing what particles give off made sister species strangers, so multi-species
+  bodies ate themselves. Judging by what a particle is drawn to made strangers look like friends for the many
+  specimens whose species like each other.
+- **Safety in numbers.** The bitten particle gives what is asked, up to its stored energy, less the more of its kin
+  surround it (half as much when fully surrounded), measured as digestion measures company. The hunter keeps half; the
+  rest is lost, as in real food chains, so the energy check still holds.
+- **Starting values.** Each placed particle draws its own hunting from a stream of its own (a random number cubed: mean
+  0.25, a fifth above 0.5), the same spread for every specimen, so the dish decides which strains hunt.
+
+On the fresh four-strain test dish at FOOD 1, 20,000 steps, strain averages of hunting:
+
+| Setup | At 3,900 steps | At 20,000 steps | What the dish did |
+|---|---|---|---|
+| HUNTING 0 (off) | 0.25 (fixed) | 0.25 (fixed) | as before: two strains share most of it |
+| First constants (bite 0.01, full guard, pull 1), HUNTING 0.5 | 0.07 to 0.09 | 0.02 to 0.03 | hunting bred out; shares as without it |
+| First constants, HUNTING 1 | 0.07 to 0.11 | 0.02 to 0.05 | hunting bred out, one small pocket |
+| Final constants (bite 0.1, half guard, pull 4), HUNTING 1 | 0.07 to 0.14 | one strain 0.94, all of it above 0.5 | the dominant strain became hunters, boomed and crashed to a handful |
+| Final constants, HUNTING 0.5 | 0.07 to 0.13 | 0.37 and 0.24 in two strains | hunters rose in the dominant strain, which then fell from 45% to 1% of the dish |
+| Final constants, HUNTING 0.5, all start at 0 | 0.00 | up to 0.32 in one strain | hunting begins to appear by mutation alone |
+
+With the first constants a hunter could not make a living: it gave up food everywhere but seldom reached a stranger,
+and strangers in their bodies were well guarded, so selection bred hunting out within a few thousand steps. Those
+constants are physics, like FOOD: they decide whether a predator niche exists. With bites ten times larger, guarding
+halved and hunters drawn four times harder to strangers, the niche exists and hunters evolve. HUNTING scales bites and
+pull, so the slider runs from no predation through these.
+
+Over 100,000 steps at HUNTING 0.5, against the run without predators ("Inherited cohesion"):
+
+| FOOD 1, 100,000 steps | Strains alive at the end | Largest share | Places used | Clumped |
+|---|---|---|---|---|
+| No predators | 3, two of them under 10% | 88% | 58% | 55% |
+| HUNTING 0.5 | 3 (47%, 11%, 42%), steady for the last 70,000 steps | 47% | 7% | 100% |
+
+- **The strain that turned to hunting boomed, crashed and was gone by step 30,000.** It had been the strongest grazer;
+  as its hunters spread it ate its prey down and starved.
+- **Afterwards three strains lived side by side** as separate bodies for 70,000 steps, and no strain took over. One
+  of them kept a steady minority of hunters (a sixth of its particles above 0.5, average 0.19); the others stayed
+  grazers (0.05 to 0.08).
+- **The dish is much thinner**: 7% of its places against 58%. Predators keep every strain's numbers down, which is also
+  why none can crowd the others out. HUNTING sets how far: lower values bite less and thin the dish less.
+- One dish and one run per setup, so a direction rather than a measurement. Whether predation keeps strains together
+  in other mixes, and whether predators and prey can cycle rather than crash, needs more runs.
+
 ### Testing specimens
 
 Specimens differ in genes, but until now nothing showed how each one *behaves*. TEST runs a specimen alone in a

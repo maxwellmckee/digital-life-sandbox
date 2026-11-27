@@ -4,6 +4,14 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Predators (HUNTING).** Every particle carries a hunting gene from 0 to 1. Hunters digest food less well, are drawn
+  to smells unlike their own and bite strangers they touch, keeping half of what they take; a particle surrounded by its
+  kin is hard to bite. Kin are spared by a kin mark that every particle of a placed specimen shares and that drifts by
+  mutation, like bacterial kin immunity. Placed particles start with their own hunting, mostly near 0, the same spread
+  for every specimen. A HUNTING slider sets how much predation pays (0.5 for new dishes). Each particle now has a second
+  gene record for hunting and its kin mark; dish files are version 2, and older ones open with no one hunting and run
+  exactly as before. In a 100,000-step test, a strain that turned to hunting boomed and crashed, then three strains
+  shared the dish for 70,000 steps with none taking over, in a much thinner dish (RESEARCH.md, "Predators").
 - **Inherited cohesion.** Each particle carries its own homing and crowding, as multiples of HOMEOSTASIS, which start
   at 1 and mutate, so holding together can win or lose instead of being a fixed law. Strain stats show them. A kept body
   keeps them; kept specimens saved before open with both at 1, and dishes saved before run exactly as they did. Specimen

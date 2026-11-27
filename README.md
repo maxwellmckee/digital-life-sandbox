@@ -90,7 +90,7 @@ There is nothing to install and no build step. It was built on a desktop NVIDIA 
 **Built:** the Microscope (breeding, three species, ecologies, reaction-diffusion hybrids, inherited bodies, living
 cells, barriers, an organism brush, taste learning, the LIFE score), the cutting bench, specimens and the deck, the
 Incubator (six chemicals, food that flows along veins, energy only from food, drifting patches of food and two kinds of
-food with a diet gene, inherited homing and crowding, strains that win or lose ground, carried reaction fields, three dish sizes, zoom, saved dishes,
+food with a diet gene, inherited homing and crowding, predators, strains that win or lose ground, carried reaction fields, three dish sizes, zoom, saved dishes,
 framed recordings, a cell finder, an ecosystem score), and the Archive (slides, family tree, specimens with a tested BEHAVIOR line, dishes with snapshots),
 with PNG and MP4 export and Help everywhere.
 

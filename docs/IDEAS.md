@@ -22,7 +22,7 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 |---|---|---|---|---|
 | A1 | **Patchy, drifting food.** Food grows in slowly moving patches, like sunlight, instead of evenly everywhere. | Moving pays again: fast foragers that follow the patches and slow, frugal settlers can both do well. | Small to medium | **done** (PATCHES), 13676e0 |
 | A2 | **Two kinds of food.** Each strain digests some kinds better than others, set by a gene. | Strains can specialize and live side by side instead of one winning (resource partitioning). | Medium | **done** (FOODS, diet gene), 13676e0 |
-| A3 | **Predators.** A gene that lets particles eat other strains' particles. | Hunters and prey, chases, arms races, and a real reason to stay in a tight body. | Medium to large | idea |
+| A3 | **Predators.** A gene that lets particles eat other strains' particles. | Hunters and prey, chases, arms races, and a real reason to stay in a tight body. | Medium to large | **in progress** |
 
 ## B. Particles that do more than one thing
 

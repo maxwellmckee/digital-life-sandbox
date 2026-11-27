@@ -62,7 +62,7 @@
     async 'Incubator fingerprint'() {
       const run = async () => {
         await freshDish('s', 31);
-        Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0 });
+        Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0, hunting: 0 });
         await foundAt(fx.a, .5, .5, 1); await idle();
         await foundAt(fx.b, .3, .45, .5); await idle();
         await DL.arenaAdvance(300);
@@ -77,7 +77,7 @@
       const crops = {}, spreads = {};
       for (const key of ['s', 'l', 'm']) {
         await freshDish(key, 31);
-        Object.assign(arena.params, { patches: 0 });
+        Object.assign(arena.params, { patches: 0, hunting: 0 });
         const s = arena.sim, cx = s.q.w / 2, cy = Math.round(s.q.h / 2 / 4) * 4, R = 200;
         await foundAt(fx.a, .5, cy / s.q.h, .5); await idle();
         await DL.arenaAdvance(12);
@@ -242,7 +242,7 @@
     // the energy its particles store, and the matter they are made of) must fall by at least what living costs.
     async 'Energy only comes from food'() {
       await freshDish('s', 31);
-      Object.assign(arena.params, { patches: .5, foods: 2 });
+      Object.assign(arena.params, { patches: .5, foods: 2, hunting: .5 });
       await foundAt(fx.a, .5, .5, 1); await idle();
       await foundAt(fx.b, .3, .45, .5); await idle();
       const regrow = ARENA.regrow;
@@ -404,6 +404,75 @@
       return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `older dish all 1; new dish after 1,500 steps homing ${inherited.homing.toFixed(3)}, crowding ${inherited.crowding.toFixed(3)}, spread ${inherited.spread.toFixed(2)}; a kept body brings its own (${lo.toFixed(2)} to ${hi.toFixed(2)}); older files open at 1` };
     },
 
+    // Predators: particles start with a spread of hunting; hunters bite what is in front of them, by how unlike their own
+    // its smell is, so strains bite each other and hardly themselves; a kept body brings its hunting; an older dish file,
+    // without a second gene record, opens with no one hunting.
+    async 'Predators'() {
+      const wrong = [];
+      const hunting = async () => {
+        const n = arena.sim.q.agents, pos = new Float32Array(await readBack(arena.sim.agentBuf, n * 16)), gb = new Float32Array(await readBack(arena.genesB, n * 16)), v = [];
+        for (let i = 0; i < n; i++) if (pos[i * 4] >= 0) v.push(gb[i * 4]);
+        let lo = 1, hi = 0;
+        for (const x of v) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
+        return { n: v.length, mean: v.reduce((a, b) => a + b, 0) / v.length, high: v.filter(x => x > .5).length / v.length, lo, hi, v };
+      };
+      // The two strains are placed overlapping, with one food, so they meet whatever their names.
+      await freshDish('s', 31);
+      Object.assign(arena.params, { hunting: .5, foods: 1 });
+      await foundAt(fx.a, .5, .5, 1); await idle();
+      await foundAt(fx.b, .52, .5, .5); await idle();
+      const start = await hunting();
+      if (Math.abs(start.mean - .25) > .03 || Math.abs(start.high - .21) > .04) wrong.push(`the starting spread is off (mean ${start.mean.toFixed(3)}, above 0.5 ${start.high.toFixed(3)})`);
+      await DL.arenaAdvance(100);
+      // One step's bites, read before they are spent: who bit whom, and how hard.
+      const s = arena.sim, n = s.q.agents, d = arena.d, enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+      pass.setBindGroup(0, arena.liveBG[s.cur][arena.fcur]);
+      for (const stage of [P.arenaOccupy, P.arenaBite]) { pass.setPipeline(stage); pass.dispatchWorkgroups(Math.ceil(n / 256)); }
+      pass.end(); device.queue.submit([enc.finish()]);
+      const econ = new Uint32Array(await readBack(arena.econ, d.econ.words * 4)), gu = new Uint32Array(await readBack(arena.genes, n * 64));
+      // Own kind: the same strain, sister species included. A full bite at this HUNTING is BITE x 0.5 in 2^20ths.
+      const full = ARENA.predation.bite * .5 * 1048576;
+      let across = 0, acrossWant = 0, own = 0, ownWant = 0;
+      for (let i = 0; i < n; i++) {
+        const t = econ[d.econ.target + i];
+        if (!t) continue;
+        const want = econ[d.econ.request + i];
+        if ((gu[i * 16 + 1] & 0xFF) !== (gu[(t - 1) * 16 + 1] & 0xFF)) { across++; acrossWant += want; } else { own++; ownWant += want; }
+      }
+      if (!across) wrong.push('no strain bit another');
+      if (own && ownWant / own > .02 * full) wrong.push(`own kind bitten (${(ownWant / own).toFixed(0)} of a full ${full})`);
+      const after = await hunting();
+      if (after.hi - after.lo < .5) wrong.push('hunting did not vary');
+      // A kept body brings its hunting along.
+      await freshDish('s', 31);
+      Object.assign(arena.params, { hunting: .5 });
+      await foundAt(fx.a, .5, .5, 1); await idle();
+      await DL.arenaAdvance(300);
+      await census();
+      const big = arena.founders[0].track.bodies.reduce((m, b) => b.mass > m.mass ? b : m);
+      await keepAt(big.cx, big.cy, Math.min(big.r, .25)); await idle();
+      const kept = DL.drawer.items[0].specimen, kn = kept.agents.dx.length;
+      let kh = 0;
+      for (let j = 0; j < kn; j++) kh += kept.genes[j * GENE_IN + 26] / kn;
+      await freshDish('s', 31);
+      Object.assign(arena.params, { hunting: .5 });
+      await foundAt(kept, .5, .5, 1); await idle();
+      const placed = await hunting();
+      if (Math.abs(placed.mean - kh) > .01) wrong.push(`a kept body lost its hunting (${kh.toFixed(3)} kept, ${placed.mean.toFixed(3)} placed)`);
+      // A dish file from before: version 1, no second gene records.
+      await DL.arenaAdvance(100);
+      const { meta, parts } = await packDish('old-test', true), raw = new Uint8Array(await new Blob(parts).arrayBuffer());
+      const head = new Uint32Array(raw.buffer, 0, 16), live = head[7], cut = 64 + n * 16 + live * 64;
+      const old = new Uint8Array(raw.length - live * 16);
+      old.set(raw.subarray(0, cut)); old.set(raw.subarray(cut + live * 16), cut);
+      new Uint32Array(old.buffer, 0, 16)[1] = 1;
+      await putDish(meta, old.buffer);
+      const reopened = await hunting();
+      if (reopened.n !== live || reopened.v.some(x => x !== 0)) wrong.push('an older dish file did not open with no one hunting');
+      Object.assign(arena.params, defaults(ARENA_PARAMS));
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `start mean ${start.mean.toFixed(2)}, ${Math.round(start.high * 100)}% above 0.5; ${across} bites across strains at ${Math.round(acrossWant / across / full * 100)}% of a full bite, ${own} on own kind at ${(ownWant / Math.max(1, own) / full * 100).toFixed(1)}%; a kept body brings its own (${kh.toFixed(3)}); older dish files open` };
+    },
+
     // TEST sets the dish aside and puts it back exactly, measures a specimen the same way every time, and describes it.
     async 'Specimen test'() {
       const wrong = [];
@@ -419,7 +488,8 @@
       // Every particle place, and the genes of every living particle (an empty place gets new genes when one is born there).
       const held = async () => {
         const n = arena.sim.q.agents, pos = new Float32Array(await readBack(arena.sim.agentBuf, n * 16)), gu = new Uint32Array(await readBack(arena.genes, n * 64)), live = [];
-        for (let i = 0; i < n; i++) if (pos[i * 4] >= 0) live.push(...gu.subarray(i * 16, i * 16 + 16));
+        const gb = new Uint32Array(await readBack(arena.genesB, n * 16));
+        for (let i = 0; i < n; i++) if (pos[i * 4] >= 0) live.push(...gu.subarray(i * 16, i * 16 + 16), ...gb.subarray(i * 4, i * 4 + 4));
         return (await dishHash()) + '-' + fnv(new Uint8Array(Uint32Array.from(live).buffer));
       };
       await start();
