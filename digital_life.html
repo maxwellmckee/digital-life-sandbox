@@ -115,7 +115,8 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
    above and below, each a little smaller and further back, with a gap between them. Scrolling flips through. */
 .deck{position:absolute;z-index:3;right:1.4%;top:5%;bottom:5%;width:18.6%;display:flex;flex-direction:column;gap:10px;color:var(--ink)}
 .deck[hidden]{display:none}
-.deck-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:8.5px;letter-spacing:.18em;color:#4f7a72}
+.deck-head{flex:none;height:18px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:8.5px;letter-spacing:.18em;color:#4f7a72}
+.deck.placing .deck-head>span{color:#6ff0cf}
 #deckRemove{margin-left:auto;padding:1px 7px;border:1px solid #2a4a4a;border-radius:4px;background:transparent;color:#8fbfb3;font:inherit;font-size:8.5px;letter-spacing:.12em;cursor:pointer}
 #deckRemove:hover{color:#e6fff8;border-color:#4f7a72}
 #deckRemove.armed{background:#8a3b1e;border-color:#8a3b1e;color:#fff3ec}
@@ -140,12 +141,15 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .deck-card.slot span{display:grid;place-items:center;aspect-ratio:16/9;margin:6px 6px 0;border:1px dashed #6ff0cf55;border-radius:6px;color:#6ff0cf;font-size:22px}
 .deck-card.slot:hover span{border-color:#6ff0cfaa}
 .deck-card:hover{box-shadow:0 0 0 1px #6ff0cf66,0 6px 16px #000c}
-.deck-card[aria-pressed=true]{box-shadow:0 0 0 2px var(--active),0 0 16px #2ff0c44d,0 6px 16px #000c}
+.deck-card[aria-pressed=true]{box-shadow:0 0 0 2px var(--type,var(--active)),0 0 18px color-mix(in srgb,var(--type,#2ff0c4) 45%,transparent),0 6px 16px #000c}
+.deck-card em{display:none;position:absolute;right:6px;bottom:30px;padding:1px 5px;border-radius:3px;background:#030607d9;font-style:normal;font-size:8px;letter-spacing:.14em;color:var(--type,#6ff0cf)}
+.deck-card[aria-pressed=true] em{display:block}
 .deck-card:focus-visible{outline:2px solid var(--lumen);outline-offset:2px}
 .deck-note{flex:none;height:4.2em;margin:0;overflow:hidden;font-size:10px;line-height:1.4;color:#a9d8cc;text-align:center}
 .spec-note{font-size:9.5px;letter-spacing:.12em;color:#7fa79d}
 #specTest.armed{background:#8a3b1e;color:#fff3ec}
-.deck-foot{font-size:8.5px;letter-spacing:.12em;line-height:1.7;color:#4f7a72;text-align:center}
+.deck-foot{flex:none;height:3.4em;overflow:hidden;font-size:8.5px;letter-spacing:.12em;line-height:1.7;color:#4f7a72;text-align:center}
+.deck.placing .deck-foot{color:#6ff0cf}
 .deck-empty{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);padding:16px 14px;border-radius:8px;
   border:1.5px dashed #24383b;color:var(--ink-soft);font-size:10px;line-height:1.6;text-align:center}
 .deck-empty b{display:block;margin-bottom:6px;font-weight:400;color:#9ff5dc;letter-spacing:.12em}
@@ -526,7 +530,15 @@ button{font:inherit;letter-spacing:inherit;color:inherit}
 .pick-tile{--type:#3fd8b8;--grip:#1f8f7d;position:relative;display:flex;align-items:center;gap:12px;min-width:0;padding:10px 12px 10px 20px;border:0;border-radius:10px;
   background:#0b1517;color:var(--ink);font:inherit;text-align:left;cursor:pointer;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--type) 26%,transparent)}
 .pick-tile::before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;border-radius:10px 0 0 10px;background:repeating-linear-gradient(180deg,var(--grip) 0 3px,#0000008c 3px 6px)}
-.pick-tile:hover{background:#0f1d20}
+.pick-tile{transition:transform .12s ease-out}
+.pick-tile:hover,.pick-tile:focus-visible{z-index:3;transform:scale(1.03);background:#0f1d20;border-radius:10px 10px 0 0;
+  box-shadow:inset 1px 0 0 color-mix(in srgb,var(--type) 40%,transparent),inset -1px 0 0 color-mix(in srgb,var(--type) 40%,transparent),inset 0 1px 0 color-mix(in srgb,var(--type) 40%,transparent)}
+.pick-tile:hover::before,.pick-tile:focus-visible::before{border-radius:10px 0 0 0}
+.pick-more{display:none;position:absolute;left:0;right:0;top:100%;padding:2px 12px 10px 20px;border-radius:0 0 10px 10px;background:#0f1d20;
+  font-size:9.5px;line-height:1.5;color:#a9d8cc;box-shadow:inset 1px 0 0 color-mix(in srgb,var(--type) 40%,transparent),inset -1px 0 0 color-mix(in srgb,var(--type) 40%,transparent),inset 0 -1px 0 color-mix(in srgb,var(--type) 40%,transparent),0 12px 20px #000b}
+.pick-more::before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;border-radius:0 0 0 10px;background:repeating-linear-gradient(180deg,var(--grip) 0 3px,#0000008c 3px 6px)}
+.pick-tile:hover .pick-more,.pick-tile:focus-visible .pick-more{display:block}
+@media (prefers-reduced-motion:reduce){.pick-tile{transition:none}}
 .pick-tile:focus-visible{outline:2px solid var(--lumen);outline-offset:2px}
 .pick-port{flex:none;width:58px;height:58px;border-radius:50%;overflow:hidden;background:#030607;box-shadow:0 0 0 2px var(--type),0 0 0 5px #0b1416,0 0 0 6px #1f3537}
 .pick-port img{display:block;width:100%;height:100%;object-fit:cover}
@@ -632,7 +644,7 @@ input[type=range]:hover:not(:disabled)::-webkit-slider-thumb{box-shadow:0 1px 3p
         </div>
       </div>
       <div class="deck" id="deck" hidden>
-        <div class="deck-head"><span>SPECIMENS</span><b id="deckCount"></b><button type="button" id="deckRemove" data-help="drawer.remove" hidden>PUT AWAY</button></div>
+        <div class="deck-head"><span id="deckLabel">SPECIMENS</span><b id="deckCount"></b><button type="button" id="deckRemove" data-help="drawer.remove" hidden>PUT AWAY</button></div>
         <div class="deck-stack" id="deckStack" data-help="drawer"></div>
         <p class="deck-note" id="deckNote" data-help="lib.behavior"></p>
         <div class="deck-foot" id="deckFoot"></div>
@@ -4860,9 +4872,9 @@ const HELP = {
   'arena.defaults': { t: 'DEFAULT', d: 'Puts FOOD, METABOLISM, HOMEOSTASIS and GENE DRIFT back to where they start.' },
   bench: { t: 'CUTTING BENCH', d: 'The organism being cut, with its bodies outlined, best first. Click a body to choose it, or anywhere else for a circle, and scroll to size it.', rows: [['STEADY', 'Run on out of sight for 900 steps, this body kept its shape and size at home.'], ['CHANGES', 'Its letter is amber: at home it reshaped on its own, so it will keep changing in the dish.']], tip: 'A body is a region denser than its surroundings that holds together as the threshold loosens. The cut follows its outline, so passing strands stay behind.' },
   'bench.cut': { t: 'CUT', d: 'Cuts the chosen body or circle, files it in your specimen deck and lets you place it in the Incubator. Enter or the ADD pad does the same.' },
-  drawer: { t: 'SPECIMEN DECK', d: 'The specimens you are working with, newest in front. Scroll over the deck to flip through it, click a card to pick it, then click the dish to place copies. Esc stops. The empty slot at the bottom adds more from your collection.', tip: 'A new cut or keep joins the deck. The deck is kept in your saves folder, so it is there next time; every specimen is also listed in the Archive. The colored edge shows how each was made.' },
+  drawer: { t: 'SPECIMEN DECK', d: 'The specimens you are working with, newest in front. Scroll over the deck to flip through it, click a card to pick it, then click the dish to place copies. While a card is picked it glows in its color, says PLACING, and scrolling over the dish sizes the next copy instead of zooming; Esc, or clicking the card again, stops. The empty slot at the bottom adds more from your collection.', tip: 'A new cut or keep joins the deck. The deck is kept in your saves folder, so it is there next time; every specimen is also listed in the Archive. The colored edge shows how each was made.' },
   'drawer.slot': { t: 'ADD SPECIMEN', d: 'Opens your whole collection. Choose a specimen and its card joins the deck, in front, and stays there until you put it away.' },
-  'deck.picker': { t: 'YOUR SPECIMENS', d: 'Every specimen you have, newest first, with the color and icon of how it was made. Click one to add it to the deck; one already in the deck says IN DECK and comes to the front.', tip: 'Point at one for its details. Esc or CLOSE goes back without adding.' },
+  'deck.picker': { t: 'YOUR SPECIMENS', d: 'Every specimen you have, newest first, with the color and icon of how it was made. Point at one to see what its test found. Click one to add it to the deck and pick it, ready to place; one already in the deck says IN DECK and comes to the front.', tip: 'Esc or CLOSE goes back without adding.' },
   'deck.picker.search': { t: 'SEARCH', d: 'Narrows the list by name, a former name, or the slide it was cut from.' },
   'drawer.remove': { t: 'PUT AWAY', d: 'Takes the card in front out of the deck. The specimen stays in the Archive, and the slot at the bottom brings it back.', tip: 'Strains already in the dish live on. To delete a specimen, use REMOVE on its card in the Archive.' },
   'drawer.card': { t: 'SPECIMEN', d: 'Click to pick it, then click the dish to place copies. The copies placed while it is picked form one strain and know each other as kin. Click it again to stop.', tip: 'Scroll over the dish to size a copy, from a third of its size to twice it; its reach and speed scale with it. An orange count means it is not saved yet.' },
@@ -9439,7 +9451,6 @@ function renderPicker() {
   $('pickerGrid').replaceChildren(...list.map(item => {
     const m = item.meta, tile = el('button', 'pick-tile'), t = typeStyle(tile, m), port = el('span', 'pick-port'), img = el('img'), text = el('span', 'pick-text'), type = el('span', 'pick-type');
     tile.type = 'button';
-    tile.title = specimenDetails(m);
     img.alt = '';
     if (item.url) img.src = item.url;
     port.append(img);
@@ -9447,11 +9458,11 @@ function renderPicker() {
     type.innerHTML = iconSvg(t.icon);
     tile.append(port, text, type);
     if (drawer.items.includes(item)) tile.append(el('em', '', 'IN DECK'));
+    tile.append(el('span', 'pick-more', behaviorLine(m)));
     tile.addEventListener('click', () => {
       $('deckPicker').close();
-      const was = drawer.items.includes(item);
       addToDrawer(item);
-      flash(was ? 'TO THE FRONT' : 'ADDED TO THE DECK');
+      if (!(drawer.pick === item && arena.placing)) pickCard(item);
     });
     return tile;
   }));
@@ -9511,7 +9522,7 @@ function renderDrawer() {
       if (item.url) img.src = item.url;
       // A cut says whether its body held its shape at home, the way the bench found it.
       const tag = el('small', m.steady === false ? 'changes' : '', (m.kind === 'cut' ? 'CUT' : m.cell ? `CELL ${Math.round(m.cell.score * 100)}%` : 'KEPT') + (m.steady === true ? ' · STEADY' : m.steady === false ? ' · CHANGES' : ''));
-      card.append(img, tag, el('i', '', kilo(m.particles)), el('b', '', m.name));
+      card.append(img, tag, el('i', '', kilo(m.particles)), el('b', '', m.name), el('em', '', 'PLACING'));
       typeStyle(card, m);
       card.addEventListener('click', e => { if (e.detail) card.blur(); pickCard(item); });
       item.card = card;
@@ -9527,6 +9538,9 @@ function renderDrawer() {
 const DECK = { show: 2, gap: 10, scale: [1, .84, .7, .6], tilt: [0, 24, 40, 50], fade: [1, .55, .25, 0] };
 function layoutDeck() {
   const host = $('deckStack'), n = drawer.items.length, onSlot = drawer.front >= n;
+  // While a card is picked the deck says so, and the dish places copies instead of zooming.
+  $('deck').classList.toggle('placing', !!arena.placing);
+  $('deckLabel').textContent = arena.placing ? 'PLACING' : 'SPECIMENS';
   if (!host || !drawer.slot || (!n && drawer.blocked)) return;
   $('deckCount').textContent = onSlot ? (n ? `${n} IN DECK` : 'EMPTY') : `${drawer.front + 1} / ${n}`;
   $('deckRemove').hidden = onSlot;
