@@ -167,6 +167,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - **Homing.** A particle that has wandered away, sensing little of its kin where it stands or where its sensors reach, turns back. Swarming bacteria such as *Myxococcus* reverse direction in a similar way to stay with their swarm. Without homing, a wanderer has nothing to steer by, lays a trail others follow, and the body frays into a spreading network.
 - **SETTINGS: RANDOMIZE** sets the four sliders below at random, more often near the middle of each, and never with less than 0.75 food, below which a dish of fresh specimens can lose strains. **DEFAULT** puts them back (FOOD 0.75).
 - **FOOD**, **METABOLISM**, **HOMEOSTASIS** and **GENE DRIFT** shape the competition. HOMEOSTASIS sets how reliably lost particles turn back, how hard crowding pushes out, and how narrowly they digest around their target density. At 0 the Incubator behaves like classic slime and bodies fray into spreading networks. From about 0.5, bodies stay separate individuals.
+- **Inherited cohesion.** Each particle also carries its own **homing** (how reliably it turns back when lost) and **crowding** (how hard it is pushed out of places denser than its set point), as multiples of HOMEOSTASIS. Both start at 1 and mutate with GENE DRIFT, so a strain can evolve to hold together more or less, and holding together can win or lose. A kept body keeps them. Dishes saved before this open with both fixed at 1, so they run exactly as they did.
 
 **What you can see:**
 
@@ -179,7 +180,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
   - its largest and oldest body;
   - divisions, body deaths and typical body lifespan;
   - energy;
-  - how each gene has drifted since it was placed: set point, speed, sensor angle and reach, deposit, foraging, diet (with two foods), and chemistry shown as a color swatch.
+  - how each gene has drifted since it was placed: set point, speed, sensor angle and reach, deposit, foraging, diet (with two foods), homing and crowding (as multiples of HOMEOSTASIS; "fixed in this older dish" for a dish saved before they existed), and chemistry shown as a color swatch.
   - **KEEP LARGEST BODY** saves that body as a specimen.
 - **How bodies are found:** where a lineage is dense on a grid of 20-pixel cells (96x54 in a 1× dish), each connected patch is a body. Bodies are followed by overlap between counts, twice a second. One body becoming two counts as a division. The counts are approximate, since a thin bridge that flickers can look like a split.
 - **Clicking a strain row** also flips the specimen deck to that strain's card, if it is in the deck.

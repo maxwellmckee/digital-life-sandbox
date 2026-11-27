@@ -705,6 +705,60 @@ second food let three strains share the dish almost equally. Limits so far:
   keeps different strains alive, but it does not yet push them to move differently.
 - One dish and one run per setup: a direction, not a measurement.
 
+### Inherited cohesion
+
+"Why dishes turned to mush" ended with the guess that bodies would last only once cohesion could evolve. Each particle
+now carries its own **homing** (how reliably it turns back when it has strayed from its kin) and **crowding** (how hard
+it is pushed out of places denser than its set point), as multiples of HOMEOSTASIS. Both start at 1, today's fixed
+values, and mutate at birth with GENE DRIFT, so a strain could evolve to hold together more or less.
+
+On the fresh four-strain test dish with today's defaults (PATCHES 0.5, two foods), 20,000 steps:
+
+| Setup | Clumped (densest tenth) | Strains alive | ECOSYSTEM | Strain averages of homing and crowding |
+|---|---|---|---|---|
+| Fixed, FOOD 0.75 | 97% | 3 of 4 | 80 | 1 (fixed) |
+| Inherited, FOOD 0.75 | 100% | 3 of 4 | 69 | 1.00 and 1.00 in every strain |
+| Fixed, FOOD 1 | 78% | 4 of 4 | 79 | 1 (fixed) |
+| Inherited, FOOD 1 | 65% | 4 of 4 | 83 | 1.00 and 1.00 in every strain |
+
+Even at the highest GENE DRIFT the averages did not move, though the genes spread out inside each strain:
+
+| FOOD 1, inherited, 20,000 steps | Homing in each strain at the end | Births since placing (from the spread) |
+|---|---|---|
+| GENE DRIFT 0.35 | 1.00, spread 0.02 to 0.03 (0.81 to 1.19 at the extremes) | about 1 |
+| GENE DRIFT 1 | 1.00, spread 0.06 to 0.09 (0.28 to 1.72 at the extremes) | 1 to 2 |
+
+Each birth adds a known amount of variation (GENE DRIFT × 0.15 × 0.41), so the spread at the end tells how many births
+separate a typical particle from the specimen that was placed: one or two. **20,000 steps is only a generation or two
+in the Incubator.** Particles live long, and most of a dish is still the particles that were placed and their first
+offspring. Set points could still fall fast in earlier runs because particles are placed with a wide range of them
+(each imprinted from where it sat in the body), so selection only had to sort what was already there. Homing and
+crowding all start at exactly 1, so their variation has to come from mutation first, and one or two births give
+selection almost nothing to sort. These runs therefore say little yet about whether cohesion evolves.
+
+Over 100,000 steps at FOOD 1 there were enough births to see something:
+
+| FOOD 1, 100,000 steps | Clumped at 20K / 40K / 60K / 80K / 100K steps | Places used at the end | Winning strain's share | Its homing and crowding | Births since placing |
+|---|---|---|---|---|---|
+| Fixed | 78 / 100 / 93 / 54 / 57% | 64% | 93% | 1 and 1 (fixed) | — |
+| Inherited | 64 / 56 / 54 / 49 / 55% | 58% | 88% | 1.07 and 0.90 | about 25 |
+
+- **The winning strain evolved toward holding together**: more homing (1.07) and less crowding (0.90), with a spread of
+  about 0.1 inside it. The other strains stayed within 0.07 of 1. One run cannot tell whether these genes were selected
+  or rode along with a sub-lineage that won for other reasons, and a different strain won each run.
+- **The dish's structure was the same either way.** Both loosened as one strain took over and filled the dish, to about
+  55% clumped: looser than separate bodies (71 to 93%) but not the 20 to 45% of the mush dishes. In 20,000 steps both
+  kept their bodies; at FOOD 0.75 they ended as separate bodies. Most of the improvement since the mush dishes probably
+  came from the drifting patches and two foods: food in moving patches is worth reaching as a body, and with the kin-density
+  minimum, eating there takes company.
+- **The genes are safe to have.** A dish without them runs exactly as before; with them, nothing changes until they
+  vary.
+
+Two changes could give selection more to work with, both listed in [IDEAS.md](IDEAS.md): placing specimens with a
+spread of homing and crowding, as their set points already have, so there is variation to sort from the first step; and
+letting a particle feel the cost of straying itself, by measuring "lost" against the kin-density minimum as digestion
+does, so a particle that strays too far starves sooner.
+
 ### Testing specimens
 
 Specimens differ in genes, but until now nothing showed how each one *behaves*. TEST runs a specimen alone in a

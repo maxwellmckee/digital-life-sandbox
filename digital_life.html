@@ -1194,7 +1194,7 @@ struct Arena {
   hunger: f32, drift: f32, crowd: f32, sigma: f32,
   eat: f32, regrow: f32, wear: f32, veins: f32,
   scale: f32, homing: f32, spread: f32, veinFlow: f32,
-  foods: f32, pad4: f32, pad5: f32, pad6: f32,
+  foods: f32, cohesion: f32, pad5: f32, pad6: f32,
 }
 // The food grid of this dish size (see dishCode).
 const FIELD_SIZE = vec2u(#GW#u, #GH#u);
@@ -1230,6 +1230,12 @@ fn eats(field: u32) -> vec2f {
   let d = dietOf(field);
   return vec2f(pow(1.0 - d, 1.5), pow(d, 1.5));
 }
+// A particle's own homing and crowding, as multiples of the dish's (HOMEOSTASIS), each 0 to 4 in 1023rds, kept in bits
+// 8 to 19 and 20 to 31 of its lineage word (the strain takes the low eight). They are inherited and mutate, so holding
+// together can win or lose. In a dish saved before they existed (cohesion 0) both are 1 and never change.
+fn strainOf(g: Gene) -> u32 { return g.lineage & 0xFFu; }
+fn homingOf(g: Gene) -> f32 { return f32((g.lineage >> 8u) & 0xFFFu) / 1023.0; }
+fn crowdingOf(g: Gene) -> f32 { return f32(g.lineage >> 20u) / 1023.0; }
 // The six values in three words: the first three chemicals, and the last three.
 fn lo3(p: vec3u) -> vec3f { let a = unpack2x16float(p.x); let b = unpack2x16float(p.y); return vec3f(a.x, a.y, b.x); }
 fn hi3(p: vec3u) -> vec3f { let b = unpack2x16float(p.y); let c = unpack2x16float(p.z); return vec3f(b.y, c.x, c.y); }
@@ -1307,7 +1313,8 @@ fn score(p: vec2f, a: f32, reach: f32, g: Gene, rl: vec3f, rh: vec3f, pull: f32)
   let e = eats(g.field);
   v += g.forage * (fd.g * e.x + fd.a * e.y) * together(u, g.setpoint);
   let over = max(u - g.setpoint, 0.0);
-  return vec2f(v - arena.crowd * over * over, u);
+  let crowd = select(arena.crowd, arena.crowd * crowdingOf(g), arena.cohesion > 0.5);
+  return vec2f(v - crowd * over * over, u);
 }
 // Cooperative digestion: shared enzymes only pay off where enough kin are around (a Hill curve, as in cooperative binding).
 // Enough is measured against the density the particle is set to live at, but never less than a floor (kinFloor), so a
@@ -1392,6 +1399,11 @@ fn birth(@builtin(global_invocation_id) id: vec3u) {
     let d = clamp(dietOf(g.field) + (rand(&rng) + rand(&rng) - 1.0) * arena.drift * 0.12, 0.0, 1.0);
     g.field = (g.field & 0xFFFF003Fu) | (u32(d * 1023.0 + 0.5) << 6u);
   }
+  if (arena.cohesion > 0.5) {
+    let hm = shifted(homingOf(g), 0.15, 0.0, 4.0, &rng);
+    let cr = shifted(crowdingOf(g), 0.15, 0.0, 4.0, &rng);
+    g.lineage = strainOf(g) | (u32(hm * 1023.0 + 0.5) << 8u) | (u32(cr * 1023.0 + 0.5) << 20u);
+  }
   agents[i] = Agent(p, heading, rng);
   genes[i] = g;
 }
@@ -1425,9 +1437,11 @@ fn live(@builtin(global_invocation_id) id: vec3u) {
   let u = senseHere(a.pos, rl, rh);
   // Homing: a particle that has wandered off, sensing little of its kin where it stands or where its sensors reach,
   // turns back, the way swarming bacteria reverse to stay with their swarm. Without it, a wanderer sees nothing to steer
-  // by, lays a trail others follow, and the body frays into a spreading network. HOMEOSTASIS sets how reliably it turns.
+  // by, lays a trail others follow, and the body frays into a spreading network. HOMEOSTASIS sets how reliably it turns,
+  // times the particle's own homing.
   let near = max(max(sf.y, sl.y), max(sr.y, u));
-  if (near < LOST * g.setpoint && rand(&rng) < arena.homing) { a.angle += TAU * 0.5 + (rand(&rng) - 0.5) * 0.8; }
+  let homing = select(arena.homing, arena.homing * homingOf(g), arena.cohesion > 0.5);
+  if (near < LOST * g.setpoint && rand(&rng) < homing) { a.angle += TAU * 0.5 + (rand(&rng) - 0.5) * 0.8; }
 
   // It eats the share it reported (see report): exactly what it said it could digest, so the particles in a cell
   // take exactly what was eaten there.
@@ -1760,7 +1774,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
 // Writes a specimen's particles into free places. Each one's set point is imprinted from the density it lived at:
 // the most it senses where it stands and where its sensors reach, so it stays content in its own part of the body.
-// A specimen kept from an arena already has set points of its own, so it skips the imprint. New genes arrive as 24
+// A specimen kept from an arena already has set points of its own, so it skips the imprint. New genes arrive as 26
 // plain numbers (see GENE_IN) and are packed here.
 const WGSL_ARENA_PLACE = WGSL_ARENA_BASE + /* wgsl */`
 struct Job { count: u32, imprint: u32, pad1: u32, pad2: u32 }
@@ -1768,7 +1782,7 @@ struct Job { count: u32, imprint: u32, pad1: u32, pad2: u32 }
 @group(0) @binding(1) var<uniform> job: Job;
 @group(0) @binding(2) var<storage, read> slots: array<u32>;
 @group(0) @binding(3) var<storage, read> newAgents: array<Agent>;
-@group(0) @binding(4) var<storage, read> newGenes: array<array<f32, 24>>;
+@group(0) @binding(4) var<storage, read> newGenes: array<array<f32, 26>>;
 @group(0) @binding(5) var<storage, read_write> agents: array<Agent>;
 @group(0) @binding(6) var<storage, read_write> genes: array<Gene>;
 @group(0) @binding(7) var trail: texture_2d<f32>;
@@ -1785,7 +1799,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let rl = vec3f(n[15], n[16], n[17]);
   let rh = vec3f(n[18], n[19], n[20]);
   var g: Gene;
-  g.energy = n[0]; g.lineage = u32(n[1] + 0.5); g.angle = n[2]; g.dist = n[3];
+  g.energy = n[0]; g.angle = n[2]; g.dist = n[3];
+  g.lineage = (u32(n[1] + 0.5) & 0xFFu) | (u32(clamp(n[24], 0.0, 4.0) * 1023.0 + 0.5) << 8u) | (u32(clamp(n[25], 0.0, 4.0) * 1023.0 + 0.5) << 20u);
   g.turn = n[4]; g.speed = n[5]; g.deposit = n[6]; g.setpoint = n[7];
   g.emit = pack6(vec3f(n[8], n[9], n[10]), vec3f(n[11], n[12], n[13]));
   g.forage = n[14];
@@ -1870,7 +1885,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 // Counts each lineage's particles and sums its genes, so drift can be followed, and maps where each lineage lives on a
 // coarse grid of 20-pixel cells, from which separate bodies are found and tracked. Also adds up the food left in the
 // world. The grid's size and the census's length come with the dish size (dishLayout).
-const ARENA_SLOTS = 64, ARENA_STATS = 15;
+const ARENA_SLOTS = 64, ARENA_STATS = 17;
 const CENSUS_FOOD = ARENA_STATS * ARENA_SLOTS, CENSUS_GRID = CENSUS_FOOD + 4;
 const WGSL_ARENA_CENSUS = WGSL_ARENA_BASE + /* wgsl */`
 @group(0) @binding(0) var<uniform> arena: Arena;
@@ -1887,7 +1902,7 @@ fn people(@builtin(global_invocation_id) id: vec3u) {
   let a = agents[id.x];
   if (a.pos.x < 0.0) { return; }
   let g = genes[id.x];
-  let l = min(g.lineage, SLOTS - 1u);
+  let l = min(strainOf(g), SLOTS - 1u);
   atomicAdd(&census[l], 1u);
   tally(1u, l, clamp(g.energy, 0.0, 2.0) * 256.0);
   tally(2u, l, clamp(g.setpoint, 0.0, 8.0) * 256.0);
@@ -1897,6 +1912,8 @@ fn people(@builtin(global_invocation_id) id: vec3u) {
   tally(6u, l, g.deposit * 256.0);
   tally(7u, l, (clamp(g.forage, -1.0, 2.0) + 1.0) * 256.0);
   tally(14u, l, dietOf(g.field) * 256.0);
+  tally(15u, l, homingOf(g) * 256.0);
+  tally(16u, l, crowdingOf(g) * 256.0);
   let el = lo3(g.emit);
   let eh = hi3(g.emit);
   for (var c = 0u; c < 3u; c++) {
@@ -1931,7 +1948,7 @@ const MARK = vec2u(#MW#u, #MH#u);
 fn main(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= arena.agents) { return; }
   let a = agents[id.x];
-  if (a.pos.x < 0.0 || genes[id.x].lineage != job.x) { return; }
+  if (a.pos.x < 0.0 || strainOf(genes[id.x]) != job.x) { return; }
   let c = min(vec2u(a.pos / vec2f(arena.size) * vec2f(MARK)), MARK - vec2u(1u));
   atomicAdd(&mark[c.y * MARK.x + c.x], 1u);
 }`;
@@ -2433,7 +2450,7 @@ struct Agent { pos: vec2f, angle: f32, rng: u32 }
 fn main(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= job.y) { return; }
   let i = id.x * job.x;
-  sample[id.x] = vec4f(agents[i].pos, f32(genes[i * 16u + 1u]), 0.0);
+  sample[id.x] = vec4f(agents[i].pos, f32(genes[i * 16u + 1u] & 0xFFu), 0.0);
 }`;
 
 // Lays a prepared picture with transparency over a frame, such as the Incubator's porthole and readouts on a recording.
@@ -4637,7 +4654,7 @@ const HELP = {
   'lib.cut': { t: 'CUT', d: 'Puts this save on the cutting bench in the Incubator, so you can cut a body from it into your specimen deck. One save can give several specimens.' },
   'arena.food': { t: 'FOOD', d: 'How fast food grows back in the broth, and so how many particles the dish can feed. Particles eat it for energy, and dead particles return to it.', lo: 'Scarce food: few survive, and they compete hard', hi: 'At 1 a dish of fresh specimens fills about half its room' },
   'arena.hunger': { t: 'METABOLISM', d: 'How fast every particle eats and burns energy. It speeds up the whole cycle of growth, division and death.' },
-  'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together: a particle that strays from its kin turns back, crowding past its set density pushes it out, and it digests best near that density.', lo: 'Classic slime: bodies fray into spreading networks', hi: 'Bodies stay separate: rings, ribbons and cells that move and compete' },
+  'arena.homeo': { t: 'HOMEOSTASIS', d: 'How strongly bodies hold together: a particle that strays from its kin turns back, crowding past its set density pushes it out, and it digests best near that density. Each particle also inherits its own HOMING and CROWDING, as multiples of this, which mutate, so a strain can evolve to hold together more or less.', lo: 'Classic slime: bodies fray into spreading networks', hi: 'Bodies stay separate: rings, ribbons and cells that move and compete' },
   'arena.patches': { t: 'PATCHES', d: 'Where food grows back. At 0, evenly everywhere. Turned up, mostly in a few soft patches of sunlight that slowly circle the dish, so a body that sits still sees its food drift away and moving pays.', lo: 'Food everywhere: sitting still wins', hi: 'Food in drifting patches: foragers and settlers both have a way to win', tip: 'The total amount of food is the same at every setting. Each lap takes tens of thousands of steps.' },
   'arena.foods': { t: 'FOODS', d: 'ONE food, or TWO kinds that grow in different patches, the second shown in a warmer color. Each particle\'s diet gene sets how well it digests each: a specialist digests one well, a generalist both but less well, so strains that specialize on different foods can live side by side.', tip: 'With two foods each grows half as fast, so the dish holds as much in all. Diet mutates like any gene; the strain stats show it, from 0 (first food) to 1 (second).' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful copies', hi: 'Fast evolution and more failed offspring' },
@@ -6218,9 +6235,10 @@ const ARENA = {
 };
 // The dish's chemicals: three in each of its two trail maps.
 const CHEM = 6;
-// A new particle's genes as 24 plain numbers: energy, lineage, sensor angle, reach, turn, speed, deposit, set point,
-// six emissions, forage, six responses, and three spare.
-const GENE_IN = 24;
+// A new particle's genes as 26 plain numbers: energy, lineage, sensor angle, reach, turn, speed, deposit, set point,
+// six emissions, forage, six responses, its pull toward its field, its field recipe, its diet, and its homing and
+// crowding (multiples of the dish's HOMEOSTASIS, 1 to start). Kept specimens saved before homing and crowding have 24.
+const GENE_IN = 26;
 const ARENA_PARAMS = [
   { k:'food',   label:'FOOD',        min:0,  max:1, step:.01, def:.75, fmt:v=>v.toFixed(2) },
   { k:'hunger', label:'METABOLISM',  min:.2, max:2, step:.01, def:1,   fmt:v=>v.toFixed(2) },
@@ -6241,7 +6259,7 @@ function setArenaSettings(values, message) {
   flash(message);
 }
 const arena = {
-  sim: null, d: null, dish: 's', seed: newSeed(), founders: [], params: { ...defaults(ARENA_PARAMS), foods: 2 }, keepRadius: .18, fcur: 0, busy: false,
+  sim: null, d: null, dish: 's', seed: newSeed(), founders: [], params: { ...defaults(ARENA_PARAMS), foods: 2, cohesion: 1 }, keepRadius: .18, fcur: 0, busy: false,
   placing: null, keeping: false, history: [], census: null, censusPending: false, nextCensusAt: 0, channels: [], task: '',
   clearArmed: 0, chart: 'bodies', open: -1, rows: null,
   lit: -1, glow: 0, glowLineage: -1, // The strain pointed at in the list, and how far its highlight has faded in.
@@ -6548,6 +6566,7 @@ function writeArenaUniforms(s, now, view = st.view) {
   // A pixel is the same size in every dish, so the genes' distances and speeds need no scaling.
   af[16] = 1; af[17] = rules.homing ? p.homeo : 0; af[18] = ARENA.spread; af[19] = ARENA.veinFlow;
   af[20] = p.foods === 2 ? 2 : 1;
+  af[21] = p.cohesion ? 1 : 0;
   device.queue.writeBuffer(arena.uniform, 0, data);
   device.queue.writeBuffer(arena.lightBuf, 0, sunPatches(p.patches || 0, af[20]));
   // The field recipes, by number. 0 means no field. Then how strongly each chemical's trail seeds a field: the Microscope
@@ -7335,6 +7354,7 @@ async function stampSpot(f, spot, index) {
         genes[o + 21] = g[21];
         genes[o + 22] = g[22] ? keptRecipes[g[22] - 1] || 0 : 0;
         genes[o + 23] = g[23] || 0;
+        genes[o + 24] = g[24]; genes[o + 25] = g[25];
       } else {
         genes.set([ARENA.energy, 0, s0.sensorAngle * deg * m[0], s0.sensorDist * m[1] * size, s0.turnSpeed * deg * m[2],
           s0.moveSpeed * m[3] * size, s0.deposit, 0], o);
@@ -7344,6 +7364,7 @@ async function stampSpot(f, spot, index) {
         // The species' pull toward its field, and the recipe it gives off.
         if (sp.field) { genes[o + 21] = sp.field.pull[k] || 0; genes[o + 22] = recipe; }
         genes[o + 23] = diet;
+        genes[o + 24] = genes[o + 25] = 1;
       }
       genes[o + 1] = f.lineage;
       n++;
@@ -7374,7 +7395,8 @@ async function stampSpot(f, spot, index) {
 // The Incubator's glass: the largest circle that fits the picture, matching the shaders.
 const dishRadius = q => q.h / 2 - 3;
 function intoDish(q, x, y, margin = 2) {
-  const cx = q.w / 2, cy = q.h / 2, R = dishRadius(q) - margin, d = Math.hypot(x - cx, y - cy);
+  // A margin wider than the glass (a body larger than the dish) leaves only the middle.
+  const cx = q.w / 2, cy = q.h / 2, R = Math.max(0, dishRadius(q) - margin), d = Math.hypot(x - cx, y - cy);
   return d <= R ? [x, y] : [cx + (x - cx) / d * R, cy + (y - cy) / d * R];
 }
 // Keeps a whole specimen disc inside the glass. Positions are fractions of the picture, and a specimen's radius is a
@@ -7601,6 +7623,7 @@ function arenaClear() {
   arena.origin = null;
   arena.dishId = null;
   arena.seed = newSeed();
+  arena.params.cohesion = 1;
   arenaChemistry();
   resetArena();
   syncUi();
@@ -7719,7 +7742,7 @@ function arenaCensus() {
       const n = u[i], avg = (k, scale) => n ? u[k * S + i] / scale / n : 0;
       const traits = n ? {
         setpoint: avg(2, 256), speed: avg(3, 256), angle: avg(4, 256) * 180 / Math.PI, reach: avg(5, 16), deposit: avg(6, 256),
-        forage: avg(7, 256) - 1, diet: avg(14, 256), emit: Array.from({ length: CHEM }, (_, c) => avg(8 + c, 256)),
+        forage: avg(7, 256) - 1, diet: avg(14, 256), homing: avg(15, 256), crowding: avg(16, 256), emit: Array.from({ length: CHEM }, (_, c) => avg(8 + c, 256)),
       } : null;
       if (i < 16) trackBodies(f, u.subarray(CENSUS_GRID + i * cells, CENSUS_GRID + (i + 1) * cells), step, grid);
       if (traits && !f.start) f.start = traits;
@@ -7742,7 +7765,7 @@ const kilo = n => n >= 1e4 ? Math.round(n / 1000) + 'K' : n >= 1000 ? (n / 1000)
 const FOUNDER_STATS = [
   ['particles', 'PARTICLES'], ['bodies', 'BODIES'], ['largest', 'LARGEST BODY'], ['oldest', 'OLDEST BODY'], ['divisions', 'DIVISIONS'],
   ['deaths', 'BODY DEATHS'], ['life', 'TYPICAL LIFESPAN'], ['energy', 'ENERGY'], ['setpoint', 'SET POINT'], ['speed', 'SPEED'],
-  ['angle', 'SENSOR ANGLE'], ['reach', 'SENSOR REACH'], ['deposit', 'DEPOSIT'], ['forage', 'FORAGING'], ['diet', 'DIET'], ['chem', 'CHEMISTRY'],
+  ['angle', 'SENSOR ANGLE'], ['reach', 'SENSOR REACH'], ['deposit', 'DEPOSIT'], ['forage', 'FORAGING'], ['diet', 'DIET'], ['homing', 'HOMING'], ['crowding', 'CROWDING'], ['chem', 'CHEMISTRY'],
 ];
 function buildFounderRows() {
   arena.lit = -1; // The rows are replaced, so the pointer is no longer over one.
@@ -7797,7 +7820,7 @@ function renderArenaPanel() {
     r.detail.hidden = arena.open !== i;
     if (arena.open !== i || !c) return;
     const t = f.track, s0 = f.start, now = l.traits, set = (k, v) => { r.values[k].replaceChildren(v); };
-    const pair = (k, digits, unit = '') => s0 && now ? `${s0[k].toFixed(digits)}${unit} → ${now[k].toFixed(digits)}${unit}` : '—';
+    const pair = (k, digits, unit = '') => Number.isFinite(s0?.[k]) && Number.isFinite(now?.[k]) ? `${s0[k].toFixed(digits)}${unit} → ${now[k].toFixed(digits)}${unit}` : '—';
     const largest = bodies.reduce((m, b) => b.mass > m.mass ? b : m, { mass: 0 });
     const lives = t?.lives || [];
     set('particles', n ? `${kilo(n)} · ${(n / pool * 100).toFixed(1)}% of the world` : 'none left');
@@ -7815,6 +7838,8 @@ function renderArenaPanel() {
     set('deposit', pair('deposit', 2));
     set('forage', pair('forage', 2));
     set('diet', arena.params.foods === 2 ? pair('diet', 2) : 'one food');
+    set('homing', arena.params.cohesion ? pair('homing', 2, '×') : 'fixed in this older dish');
+    set('crowding', arena.params.cohesion ? pair('crowding', 2, '×') : 'fixed in this older dish');
     set('chem', s0 && now ? chemSwatches(s0.emit, now.emit) : '—');
     r.keep.disabled = !largest.mass || arena.busy;
   });
@@ -7956,7 +7981,10 @@ async function keepAt(x, y, radius, from = '', shape = null) {
       // Genes are kept as 24 plain numbers, with the packed chemistry unpacked.
       const o = i * 16, k = j * GENE_IN, e = unpack6(gu, o + 8), r = unpack6(gu, o + 12);
       keptGenes.set(genes.subarray(o, o + 8), k);
-      keptGenes[k + 1] = gu[o + 1];
+      // The lineage word holds the strain and, in a dish with inherited cohesion, the particle's homing and crowding.
+      keptGenes[k + 1] = gu[o + 1] & 0xFF;
+      keptGenes[k + 24] = arena.params.cohesion ? ((gu[o + 1] >>> 8) & 0xFFF) / 1023 : 1;
+      keptGenes[k + 25] = arena.params.cohesion ? (gu[o + 1] >>> 20) / 1023 : 1;
       keptGenes.set(e, k + 8); keptGenes[k + 14] = genes[o + 11]; keptGenes.set(r, k + 15);
       const fieldWord = gu[o + 15], recipe = fieldWord & 0x3F;
       keptGenes[k + 23] = ((fieldWord >>> 6) & 0x3FF) / 1023;
@@ -7965,7 +7993,7 @@ async function keepAt(x, y, radius, from = '', shape = null) {
         keptGenes[k + 21] = fromHalf(fieldWord >>> 16);
         keptGenes[k + 22] = ownNumber.get(recipe);
       }
-      const l = gu[o + 1];
+      const l = gu[o + 1] & 0xFF;
       byLineage.set(l, (byLineage.get(l) || 0) + 1);
       for (let c = 0; c < CHEM; c++) emit[c] += e[c] / n;
       sums.setpoint += genes[o + 7] / n; sums.speed += genes[o + 5] / n;
@@ -8009,7 +8037,8 @@ async function keepAt(x, y, radius, from = '', shape = null) {
   flashIcon('dish');
 }
 /* Specimen files. Version 3 holds both kinds: a cut, whose particles follow their species' rules (with any inherited
-   multipliers), and a kept body, whose particles carry every gene they evolved in the Incubator, as 24 numbers each, with
+   multipliers), and a kept body, whose particles carry every gene they evolved in the Incubator, as 26 numbers each (24
+   before homing and crowding; the header says which), with
    the trails of all six of the dish's chemicals. Version 2 files, kept bodies from the three-chemical dish, and version 1
    files, which only held kept bodies, still open. */
 async function packSpecimen(sp) {
@@ -8045,16 +8074,20 @@ function readSpecies(list) {
     return s;
   });
 }
-// Genes from the three-chemical dish were 16 numbers: the first eight as now, then three emissions, forage and three
-// responses. They become today's 24, with nothing given off or sensed on the other three chemicals.
-function oldKeptGenes(old, n) {
+// Older kept genes become today's 26. From the three-chemical dish they were 16 numbers: the first eight as now, then
+// three emissions, forage and three responses, with nothing given off or sensed on the other three chemicals. Before
+// homing and crowding they were today's first 24. Either way homing and crowding start at 1, the dish's own.
+function oldKeptGenes(old, n, stride) {
   const g = new Float32Array(n * GENE_IN);
   for (let j = 0; j < n; j++) {
-    const o = j * 16, k = j * GENE_IN;
-    g.set(old.subarray(o, o + 8), k);
-    g.set(old.subarray(o + 8, o + 11), k + 8);
-    g[k + 14] = old[o + 11];
-    g.set(old.subarray(o + 12, o + 15), k + 15);
+    const o = j * stride, k = j * GENE_IN;
+    if (stride === 16) {
+      g.set(old.subarray(o, o + 8), k);
+      g.set(old.subarray(o + 8, o + 11), k + 8);
+      g[k + 14] = old[o + 11];
+      g.set(old.subarray(o + 12, o + 15), k + 15);
+    } else g.set(old.subarray(o, o + 24), k);
+    g[k + 24] = g[k + 25] = 1;
   }
   return g;
 }
@@ -8068,7 +8101,7 @@ async function unpackSpecimen(blob, meta) {
   const hasGenes = version === 1 || !!(flags & 1), hasMult = version >= 2 && !!(flags & 2), hasB = version === 3 && !!(flags & 4);
   const hasField = version === 3 && !!(flags & 8) && !!meta.field, fw = fieldSize & 0xFFFF, fh = fieldSize >>> 16;
   const geneWords = !hasGenes ? 0 : version === 3 ? stride : 16, kindWords = version >= 2 ? Math.ceil(n / 4) : 0, plane = cw * ch * 4;
-  if (version === 3 && hasGenes && stride !== GENE_IN) return null;
+  if (version === 3 && hasGenes && stride !== GENE_IN && stride !== 24) return null;
   const words = 8 + plane * (hasB ? 2 : 1) + (hasField ? fw * fh * 4 : 0) + n * 4 + kindWords + (hasMult ? n * 4 : 0) + n * geneWords;
   if (raw.byteLength !== words * 4) return null;
   let o = 8;
@@ -8089,7 +8122,7 @@ async function unpackSpecimen(blob, meta) {
   if (hasMult) { agents.mult = f.slice(o, o + n * 4); o += n * 4; }
   const base = { name: meta.name, srcH: meta.srcH, radius: meta.radius, crop, field, agents };
   if (hasGenes) {
-    const genes = version === 3 ? f.slice(o, o + n * GENE_IN) : oldKeptGenes(f.subarray(o, o + n * 16), n);
+    const genes = version < 3 ? oldKeptGenes(f.subarray(o, o + n * 16), n, 16) : stride === GENE_IN ? f.slice(o, o + n * GENE_IN) : oldKeptGenes(f.subarray(o, o + n * stride), n, stride);
     // A body kept from the three-chemical dish showed its chemicals in rose, kelp and glacier.
     const chem = { decay: meta.chem?.decay || [.95, .95, .95], diffuse: meta.chem?.diffuse || [.4, .4, .4], palettes: meta.chem?.palettes || ['ROSE', 'KELP', 'GLACIER'] };
     const meanEmit = (meta.meanEmit || [1, 0, 0]).slice(0, chem.decay.length);
@@ -8271,7 +8304,8 @@ async function putDish(meta, raw) {
     };
   });
   Object.assign(arena, { rows: null, open: -1, seed: meta.seed, recipes: meta.recipes.map(rc => ({ ...rc })), history: meta.history.map(e => ({ ...e })) });
-  Object.assign(arena.params, { patches: 0, foods: 1 }, meta.params);
+  // A dish from before PATCHES, FOODS or inherited cohesion runs on as it did: even food, one food, fixed cohesion.
+  Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0 }, meta.params);
   device.queue.writeBuffer(arena.econ, arena.d.econ.clock * 4, new Uint32Array([meta.step]));
   // A dish saved when food grew back at another rate keeps the same food: its FOOD is rescaled, to at most 1.
   const regrew = meta.regrow ?? .012;
@@ -8319,7 +8353,7 @@ async function openDish(item) {
    The card shows one sentence made from them (behaviorLine). The Incubator runs one dish at a time, so the dish in it is
    set aside first and put back exactly as it was. A result stays with its specimen. BEHAVIOR.rules is raised whenever
    the Incubator's rules change (when its fingerprint test needs a new value), and older results then ask for a new test. */
-const BEHAVIOR = { rules: 1, steps: 5000, every: 250, seed: 7357, dish: 's', settings: { patches: .5, foods: 1 }, piece: .05 };
+const BEHAVIOR = { rules: 2, steps: 5000, every: 250, seed: 7357, dish: 's', settings: { patches: .5, foods: 1, cohesion: 1 }, piece: .05 };
 const tests = { running: false, stop: false, done: 0, total: 0, name: '' };
 const behaviorCurrent = meta => meta?.behavior?.rules === BEHAVIOR.rules;
 // One sentence from a test's measures, for a specimen's card: its form, how far it travels, how its size changes, and

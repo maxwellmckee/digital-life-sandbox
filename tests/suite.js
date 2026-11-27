@@ -32,7 +32,7 @@
   async function freshDish(size = 's', seed = 31) {
     DL.goRoom('incubator'); await sleep(100);
     arena.founders = []; arena.rows = null; arena.origin = null; arena.dishId = null; arena.seed = seed;
-    Object.assign(arena.params, defaults(ARENA_PARAMS));
+    Object.assign(arena.params, defaults(ARENA_PARAMS), { cohesion: 1 });
     await setDishSize(size); await idle();
     resetArena();
   }
@@ -62,7 +62,7 @@
     async 'Incubator fingerprint'() {
       const run = async () => {
         await freshDish('s', 31);
-        Object.assign(arena.params, { patches: 0, foods: 1 });
+        Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0 });
         await foundAt(fx.a, .5, .5, 1); await idle();
         await foundAt(fx.b, .3, .45, .5); await idle();
         await DL.arenaAdvance(300);
@@ -353,6 +353,55 @@
       for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) if (Math.hypot(x + .5 - gw / 2, y + .5 - gh / 2) < gh / 2 - 4) { a += f[(y * gw + x) * 4 + 1]; b += f[(y * gw + x) * 4 + 3]; cells++; }
       if (a / cells > .995 || b / cells > .995) wrong.push(`a food was not eaten (first ${(a / cells).toFixed(3)}, second ${(b / cells).toFixed(3)})`);
       return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `even ${even.cv.toFixed(2)}, patchy ${patchy.cv.toFixed(2)} with ${Math.round(patchy.mean / even.mean * 100)}% of the food, moved ${Math.round(moved * 100)}%; diets ${lo.toFixed(2)} to ${hi.toFixed(2)}, foods left ${(a / cells).toFixed(2)} and ${(b / cells).toFixed(2)}` };
+    },
+
+    // Homing and crowding are inherited and mutate in a new dish, stay 1 in an older one, come along when a body is kept
+    // and placed again, and start at 1 for a kept specimen saved before they existed.
+    async 'Inherited cohesion'() {
+      const wrong = [];
+      const multipliers = async () => {
+        const n = arena.sim.q.agents, pos = new Float32Array(await readBack(arena.sim.agentBuf, n * 16)), gu = new Uint32Array(await readBack(arena.genes, n * 64));
+        const h = [], c = [];
+        for (let i = 0; i < n; i++) if (pos[i * 4] >= 0) { h.push(((gu[i * 16 + 1] >>> 8) & 0xFFF) / 1023); c.push((gu[i * 16 + 1] >>> 20) / 1023); }
+        const mean = a => a.reduce((x, y) => x + y, 0) / a.length, spread = a => Math.max(...a) - Math.min(...a);
+        return { n: h.length, homing: mean(h), crowding: mean(c), spread: Math.max(spread(h), spread(c)) };
+      };
+      const run = async cohesion => {
+        await freshDish('s', 31);
+        Object.assign(arena.params, { cohesion });
+        await foundAt(fx.a, .5, .5, 1); await idle();
+        await foundAt(fx.b, .3, .45, .5); await idle();
+        await DL.arenaAdvance(1500);
+        return multipliers();
+      };
+      const fixed = await run(0), inherited = await run(1);
+      if (fixed.spread !== 0 || fixed.homing !== 1 || fixed.crowding !== 1) wrong.push(`an older dish changed them (${JSON.stringify(fixed)})`);
+      if (inherited.spread < .05) wrong.push('they did not mutate');
+      if (Math.abs(inherited.homing - 1) > .2 || Math.abs(inherited.crowding - 1) > .2) wrong.push(`they wandered too far in 1,500 steps (${inherited.homing.toFixed(2)}, ${inherited.crowding.toFixed(2)})`);
+      // Keep the densest body, then place it again in a fresh dish: its particles bring their own homing and crowding.
+      await census();
+      const f = arena.founders[0], big = f.track.bodies.reduce((m, b) => b.mass > m.mass ? b : m);
+      await keepAt(big.cx, big.cy, Math.min(big.r, .25)); await idle();
+      const kept = DL.drawer.items[0].specimen, kn = kept.agents.dx.length;
+      let kh = 0, lo = 4, hi = 0;
+      for (let j = 0; j < kn; j++) { const v = kept.genes[j * GENE_IN + 24]; kh += v / kn; lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      await freshDish('s', 31);
+      Object.assign(arena.params, { drift: 0 });
+      await foundAt(kept, .5, .5, 1); await idle();
+      const placed = await multipliers();
+      if (!placed.n) wrong.push('the kept body was not placed');
+      if (hi - lo < .02 || Math.abs(placed.homing - kh) > .01 || placed.spread < hi - lo - 1e-6) wrong.push(`a kept body lost its homing (${kh.toFixed(3)} from ${lo.toFixed(2)} to ${hi.toFixed(2)} kept, ${placed.homing.toFixed(3)} placed, spread ${placed.spread.toFixed(2)})`);
+      // A kept specimen file from before homing and crowding: 24 numbers a particle.
+      const raw = await new Response((await packSpecimen(kept)).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+      const words = new Uint32Array(raw), start = words.length - kn * GENE_IN, old = new Uint32Array(start + kn * 24);
+      old.set(words.subarray(0, start));
+      for (let j = 0; j < kn; j++) old.set(words.subarray(start + j * GENE_IN, start + j * GENE_IN + 24), start + j * 24);
+      old[6] = 24;
+      const back = await unpackSpecimen(await new Response(new Blob([old]).stream().pipeThrough(new CompressionStream('gzip'))).blob(), specimenMeta(kept, 'old'));
+      const ok24 = back && back.genes.length === kn * GENE_IN && [...Array(kn).keys()].every(j => back.genes[j * GENE_IN + 24] === 1 && back.genes[j * GENE_IN + 25] === 1 && back.genes[j * GENE_IN + 7] === kept.genes[j * GENE_IN + 7]);
+      if (!ok24) wrong.push('an older kept specimen did not open with homing and crowding at 1');
+      Object.assign(arena.params, defaults(ARENA_PARAMS));
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `older dish all 1; new dish after 1,500 steps homing ${inherited.homing.toFixed(3)}, crowding ${inherited.crowding.toFixed(3)}, spread ${inherited.spread.toFixed(2)}; a kept body brings its own (${lo.toFixed(2)} to ${hi.toFixed(2)}); older files open at 1` };
     },
 
     // TEST sets the dish aside and puts it back exactly, measures a specimen the same way every time, and describes it.

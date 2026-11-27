@@ -4,6 +4,14 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Inherited cohesion.** Each particle carries its own homing and crowding, as multiples of HOMEOSTASIS, which start
+  at 1 and mutate, so holding together can win or lose instead of being a fixed law. Strain stats show them. A kept body
+  keeps them; kept specimens saved before open with both at 1, and dishes saved before run exactly as they did. Specimen
+  test results from before ask for a new test, as the rules of a new dish changed. In 100,000-step tests the winning
+  strain drifted toward holding together (homing 1.07, crowding 0.90), but the dish's structure matched fixed cohesion;
+  20,000 steps turned out to be only one or two generations (RESEARCH.md, "Inherited cohesion").
+- **Fixed:** placing a kept body wider than the dish at full size put down nothing while saying it had added particles;
+  it is now placed in the middle.
 - **Specimen tests and a BEHAVIOR line on every specimen card.** TEST (on a card) or TEST ALL (in the Archive's
   SPECIMENS) runs a specimen alone in a standard dish for 5,000 steps and sums up what it did in one sentence: its form
   (solid, ring, net, or split into pieces), how far it travels, how its size changes, and whether its reaction field
