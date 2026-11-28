@@ -41,7 +41,7 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 |---|---|---|---|---|
 | C1 | **A test dish for every specimen.** Each runs alone in a small standard dish for a few thousand steps; its card shows how much it moves, holds together, grows and divides. | You could see and compare how specimens behave, not only how they look. | Medium | **done** (TEST, BEHAVIOR line), ba6df22 |
 | C2 | **A diversity breeding mode for BATCH**, which fills in behaviors your collection does not have yet (novelty search, MAP-Elites) instead of steering toward past picks. | Steering toward what you liked narrows the search over time; this widens it on purpose. | Medium | idea |
-| C3 | **Breed slides under the Incubator's physics**, with real food in the Microscope. | Specimens would arrive already adapted to the dish and keep their differences. To be a switch, so today's Microscope stays as it is. | Medium to large | **in progress** |
+| C3 | **Breed slides under the Incubator's physics**, with real food in the Microscope. | Specimens would arrive already adapted to the dish and keep their differences. Built as BIOLOGY: FED: across 34 slides, cuts from fed slides kept their size in the dish and most ended larger. | Medium to large | **done** (BIOLOGY: FED), cea15c8 |
 | C4 | **Let trail deposit mutate.** It is 1 in every saved slide. | Frees one gene that never varies. | Small | idea |
 
 ## D. Further out
@@ -76,3 +76,4 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 | Predators: a hunting gene, bites on contact, kin immunity, HUNTING slider | 10b54f0 |
 | Gentler, richer dishes: challenges off to start, sunlight 0.009; a new dish waits for PLAY and keeps its starting snapshot | 1e05ed3 |
 | Real divisions only, judged every 100 steps at any speed; research found none yet | 783e3b3 |
+| BIOLOGY: FED in the Microscope; touch-and-part no longer counted as division; a membrane prototype (off) | cea15c8 |
