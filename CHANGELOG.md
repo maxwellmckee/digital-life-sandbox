@@ -4,6 +4,18 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Membrane prototype (research only, off).** Three particle-level rules in the Incubator, all at 0 and not on
+  screen, so dishes run exactly as before: crowding shades regrowth, crowding blocks flow, and rim particles pump
+  food inward at an energy cost (`ARENA.membrane`). Tried on six fed specimens, they gave no division or budding
+  and did not raise the food inside bodies (RESEARCH.md, "A membrane prototype").
+- **Fixed:** two bodies that touched for a moment and parted again could be counted as a division. A body that has
+  just absorbed another now cannot divide for 2,000 steps, and a body that runs into another counts as absorbed.
+- **BIOLOGY: FED.** A fourth Microscope biology: living cells on a real broth, with the Incubator's food rules. Food
+  regrows like sunlight and is the only energy; cells eat what they can digest (best in their sweet spot, and only in
+  company), pay for living, divide and give their matter back when they die. A FOOD slider sets the broth, and a slide
+  gets the same food per cell at every size, so Batch breeding carries over to Solo. OFF, VEINS and CELLS run exactly
+  as before. In a test of all 34 saved slides, cuts from FED slides kept their size in the dish instead of losing
+  two thirds of it first, and most ended larger (RESEARCH.md, "Breeding on real food").
 - **Real divisions.** A strain's DIVISIONS now counts only a body becoming two that both live on: both pieces solid
   bodies rather than thin walls, the smaller holding at least 15% of the parent, and both alive and apart 2,000 steps
   later (the number waiting shows splits still being judged). The display says DIVISION and names the strain when one is

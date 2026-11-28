@@ -33,6 +33,7 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 | B3 | **Signals.** A cheap chemical used only to communicate, like quorum sensing in bacteria. | Strains could evolve to swarm when crowded or scatter when starving. | Medium | idea |
 | B4 | **Placed specimens start with a spread of homing and crowding**, as their set points already do. | Selection gets variation to sort from the first step, instead of waiting for mutation ([Inherited cohesion](RESEARCH.md#inherited-cohesion)). | Small | idea |
 | B5 | **Straying costs the stray.** "Lost" is measured against the kin-density minimum, as digestion is. | A particle that wanders off starves sooner itself, so homing pays the particle and not just its body. A rule change, so it needs its own test. | Small | idea |
+| B6 | **A body loosens as it grows**, for example each particle keeping to its nearest core rather than to the whole body. | Bodies now hold together equally well at any size, so nothing makes a large one split; two-core bodies already form, and only their shared halo keeps them together ([A membrane prototype](RESEARCH.md#a-membrane-prototype)). A rule change, so it needs describing and its own tests. | Medium | idea |
 
 ## C. Breeding for behavior, not just looks
 
@@ -52,6 +53,8 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
   dish shows one yet ([Looking for division](RESEARCH.md#looking-for-division)); a strain's DIVISIONS counts them.
 - **Using the ECOSYSTEM score to compare dishes** over long runs, to see which settings and strains make the richest
   ecosystems.
+- **Membranes:** food that must cross a body's rim. A prototype is in the dish engine, off (`ARENA.membrane`); tried on
+  six fed specimens it gave no division or budding ([A membrane prototype](RESEARCH.md#a-membrane-prototype)).
 - **Telling a network from a mush in STRUCTURE.** A full dish of membrane chambers reads as spread out as an even mush
   ([Why dishes grew sparse](RESEARCH.md#why-dishes-grew-sparse)).
 - Endosymbiosis-like dependence between strains, a first-run gallery of presets, parameter locks for RANDOM, a replay

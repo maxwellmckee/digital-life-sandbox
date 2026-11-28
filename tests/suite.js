@@ -524,7 +524,8 @@
     },
 
     // Divisions, on made-up body maps counted every 100 steps: a round body that becomes two round bodies, both lasting,
-    // is one division. A thin wall breaking, a speck shed, a split that rejoins, and a split whose half dies are none.
+    // is one division. A thin wall breaking, a speck shed, a split that rejoins, a split whose half dies, and two bodies
+    // that touch and part again are none.
     async 'Divisions'() {
       const size = { w: 48, h: 32 }, every = BODY.every;
       const map = (...shapes) => {
@@ -551,10 +552,60 @@
         rejoined: run(story(one, i => i < 5 ? two() : one)),
         halfDied: run(story(one, i => i < 8 ? two() : map(['disc', 17, 16, 4]))),
         tooSoon: run(story(one, two, DIVISION.confirm / every - 2)),
+        // Two bodies that touch for a moment and part again, as two cores in one halo can.
+        touched: run(story(two(), i => i < 2 ? map(['disc', 17, 16, 4], ['disc', 31, 16, 4], ['box', 20, 15, 8, 2]) : two(), last + 4)),
       };
-      const want = { division: 1, wall: 0, speck: 0, rejoined: 0, halfDied: 0, tooSoon: 0 };
+      const want = { division: 1, wall: 0, speck: 0, rejoined: 0, halfDied: 0, tooSoon: 0, touched: 0 };
       const wrong = Object.keys(want).filter(k => got[k] !== want[k]).map(k => `${k}: ${got[k]}, expected ${want[k]}`);
-      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : 'a body that became two lasting bodies: 1; a wall breaking, a speck, a rejoined split, a half that died and a split too recent to judge: 0' };
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : 'a body that became two lasting bodies: 1; a wall breaking, a speck, a rejoined split, a half that died, a split too recent to judge and two bodies that touched and parted: 0' };
+    },
+
+    // BIOLOGY: FED. A fed slide repeats exactly; with the default FOOD it lives on part of its agent places, not all and
+    // not none; and with no regrowth, everything it holds (broth, matter and energy) only falls, by at least the cost
+    // of living.
+    async 'Fed slides'() {
+      const g = cloneGenome(st);
+      g.seed = 4242; g.count = 1; g.field = { ...g.field, on: false }; g.walls = null; g.body = null; g.spawns = null;
+      g.life = { ...DEFAULT_LIFE, mode: 'fed' };
+      const run = async (sim, steps) => {
+        for (let left = steps; left > 0;) {
+          const k = Math.min(32, left);
+          writeUniforms(sim, g, 0);
+          const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+          simulate(pass, sim, k);
+          pass.end(); device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone();
+          left -= k;
+        }
+      };
+      const foodOf = async sim => {
+        const bpr = FIELD_W * 16, buf = device.createBuffer({ size: bpr * FIELD_H, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+        const enc = device.createCommandEncoder(); enc.copyTextureToBuffer({ texture: sim.food[sim.fcur] }, { buffer: buf, bytesPerRow: bpr }, [FIELD_W, FIELD_H]); device.queue.submit([enc.finish()]);
+        await buf.mapAsync(GPUMapMode.READ); const f = new Float32Array(buf.getMappedRange().slice(0)); buf.unmap(); buf.destroy();
+        let sum = 0; for (let k = 0; k < FIELD_W * FIELD_H; k++) sum += f[k * 4 + 1];
+        return sum * sim.q.agents / FED.agentsPerSpot;
+      };
+      const held = async sim => {
+        const n = sim.q.agents, ag = new Float32Array(await readBack(sim.agentBuf, n * 16)), ge = new Float32Array(await readBack(sim.geneBuf, n * 32));
+        let alive = 0, energy = 0;
+        for (let i = 0; i < n; i++) if (ag[i * 4] >= 0) { alive++; energy += ge[i * 8]; }
+        return { alive, total: await foodOf(sim) + energy + .3 * alive };
+      };
+      const a = createSim(TILE), b = createSim(TILE), wrong = [];
+      try {
+        restartSim(a, g); restartSim(b, g);
+        await run(a, 400); await run(b, 400);
+        const ha = fnv(new Uint8Array(await readBack(a.agentBuf, a.q.agents * 16))), hb = fnv(new Uint8Array(await readBack(b.agentBuf, b.q.agents * 16)));
+        if (ha !== hb) wrong.push('two fed runs differ');
+        await run(a, 5600);
+        const lived = (await held(a)).alive / a.q.agents;
+        if (!(lived > .02 && lived < .95)) wrong.push(`with FOOD 0.75 it lived on ${(lived * 100).toFixed(0)}% of its places`);
+        g.life.food = 0;
+        const before = await held(a);
+        await run(a, 300);
+        const after = await held(a), lost = before.total - after.total, least = .0004 * g.life.hunger * FED.metabolism * Math.min(before.alive, after.alive) * 300;
+        if (!(lost >= least)) wrong.push(`with no regrowth it lost ${lost.toFixed(0)}, less than the ${least.toFixed(0)} living costs`);
+        return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `repeats exactly; lives on ${(lived * 100).toFixed(0)}% of its places; with no regrowth lost ${lost.toFixed(0)}, living cost at least ${least.toFixed(0)}` };
+      } finally { destroySim(a); destroySim(b); }
     },
 
     async 'Every help label has its text'() {

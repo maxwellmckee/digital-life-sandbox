@@ -946,7 +946,8 @@ body map show these are stretches of a membrane network coming apart as it rearr
 The nearest thing to reproduction is **Amoeba K-461**. Its bodies are glowing cores in round halos. By 4,000 steps one
 core had stretched into a streak; by 12,000 it had become two cores in a halo pinched into a figure eight, the shape of
 a cell about to divide, and another body held two cores in one halo. Over 40,000 steps neither pair separated, and one
-pair's cores ran back together. Division begins here but is never finished.
+pair's cores ran back together. Division begins here but is never finished. (Bold Azure Islands, grown on FED, shows the
+same figure eight the other way round: two cores whose halos fuse; see [Breeding on real food](#breeding-on-real-food-fed).)
 
 So no whole body divides in these dishes yet. Nothing in the rules makes splitting pay: a body that holds together eats
 better (digestion needs company) and is safer from predators, and with even food there is no reason for its halves to
@@ -960,6 +961,117 @@ with the same masses, at every count to step 2,000, and 8X still ran 480 steps a
 only confirmed divisions, and the display names the strain when one is confirmed. A check on made-up body maps
 confirms one real division and rejects a wall breaking, a pinched-off speck, a split that rejoins, a split whose half
 dies and one too recent to judge; loosening the solidity or the share test lets the wall or the speck through.
+
+### Breeding on real food (FED)
+
+The dish's die-back comes from a mismatch: slides are bred in the Microscope, where food never runs out, and their cuts
+then have to live on a finite broth. BIOLOGY: FED gives the Microscope the Incubator's food rules as a fourth biology,
+beside OFF, VEINS and CELLS, which run exactly as before:
+
+- **As in CELLS**, each agent has energy and its own inherited copy of the movement rules (sensing, reach, turning, speed
+  and appetite), divides when full into a mutated daughter, and dies.
+- **As in the Incubator**, energy only comes from food. A broth on the 480x270 field grid regrows like sunlight (at FOOD
+  times METABOLISM times 0.009 a step), and flows between spots, more along trails and veins. Each step, every agent
+  reports how much it can digest where it stands, each spot's food is shared out in exactly those amounts, and every
+  agent pays for living, moving and laying trail. An agent is 0.3 units of matter plus its energy; a daughter is built
+  from her parent's, and the dead give both back to the broth within the step.
+- **CELLS' sweet spot becomes digestion.** In CELLS, standing in the trail level an agent likes creates energy. In FED
+  it sets how well the agent digests, times cooperative digestion (a Hill curve of that level), so a loner can barely
+  eat, as in the dish.
+- **The same food per agent at every size.** The grid is fixed, so a spot serves about one agent place in a Batch tile
+  and four on a MED slide; a full spot holds food in proportion. The same organism levelled off at 52% of its places in
+  a Batch tile, 52% at LOW and 50% at MED, so what is bred in Batch carries over to Solo. METABOLISM's default runs FED
+  at the Incubator's pace.
+
+Checks: a fed run repeats exactly, and with no regrowth everything a fed slide holds (broth, matter and energy) falls by
+more than its cost of living (4,653 against at least 2,240 over 300 steps), so no energy is made from nothing.
+
+**Does it make better specimens?** Every one of the 34 saved slides was regrown for 6,000 steps at Batch-tile size, as
+saved (all OFF or VEINS) and on FED, cut around its best body, and the cut placed alone in a fresh 1× dish with the
+defaults for 10,000 steps.
+
+| | As saved | FED |
+|---|---|---|
+| Slides that died out before a cut | 0 | 2 |
+| Typical lowest share of the placed particles in the first 5,000 steps | 0.33 | 1.0 (no die-back) |
+| Fell below half of what was placed by then | 20 of 34 | 5 of 32 |
+| Typical share left at 10,000 steps | 0.46 | 1.18 |
+| Particles at 10,000 steps, FED against as saved | | more in 16 pairs, fewer in 4, about the same in 12 (typically 1.45 times) |
+| Real divisions | 0 | 0 |
+
+FED slides hold fewer agents (20 to 80% of their places), so their cuts start smaller; the end counts above compare
+the particles each actually had at 10,000 steps. The largest gains were Feathered Silver Honeycomb (19,000 particles as
+saved, 134,000 fed), Flowing Blue Islands, Silver Honeycomb and Azure Lace; in the three of these pictured, a thread or
+scrap as saved became a network of chambers fed. The four losses (Silver Web V, Sparse Azure Islands, Bold Silver Islands, Bold Cyan Web) were
+specimens that already did well as saved. Bold Azure Islands, fed, ended as two ringed cells joined in a figure eight,
+which looked like a division under way. Watched alone for 60,000 steps on three dish seeds, it was the opposite: its cut
+broke into up to 30 pieces, two cores from the cut survived (about 9,000 particles by step 10,000), each grew its own
+halo, the halos pressed into the figure eight, and by 35,000 to 40,000 steps they merged into one compact body
+(solidity 0.82) that kept growing, to 37,000 to 39,000 particles, with both cores still inside, like a cell with two
+nuclei. The app judged no division; its 8 to 10 candidate splits a run each lost a piece within 100 to 1,100 steps.
+Cores that sit together in one body, as in Amoeba K-461, are fusion, not fission.
+
+**Does a food supply through the edge make bodies split?** A real cell is fed through its surface but eats with its
+whole volume, so the bigger it gets the hungrier its middle, which is one reason cells divide. In the dish food flows
+between spots, faster along veins, so this fed pair was run again for 60,000 steps with vein flow off, and with flow
+slowed to a fifth as well. Food left in the broth, deep inside bodies, at their edges and in the open:
+
+| Food flow | Inside / edge / open at 10,000 steps | At 60,000 steps | Particles at 60,000 | The pair fused by | Divisions |
+|---|---|---|---|---|---|
+| Today's (spread 0.1, veins 0.15) | 0.32 / 0.74 / 1.0 | 0.51 / 0.95 / 1.0 | 37,000 | 40,000 steps | 0 |
+| No vein flow | 0.28 / 0.75 / 1.0 | 0.53 / 0.97 / 1.0 | 31,000 | 40,000 steps | 0 |
+| Slow (spread 0.02, no vein flow) | 0.27 / 0.80 / 1.0 | 0.55 / 0.99 / 1.0 | 26,000 | 50,000 steps | 0 |
+
+Bodies already live on food that comes in through their edge: their middles hold about a third to half of what the open
+broth does, at every flow. Slower flow only made them grow more slowly. Nothing split. A surface-limited supply on its
+own does not divide a body here; something has to turn a hungry middle into a pinch.
+
+One run logged a division, at step 35,200 with no vein flow. Pictures showed the two cores never parted: they touched
+for one count, read as one body, then as two again, and both "pieces" lasted. The tracker now rules that out: a body
+that has just absorbed another cannot divide for 2,000 steps, and a body that runs into another counts as absorbed
+even when the joined body takes its identity from the other. Rerun, the case reads 0.
+
+Limits: one seed and one growth length each, the cut taken automatically, and no breeding yet: these slides lived on
+food for one lifetime. Breeding on FED over generations, picking in Batch, is where selection should do the most.
+
+### A membrane prototype
+
+A real cell's food crosses its membrane, so its inside is something it maintains, and food arriving through its
+outline while its whole area eats is one reason a growing cell divides. In the dish, sunlight regrows food everywhere,
+including inside bodies, so a body's middle is fed mostly by sunlight falling on it, which is why slower flow changed
+little (see [Breeding on real food](#breeding-on-real-food-fed)). A prototype adds three particle-level rules to the
+Incubator, each a research setting in `ARENA.membrane`, all 0 and not on screen, so dishes run exactly as before (the
+Incubator fingerprint and every other check match):
+
+- **Shade:** a food cell regrows more slowly the more particles are in it (there is no room for food to grow).
+- **Block:** food flows more slowly between crowded cells, so a dense rim acts like a wall.
+- **Pump:** a particle on its body's rim (its kind under half as thick in a neighboring cell) draws food from the
+  thinnest neighboring cell and passes it into the thickest, the body's inside, paying energy per unit moved. Pumps
+  draw before the eaters, at most half of a cell a step. One food only.
+
+With all three on and no regrowth, a dish lost 5,647 over 300 steps against at least 1,729 in living costs, so no food
+is made. Six fed specimens of different kinds were each placed alone for 30,000 steps (shade 0.3, block 0.3, pump 0.002
+at cost 0.2, and a strong pump of 0.006 at cost 0.1):
+
+| Rules on | What happened | Divisions |
+|---|---|---|
+| None | All six lived and grew or held (13,000 to 414,000 particles) | 0 |
+| Shade | All smaller (Flowing Blue Islands II 164,000 against 414,000; Bold Azure-Teal Islands 52,000 against 158,000), forms unchanged | 0 |
+| Shade and block | Bold Azure-Teal Islands died out; Silver Honeycomb fell to 1,900 from 211,000; the rest smaller | 0 |
+| Shade, block and pump | Bold Azure-Teal Islands and, at the normal pump, Azure Lace died out; the food deep inside bodies stayed below their edges and the open broth (Bold Azure Islands 0.39, 0.81 and 1.0) | 0 |
+
+The one new form was Bold Azure Islands with the strong pump: instead of fusing into one body it filled the dish with a
+body rimmed with vacuole-like holes and holding 23 to 32 small granules, 35,000 particles against 18,000 without the
+rules. It hardly changed from 5,000 to 30,000 steps. Of its 190 splits, 37 were small pieces, and the 6 that lasted
+2,000 steps all broke off while the cut first came apart (steps 1,000 to 3,500): the granules are pieces of the cut
+kept alive, not buds.
+
+So food that has to come through a rim, as prototyped, gives neither division nor budding, and the pumps did not raise
+the food inside bodies. My reading: our bodies hold together equally well at any size, because homing, crowding and
+company for digestion work the same in a small body and a large one, so nothing makes a body unstable past some size.
+Two-core bodies (Amoeba K-461, Bold Azure Islands) show the cores can already form; what keeps them from parting is the
+shared halo. A rule that loosens a body's hold across a large body, such as particles keeping to their nearest core, is
+probably a better lever than food transport.
 
 ### What is new here, honestly
 

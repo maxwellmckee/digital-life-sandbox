@@ -128,7 +128,8 @@ your saves, and prints PASS or FAIL for each check. It takes about half a minute
 | Inherited cohesion | Homing and crowding stay exactly 1 in a dish without inherited cohesion and vary once they mutate; a kept body placed again brings its own; a kept specimen file with 24 numbers a particle opens with both at 1 |
 | Predators | Placed particles start with the intended spread of hunting; in one step's bites, strains bite each other and hardly bite their own kind; a kept body brings its hunting; a version 1 dish file opens with no one hunting |
 | Patches and two foods | In a cleared, empty dish food grows back evenly at PATCHES 0, in patches at 0.8 with about the same total, and later elsewhere; with two foods, diets differ and both foods are eaten |
-| Divisions | On made-up body maps counted every 100 steps, a round body that becomes two lasting round bodies is one division; a thin wall breaking, a speck pinched off, a split that rejoins, a split whose half dies and one too recent to judge are none |
+| Fed slides | A BIOLOGY: FED slide repeats exactly, lives on part of its agent places, and with no regrowth loses more than its cost of living |
+| Divisions | On made-up body maps counted every 100 steps, a round body that becomes two lasting round bodies is one division; a thin wall breaking, a speck pinched off, a split that rejoins, a split whose half dies, one too recent to judge, and two bodies that touch and part again are none |
 | Specimen test | TEST sets a two-strain dish aside and puts it back with the same particles and living genes, so it runs exactly as if never touched; two tests of one specimen measure the same; made-up results read as the right sentences, and an out-of-date one asks for a new test |
 | Every help label has its text | Every control that offers help, in every room and Archive view, has its text |
 
