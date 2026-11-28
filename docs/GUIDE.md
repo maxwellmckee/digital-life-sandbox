@@ -188,11 +188,12 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - **Strains:** each placed specimen founds a strain, which is the specimen and all its descendants. Each row shows the strain's share of the world and its number of bodies. Point at a row to light that strain up in the dish while the others dim. Click one to see:
   - its particles and bodies;
   - its largest and oldest body;
-  - divisions, body deaths and typical body lifespan;
+  - divisions (only real ones: see below; the number waiting counts splits that may still become divisions), body deaths and typical body lifespan;
   - energy;
   - how each gene has drifted since it was placed: set point, speed, sensor angle and reach, deposit, foraging, diet (with two foods), homing and crowding (as multiples of HOMEOSTASIS; "fixed in this older dish" for a dish saved before they existed), hunting (with HUNTING above 0), and chemistry shown as a color swatch.
   - **KEEP LARGEST BODY** saves that body as a specimen.
-- **How bodies are found:** where a lineage is dense on a grid of 20-pixel cells (96x54 in a 1× dish), each connected patch is a body. Bodies are followed by overlap between counts, twice a second. One body becoming two counts as a division. The counts are approximate, since a thin bridge that flickers can look like a split.
+- **How bodies are found:** where a lineage is dense on a grid of 20-pixel cells (96x54 in a 1× dish), each connected patch is a body. Bodies are counted every 100 steps of the dish, at any speed, and followed by overlap from one count to the next.
+- **Divisions.** Most times one body becomes two, it is a thin bridge breaking and rejoining or a network's walls coming apart. A split only counts as a **division** if both pieces are solid bodies rather than thin walls, the smaller holds at least 15% of the parent, and both live on, apart, for 2,000 steps. The display says DIVISION when one is confirmed. In tests so far no dish has shown one: the nearest, Amoeba K-461, split a body's core in two inside a figure-eight halo but never separated (see [Looking for division](RESEARCH.md#looking-for-division)).
 - **Clicking a strain row** also flips the specimen deck to that strain's card, if it is in the deck.
 - Each species shows in its organism's own colors, unless another species already shows in them, in which case it borrows a free gradient. A strain's swatch blends the colors of the chemicals it gives off.
 
@@ -256,7 +257,7 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 - A strain that came with a saved dish can't be placed again from scratch, because the dish keeps the strain, not the specimen it grew from. KEEP a body to make a new specimen of it. A saved dish always opens at the size it was saved at.
 - A saved dish file is large: about 19 MB for a 1× dish and 30 MB for a lightly filled 2× dish.
 - Specimens cut before the crop fix keep their cropped trail: a body wider than its slide was tall lost the trail at its ends. Its particles are all there and lay new trail, but cutting it again gives a clean copy.
-- Body counts, divisions and deaths in the Incubator are measured on a coarse grid, so they are approximate.
+- Body counts and deaths in the Incubator are measured on a coarse grid, so they are approximate. Divisions are judged strictly, so a real one can be missed, for example if a piece briefly thins below a body's density.
 - The cutting bench finds bodies from particle density on a grid of 8-pixel cells (4 pixels on a Batch tile), so outlines are stepped, and a faint body in a dense network can be missed. A round cut is always available.
 - WILD specimens are placed but not filed in the specimen deck. KEEP a wild body you like to save it.
 - A reaction field in the dish lives only where a strain keeps it, so the field that filled the whole picture at home covers only the body and a margin around it. All fields in the dish glow in the colors of the first strain that brought one.

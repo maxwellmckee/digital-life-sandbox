@@ -3447,7 +3447,21 @@ function frame(now) {
     }
   }
   const items = mode === 'batch' ? batchItems() : [{ sim: mode === 'arena' ? arena.sim : R, genome: mode === 'arena' ? arenaGenome : st, rect: null }];
-  if (mode === 'arena' && now >= arena.nextCensusAt) { arena.nextCensusAt = now + 500; arenaCensus(); }
+  // Bodies are counted every 100 steps of the dish, at any speed, so divisions are judged the same way at 1X and 8X.
+  // The count is queued before this frame's steps, and the frame stops at the next count until it can be queued.
+  if (mode === 'arena' && arena.sim && !arena.busy) {
+    const step = arena.sim.step, wanted = n;
+    if (step >= bodyCount.next) {
+      if (!arena.censusPending) { arenaCensus(true); bodyCount.next = (Math.floor(step / BODY.every) + 1) * BODY.every; arena.nextCensusAt = now + 500; }
+      else n = 0;
+    }
+    n = Math.min(n, Math.max(0, bodyCount.next - step));
+    // Steps held back for a count run in the next frame instead of being lost.
+    acc = Math.min(acc + wanted - n, stepLimit);
+  }
+  // Between counts, and while paused, the readouts are refreshed twice a second. Paused right at a count, as a new dish
+  // is while specimens are placed, the bodies are counted again so new ones show.
+  if (mode === 'arena' && now >= arena.nextCensusAt) { arena.nextCensusAt = now + 500; arenaCensus(arena.sim?.step === bodyCount.at); }
   if (mode === 'arena' && arena.sim && !arena.busy && !cellScope.pending && arena.sim.step >= cellScope.nextStep) { cellScope.nextStep = arena.sim.step + CELLS.every; lookForCells(); }
   // A dish about to take its first step has its picture taken, kept in memory until its first save. Its draw is queued
   // before the frame writes its own uniforms and steps, so it shows the dish as placed.
@@ -4915,6 +4929,7 @@ const HELP = {
   'arena.foods': { t: 'FOODS', d: 'ONE food, or TWO kinds that grow in different patches, the second shown in a warmer color. Each particle\'s diet gene sets how well it digests each: a specialist digests one well, a generalist both but less well, so strains that specialize on different foods can live side by side.', tip: 'With two foods each grows half as fast, so the dish holds as much in all. Diet mutates like any gene; the strain stats show it, from 0 (first food) to 1 (second). A new dish starts with ONE.' },
   'arena.drift': { t: 'GENE DRIFT', d: 'How much a daughter particle can differ from its parent, including its chemical identity.', lo: 'Faithful copies', hi: 'Fast evolution and more failed offspring' },
   'arena.chart': { t: 'HISTORY', d: "BODIES charts how many separate bodies each strain has over time, stacked in its color. PARTICLES charts each strain's share of the dish.", tip: 'Bodies show whether a strain stays as individuals, divides, or merges into one sprawl.' },
+  'arena.divisions': { t: 'DIVISIONS', d: 'How many times one of this strain\'s bodies became two that both lived on: both pieces solid bodies rather than thin walls, the smaller holding at least 15% of the parent, and both still alive and apart 2,000 steps later. Bridges breaking and walls coming apart do not count.', tip: 'The number waiting counts splits that might still turn out to be divisions. The display says DIVISION when one is confirmed.' },
   'arena.founders': { t: 'STRAINS', d: 'Each placed specimen founds a strain: it and all its descendants. Each row shows the strain’s share of the dish and its bodies. Point at one to light it up; click it for its stats and its card in the deck.', tip: 'Each species gets a chemical of its own while any of the six are free; species that share one smell alike. A strain with a reaction field brings the field with it.' },
   'arena.add.solo': { t: 'ADD FROM SOLO', d: 'Puts the organism you last had in SOLO on the cutting bench, to cut and place.', tip: 'Open a save in SOLO first to use a different one.' },
   'arena.add.library': { t: 'ADD FROM ARCHIVE', d: 'Opens the Archive. Press CUT on any slide to put it on the cutting bench, or under SPECIMENS press PLACE IN DISH.' },
@@ -6751,6 +6766,7 @@ function resetArena() {
   arena.history = [];
   arena.census = null;
   for (const f of arena.founders) { f.track = null; f.start = null; }
+  Object.assign(bodyCount, { next: 0, at: -1 });
   resetCells();
   s.colorBG = arena.colorBG[0];
 }
@@ -7973,10 +7989,19 @@ function arenaClear() {
   flash('DISH EMPTIED');
 }
 
-/* Bodies. Where a lineage is dense enough on a coarse grid, its connected patches are its bodies. Bodies are followed
-   from one count to the next by how much they overlap. When one body becomes two, that is counted as a division,
-   and a body with no successor has died. This is approximate: a thin bridge that flickers can look like a split. */
-const BODY = { cellMin: 6, minCells: 3, minMass: 150 };
+/* Bodies. Where a lineage is dense enough on a coarse grid, its connected patches are its bodies. Bodies are counted
+   every 100 steps of the dish, whatever its speed, and followed from one count to the next by how much they overlap. A
+   body with no successor has died. When one body becomes two, that is a split; most splits are thin bridges breaking
+   and rejoining, or a network's walls coming apart. A split is a DIVISION only if (docs/RESEARCH.md, "Looking for
+   division"):
+     both pieces are bodies, not walls: at least `solid` of each one's squares have all four neighbors in it;
+     the smaller piece holds at least `share` of the parent, so shedding a speck does not count;
+     both pieces live on, apart, for `confirm` steps.
+   It only reads the dish, so runs are the same whether divisions are counted or not. */
+const BODY = { cellMin: 6, minCells: 3, minMass: 150, every: 100 };
+const DIVISION = { solid: .2, share: .15, confirm: 2000 };
+// When the next body count is due, and the step of the last one.
+const bodyCount = { next: 0, at: -1 };
 function labelBodies(grid, { w: W, h: H }) {
   const raw = new Int32Array(W * H).fill(-1), stack = new Int32Array(W * H), found = [];
   for (let start = 0; start < W * H; start++) {
@@ -8006,11 +8031,23 @@ function labelBodies(grid, { w: W, h: H }) {
     bodies.push({ mass: b.mass, cx: b.sx / b.mass / W, cy: b.sy / b.mass / H, r: Math.max(b.x1 - b.x0 + 1, (b.y1 - b.y0 + 1) * W / H * (9 / 16)) / 2 / H, id: 0, born: 0 });
   });
   const labels = raw.map(v => v < 0 ? -1 : remap[v]);
+  // Solidity: the share of a body's squares whose four neighbors are all in it. Near 0 for a thin wall or thread.
+  const inner = new Int32Array(bodies.length), count = new Int32Array(bodies.length);
+  for (let k = 0; k < labels.length; k++) {
+    const b = labels[k];
+    if (b < 0) continue;
+    count[b]++;
+    const x = k % W, y = (k - x) / W;
+    if (x > 0 && y > 0 && x < W - 1 && y < H - 1 && labels[k - 1] === b && labels[k + 1] === b && labels[k - W] === b && labels[k + W] === b) inner[b]++;
+  }
+  bodies.forEach((b, i) => { b.solid = count[i] ? inner[i] / count[i] : 0; });
   return { labels, bodies };
 }
 function trackBodies(f, grid, step, size) {
   const { labels, bodies } = labelBodies(grid, size);
-  const t = f.track || (f.track = { labels: null, bodies: [], splits: 0, deaths: 0, lives: [], next: 1 });
+  const t = f.track || (f.track = { labels: null, bodies: [], splits: 0, deaths: 0, lives: [], next: 1, divisions: 0, pending: [] });
+  t.divisions ||= 0;
+  t.pending ||= [];
   if (!t.labels) bodies.forEach(b => { b.id = t.next++; b.born = step; });
   else {
     // Each body now is matched to the earlier body it overlaps most.
@@ -8033,12 +8070,27 @@ function trackBodies(f, grid, step, size) {
       if (heir === undefined) return; // It merged into an older body.
       bodies[heir].id = old.id;
       bodies[heir].born = old.born;
-      for (const c of list) if (!bodies[c].id) { bodies[c].id = t.next++; bodies[c].born = step; t.splits++; }
+      for (const c of list) if (!bodies[c].id) {
+        bodies[c].id = t.next++; bodies[c].born = step; t.splits++;
+        // A split that could be a division waits to see whether both pieces live on.
+        const a = bodies[heir], b = bodies[c];
+        if (b.mass >= DIVISION.share * old.mass && a.solid >= DIVISION.solid && b.solid >= DIVISION.solid) t.pending.push({ step, a: a.id, b: b.id });
+      }
     });
     bodies.forEach(b => { if (!b.id) { b.id = t.next++; b.born = step; } });
   }
   t.labels = labels;
   t.bodies = bodies;
+  // A waiting division ends when either piece is gone, merged or dead, and is confirmed once both have lasted.
+  const ids = new Set(bodies.map(b => b.id)), confirmed = [];
+  t.pending = t.pending.filter(d => {
+    if (!ids.has(d.a) || !ids.has(d.b)) return false;
+    if (step - d.step < DIVISION.confirm) return true;
+    t.divisions++;
+    confirmed.push(d);
+    return false;
+  });
+  return confirmed;
 }
 
 // How clumped the dish is: the share of its particles in the densest tenth of its 20-pixel squares inside the glass.
@@ -8069,11 +8121,13 @@ function submitCensus(read) {
   enc.copyBufferToBuffer(arena.censusBuf, 0, read, 0, arena.d.censusBytes);
   device.queue.submit([enc.finish()]);
 }
-// Counts each lineage a couple of times a second: particles, genes and bodies, for the chart and the founder list.
-function arenaCensus() {
+// Counts each lineage a couple of times a second: particles and genes, for the chart and the founder list. With
+// `bodies`, at the counts every 100 steps, it also follows the bodies and judges divisions.
+function arenaCensus(bodies = false) {
   if (arena.censusPending || !arena.sim || arena.busy) return;
   arena.censusPending = true;
-  const s = arena.sim, step = s.step, run = s.run;
+  const s = arena.sim, step = s.step, run = s.run, divided = [];
+  if (bodies) bodyCount.at = step;
   submitCensus(arena.censusRead);
   const read = arena.censusRead, grid = arena.d.grid;
   read.mapAsync(GPUMapMode.READ).then(() => {
@@ -8086,12 +8140,14 @@ function arenaCensus() {
         setpoint: avg(2, 256), speed: avg(3, 256), angle: avg(4, 256) * 180 / Math.PI, reach: avg(5, 16), deposit: avg(6, 256),
         forage: avg(7, 256) - 1, diet: avg(14, 256), homing: avg(15, 256), crowding: avg(16, 256), hunting: avg(17, 256), emit: Array.from({ length: CHEM }, (_, c) => avg(8 + c, 256)),
       } : null;
-      if (i < 16) trackBodies(f, u.subarray(CENSUS_GRID + i * cells, CENSUS_GRID + (i + 1) * cells), step, grid);
+      if (i < 16 && bodies) for (const d of trackBodies(f, u.subarray(CENSUS_GRID + i * cells, CENSUS_GRID + (i + 1) * cells), step, grid)) divided.push(f);
       if (traits && !f.start) f.start = traits;
       return { n, energy: avg(1, 256), traits };
     });
     const counts = lineages.map(l => l.n), clump = censusClump(u, grid, Math.min(16, arena.founders.length));
     arena.census = { step, counts, lineages, clump, total: counts.reduce((a, b) => a + b, 0), food: u[CENSUS_FOOD] / 64 / Math.max(1, u[CENSUS_FOOD + 1]) };
+    // The display has 22 columns, so a division names its strain without the genus.
+    if (divided.length) flash(divided.length > 1 ? divided.length + ' DIVISIONS' : 'DIVISION · ' + (divided[0].specimen.name.split(' ').slice(1).join(' ') || divided[0].specimen.name));
     syncIncubatorHud();
     const last = arena.history.at(-1);
     if (!last || step > last.step) {
@@ -8126,8 +8182,9 @@ function buildFounderRows() {
     head.addEventListener('blur', () => lightStrain(-1));
     const values = {};
     for (const [key, label] of FOUNDER_STATS) {
-      const v = el('span');
-      detail.append(el('b', '', label), v);
+      const v = el('span'), b = el('b', '', label);
+      if (key === 'divisions') b.dataset.help = v.dataset.help = 'arena.divisions';
+      detail.append(b, v);
       values[key] = v;
     }
     const keep = el('button', 'founder-keep', 'KEEP LARGEST BODY');
@@ -8169,7 +8226,7 @@ function renderArenaPanel() {
     set('bodies', String(bodies.length));
     set('largest', largest.mass ? kilo(largest.mass) + ' particles' : '—');
     set('oldest', bodies.length ? kilo(step - Math.min(...bodies.map(b => b.born))) + ' steps' : '—');
-    set('divisions', String(t?.splits ?? 0));
+    set('divisions', String(t?.divisions ?? 0) + (t?.pending?.length ? ` · ${t.pending.length} waiting` : ''));
     set('deaths', String(t?.deaths ?? 0));
     set('life', lives.length ? kilo([...lives].sort((a, b) => a - b)[lives.length >> 1]) + ' steps' : '—');
     set('energy', n ? l.energy.toFixed(2) : '—');
@@ -8567,7 +8624,7 @@ async function packDish(id, exact = false) {
       field: f.specimen.field ? { palette: f.specimen.field.palette, light: f.specimen.field.light ?? null } : null,
       color: f.color, lineage: f.lineage, x: f.x, y: f.y, spots: f.spots, placed: f.placed, map: f.map, sources: founderSources(f),
       emit: f.emit, resp: f.resp || null, stranger: f.stranger || null, start: f.start || null,
-      track: f.track ? { bodies: f.track.bodies, splits: f.track.splits, deaths: f.track.deaths, lives: f.track.lives, next: f.track.next, labels: !!labels[i] } : null,
+      track: f.track ? { bodies: f.track.bodies, splits: f.track.splits, deaths: f.track.deaths, lives: f.track.lives, next: f.track.next, divisions: f.track.divisions || 0, pending: f.track.pending || [], labels: !!labels[i] } : null,
     })),
   };
   return { meta, parts };
@@ -8665,7 +8722,7 @@ async function putDish(meta, raw) {
       specimen: { name: m.name, kind: m.kind, radius: m.radius, field: m.field, fromDish: true },
       x: m.x, y: m.y, spots: m.spots, lineage: m.lineage, placed: m.placed, map: m.map, sources: m.sources,
       emit: m.emit, resp: m.resp, stranger: m.stranger, color: m.color, start: m.start,
-      track: m.track ? { bodies: m.track.bodies, splits: m.track.splits, deaths: m.track.deaths, lives: m.track.lives, next: m.track.next, labels } : null,
+      track: m.track ? { bodies: m.track.bodies, splits: m.track.splits, deaths: m.track.deaths, lives: m.track.lives, next: m.track.next, divisions: m.track.divisions || 0, pending: m.track.pending || [], labels } : null,
     };
   });
   Object.assign(arena, { rows: null, open: -1, seed: meta.seed, recipes: meta.recipes.map(rc => ({ ...rc })), history: meta.history.map(e => ({ ...e })) });
@@ -8872,7 +8929,7 @@ async function setAsideDish() {
   return Object.assign(keep, {
     packed: { meta, raw: await new Blob(parts).arrayBuffer() },
     origin: arena.origin, dishId: arena.dishId, census: arena.census, history: arena.history, open: arena.open, zoom: { ...arena.zoom },
-    cells: Object.fromEntries(['tracks', 'next', 'step', 'nextStep', 'prevSample', 'listed', 'held', 'lit'].map(k => [k, cellScope[k]])),
+    cells: Object.fromEntries(['tracks', 'next', 'step', 'nextStep', 'prevSample', 'listed', 'held', 'lit'].map(k => [k, cellScope[k]])), bodyCount: { ...bodyCount },
   });
 }
 async function putBackDish(keep) {
@@ -8889,6 +8946,7 @@ async function putBackDish(keep) {
   Object.assign(arena.params, keep.params);
   arenaChemistry();
   Object.assign(cellScope, keep.cells);
+  Object.assign(bodyCount, keep.bodyCount);
   arena.zoom = keep.zoom;
   syncZoom();
   await device.queue.onSubmittedWorkDone();

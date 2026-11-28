@@ -4,6 +4,12 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **Real divisions.** A strain's DIVISIONS now counts only a body becoming two that both live on: both pieces solid
+  bodies rather than thin walls, the smaller holding at least 15% of the parent, and both alive and apart 2,000 steps
+  later (the number waiting shows splits still being judged). The display says DIVISION and names the strain when one is
+  confirmed. Bodies are now counted every 100 steps of the dish rather than twice a second, so a dish is judged the
+  same way at any speed, with no cost to speed. Research behind it: in the dishes and specimens tried so far, no body
+  divides yet; the many splits counted before were bridges and walls (RESEARCH.md, "Looking for division").
 - **A new dish waits for PLAY.** The Incubator no longer runs before anything is placed: a new dish waits, paused,
   while you place specimens, PLAY glows and the display reads PRESS SPACE TO START. EMPTY makes a new dish that
   waits again, and the Microscope and the Incubator each keep their own PLAY and PAUSE. The moment a new dish first

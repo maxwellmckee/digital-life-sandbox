@@ -523,6 +523,40 @@
       return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : `the dish came back exactly; ${fx.a.name}: "${behaviorLine(items[0].meta)}"` };
     },
 
+    // Divisions, on made-up body maps counted every 100 steps: a round body that becomes two round bodies, both lasting,
+    // is one division. A thin wall breaking, a speck shed, a split that rejoins, and a split whose half dies are none.
+    async 'Divisions'() {
+      const size = { w: 48, h: 32 }, every = BODY.every;
+      const map = (...shapes) => {
+        const g = new Uint32Array(size.w * size.h);
+        for (const [kind, cx, cy, a, b = 0] of shapes) for (let y = 0; y < size.h; y++) for (let x = 0; x < size.w; x++) {
+          const inside = kind === 'disc' ? Math.hypot(x + .5 - cx, y + .5 - cy) <= a : kind === 'line' ? y === cy && x >= a && x <= b : x >= cx && x < cx + a && y >= cy && y < cy + b;
+          if (inside) g[y * size.w + x] = 20;
+        }
+        return g;
+      };
+      // Runs a story, a body map for each count from step 0, and returns the divisions confirmed.
+      const run = frames => {
+        const f = {};
+        frames.forEach((g, i) => trackBodies(f, g, i * every, size));
+        return f.track.divisions;
+      };
+      const last = DIVISION.confirm / every + 2, story = (before, after, n = last) => [before, ...Array.from({ length: n }, (_, i) => after(i))];
+      const one = map(['disc', 24, 16, 6]), two = () => map(['disc', 17, 16, 4], ['disc', 31, 16, 4]);
+      const got = {
+        division: run(story(one, two)),
+        wall: run(story(map(['line', 0, 16, 6, 42]), () => map(['line', 0, 16, 6, 22], ['line', 0, 16, 26, 42]))),
+        // A 4-square block pinched off a large body, inside its old outline: a body of its own, but a tenth of the parent.
+        speck: run(story(map(['disc', 24, 16, 7]), () => map(['disc', 21, 16, 5], ['box', 28, 14, 4, 4]))),
+        rejoined: run(story(one, i => i < 5 ? two() : one)),
+        halfDied: run(story(one, i => i < 8 ? two() : map(['disc', 17, 16, 4]))),
+        tooSoon: run(story(one, two, DIVISION.confirm / every - 2)),
+      };
+      const want = { division: 1, wall: 0, speck: 0, rejoined: 0, halfDied: 0, tooSoon: 0 };
+      const wrong = Object.keys(want).filter(k => got[k] !== want[k]).map(k => `${k}: ${got[k]}, expected ${want[k]}`);
+      return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : 'a body that became two lasting bodies: 1; a wall breaking, a speck, a rejoined split, a half that died and a split too recent to judge: 0' };
+    },
+
     async 'Every help label has its text'() {
       const keys = new Set(), take = () => document.querySelectorAll('[data-help]').forEach(e => keys.add(e.dataset.help));
       DL.goRoom('lab'); await sleep(200); take();

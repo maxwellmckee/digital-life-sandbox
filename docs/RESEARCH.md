@@ -917,6 +917,50 @@ Limits:
 - **The challenges are still hard.** Turned on, predators, patches and two foods still shrink a dish of fresh
   specimens. Specimens bred under the dish's own physics ([IDEAS](IDEAS.md), C3) are probably the real answer.
 
+### Looking for division
+
+Reproduction is the one hallmark of life the dish does not yet show at the level of whole bodies: particles divide,
+but does a body? The body tracker already counts a "division" whenever one body becomes two, but most of these are
+thin bridges breaking and rejoining ([Judging a dish](#judging-a-dish)). To find real ones, a research version of the
+tracker counted bodies every 100 steps, noted for every new body the body it split from, and kept a split only if:
+
+- **both pieces live on**, still separate, 2,000 steps later;
+- **the smaller piece holds at least 15%** of the parent, so shedding a speck does not count;
+- **both pieces are bodies, not walls**: at least 20% of each one's 20-pixel squares have all four neighbors in the
+  same body. A thin wall or thread scores near 0, a compact body 0.3 to 0.6.
+
+What it found, with the new defaults:
+
+| Dish | Splits | Both pieces lived 2,000 steps | Passing all three |
+|---|---|---|---|
+| Set a (four strains), 20,000 steps | 85 in its membrane strain (Vitta) | 8 | 0: all were walls (solidity 0 to 0.04) |
+| Set a, its two oval ringed cells | 0 | 0 | 0 (solidity 0.48 and 0.56; they never split) |
+| Set b (four strains), 30,000 steps | 25 | 0 | 0 |
+| Eight saved specimens alone, each 20,000 steps | 5 to 221 each | 0 to 29 | 0 |
+
+The specimens tried alone were the eight whose specimen test ended in two or more pieces. Six spread into threads or one
+sprawling body, and their lasting splits were threads breaking. Without the solidity test, set a's membrane strain
+would have shown 12 "divisions" over 30,000 steps, five of them in a second or third generation, but pictures of its
+body map show these are stretches of a membrane network coming apart as it rearranges, not cells dividing.
+
+The nearest thing to reproduction is **Amoeba K-461**. Its bodies are glowing cores in round halos. By 4,000 steps one
+core had stretched into a streak; by 12,000 it had become two cores in a halo pinched into a figure eight, the shape of
+a cell about to divide, and another body held two cores in one halo. Over 40,000 steps neither pair separated, and one
+pair's cores ran back together. Division begins here but is never finished.
+
+So no whole body divides in these dishes yet. Nothing in the rules makes splitting pay: a body that holds together eats
+better (digestion needs company) and is safer from predators, and with even food there is no reason for its halves to
+part. Selection could favor it where food moves (PATCHES), if a body that splits can follow two patches, but only once
+specimens are bred under the dish's own physics ([IDEAS](IDEAS.md), C3). The tracker's three tests are the yardstick
+for that.
+
+**In the app.** The Incubator now applies the same three tests. Bodies are counted every 100 steps of the dish rather
+than twice a second, so a dish is judged the same way at any speed: set a tracked at 2X and at 8X gave the same bodies,
+with the same masses, at every count to step 2,000, and 8X still ran 480 steps a second. A strain's DIVISIONS counts
+only confirmed divisions, and the display names the strain when one is confirmed. A check on made-up body maps
+confirms one real division and rejects a wall breaking, a pinched-off speck, a split that rejoins, a split whose half
+dies and one too recent to judge; loosening the solidity or the share test lets the wall or the speck through.
+
 ### What is new here, honestly
 
 - **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
