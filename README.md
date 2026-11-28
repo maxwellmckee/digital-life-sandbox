@@ -7,6 +7,9 @@ Everything you grow, cut or keep is filed in the Archive.
 The goal is **art through emergence**: organic, soft, luminous forms that are discovered rather than drawn, and digital
 life that holds together as individuals.
 
+**Catching up?** [The big picture](docs/OVERVIEW.md) explains the project, its rules, how it works and where it stands,
+in about ten minutes.
+
 <table>
   <tr>
     <td><img src="docs/screenshots/glowing-cells.webp" alt="Glowing white cells joined by a blue and orange network" width="100%"></td>
@@ -112,6 +115,7 @@ There is nothing to install and no build step. It was built on a desktop NVIDIA 
 
 | Where | What |
 |---|---|
+| [docs/OVERVIEW.md](docs/OVERVIEW.md) | The big picture in ten minutes: the rules of the game, the process, where it stands and where it is headed |
 | [docs/GUIDE.md](docs/GUIDE.md) | How to use it: every room, control and shortcut |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it works inside, file formats, the rules for changing it, and the tests |
 | [docs/RESEARCH.md](docs/RESEARCH.md) | The science behind it, how it was adapted, and everything measured |
@@ -122,7 +126,7 @@ There is nothing to install and no build step. It was built on a desktop NVIDIA 
 | `tests/` | The test suite: `.\tests\run.ps1` |
 | `update_notes/` | The original vision and earlier plans, kept as history |
 
-> **New here, or a new Claude session?** Read this page, then [ARCHITECTURE.md](docs/ARCHITECTURE.md) (its rules and
+> **New here, or a new Claude session?** Read this page and [OVERVIEW.md](docs/OVERVIEW.md), then [ARCHITECTURE.md](docs/ARCHITECTURE.md) (its rules and
 > glossary first), then the newest entries in [CHANGELOG.md](CHANGELOG.md) and [RESEARCH.md](docs/RESEARCH.md). Run
 > `.\tests\run.ps1` before and after any change.
 

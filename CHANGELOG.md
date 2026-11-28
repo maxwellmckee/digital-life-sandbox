@@ -4,6 +4,9 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **The big picture.** docs/OVERVIEW.md explains the project in ten minutes: the rules of the game (bottom-up only),
+  the process from growing to cutting to the dish, the rules particles follow today, where it stands and where it is
+  headed, with links to the details. The README links it at the top.
 - **One vocabulary in the docs.** The guide, research notes, design and world docs now use the words on screen:
   Incubator (not Arena), Archive and its ARCHIVE key (not Library), strain (not lineage or founder), specimen deck (not
   drawer) and slide for a saved organism. The guide no longer mentions the removed strain cap, and RESEARCH.md opens
