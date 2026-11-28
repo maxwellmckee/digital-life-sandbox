@@ -4,6 +4,15 @@ What changed, newest first. Each entry is a commit on `main`.
 
 ## Unreleased
 
+- **One vocabulary in the docs.** The guide, research notes, design and world docs now use the words on screen:
+  Incubator (not Arena), Archive and its ARCHIVE key (not Library), strain (not lineage or founder), specimen deck (not
+  drawer) and slide for a saved organism. The guide no longer mentions the removed strain cap, and RESEARCH.md opens
+  with how to read it: a notebook in order, where later sections supersede earlier ones.
+- **The search for division in one place.** docs/DIVISION.md gathers every attempt to find or cause division, with
+  pictures, and what each taught. The README gains the approach (grow, cut, stress-test, passing genes on) and a
+  milestones table. Research pictures from this work are now in docs/research/.
+- **A dish keeps the membrane prototype.** Saved with it on, a dish turns it back on when opened (MEMBRANES ON, and a
+  MEMBRANES line on its card); any other dish and EMPTY turn it off, and specimen tests run without it.
 - **Membrane prototype (research only, off).** Three particle-level rules in the Incubator, all at 0 and not on
   screen, so dishes run exactly as before: crowding shades regrowth, crowding blocks flow, and rim particles pump
   food inward at an energy cost (`ARENA.membrane`). Tried on six fed specimens, they gave no division or budding

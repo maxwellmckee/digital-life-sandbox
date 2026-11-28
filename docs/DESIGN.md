@@ -53,8 +53,8 @@ An earlier version sent motes of light crawling around the edges of controls and
 | Room | View | Frame | Mood |
 |---|---|---|---|
 | Microscope | SOLO and BATCH | A glass slide with corner brackets, scale bar and label. BATCH is a tray of nine slides, each with its own brackets and frosted SLIDE label | Clinical, bright, focused |
-| Incubator | Arena | A round porthole in dark machinery with readouts around the rim | Warm, alive, slightly dangerous |
-| Archive | Library | SLIDES: the family chart above drawers of photographs. LIVING: specimen files and saved dishes | Quiet, cold, orderly |
+| Incubator | The dish | A round porthole in dark machinery with readouts around the rim | Warm, alive, slightly dangerous |
+| Archive | SLIDES and LIVING | SLIDES: the family chart above drawers of photographs. LIVING: specimen files and saved dishes | Quiet, cold, orderly |
 
 Rooms are chosen from the room bar at the top of the screen. Each room shows only the controls it needs.
 
@@ -89,7 +89,7 @@ Icons are 7×7 dots, drawn like the display font.
 | Helix | Breeding | A new generation is bred |
 | Spark | Mutation | Rules mutate |
 | Dish | Incubator | A specimen is placed or kept |
-| Book | Archive | The Library opens |
+| Book | Archive | The Archive opens |
 | Dot | Recording | A clip or recording is running |
 | Folder | Folder access | Access must be allowed |
 | Alert | Problem | Something failed |

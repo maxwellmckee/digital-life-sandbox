@@ -31,7 +31,7 @@ Each Batch generation holds your kept picks, guided children, one plain child an
 | SAVE | `S` | Saves the body and rules of the organism, or of every picked tile. In the Incubator, saves the whole dish to the Archive's DISHES, updating its entry if it was saved before |
 | PAUSE / PLAY | `Space` | Freezes or resumes. The Microscope and the Incubator each keep their own; a new Incubator dish waits for PLAY |
 | UNDO | `U`, `Ctrl+Z` | Reverses the last change, brush stroke or generation. In the Incubator, removes the last copy placed |
-| LIBRARY | `L` | Opens the Archive: saved slides with their family tree, and the living specimens and dishes |
+| ARCHIVE | `L` | Opens the Archive: saved slides with their family tree, and the living specimens and dishes |
 | FULL | `F` | Fullscreen |
 | CUT / KEEP | `X` | Puts the organism on screen, or a Batch slide, on the cutting bench. In the Incubator it is KEEP: click a living body to save it as a specimen |
 | View | `B`, `A` | `B` switches Solo and Batch. `A` opens or leaves the Incubator |
@@ -49,7 +49,7 @@ The numbered menu under the settings opens one page at a time.
 - **START** (on the settings above the menu) arranges the agents at step 0: SCATTER, RING IN, RING OUT, SHAPE or BLANK. **SHAPE** starts from a shape picked by the seed: several clusters, a swirl, or two groups side by side. The seed also sets the details, such as how many clusters and which way the swirl turns, so the same seed always starts the same way. With several species, each cluster or group belongs to one species, and a swirl gives each species its own ring. RANDOM and mutation can pick SHAPE too.
 - **LIFE:** optional veins and living cells.
 - **FIELD:** an optional reaction-diffusion chemical that agents interact with.
-- **LIGHT:** color gradients, glow and exposure. These change the look only. Each organism has its own colors, which RANDOM rolls, children inherit and saves keep. In Batch, choosing a color recolors every slide in the tray. Glow and exposure are shared by all.
+- **LIGHT:** color gradients, glow and exposure. These change the look only. Each organism has its own colors, which RANDOM rolls, children inherit and saved slides keep. In Batch, choosing a color recolors every slide in the tray. Glow and exposure are shared by all.
 - **DRAW:** barrier and organism brushes, in Solo.
 - **TASTE:** what the app has learned from your picks.
 
@@ -61,7 +61,7 @@ The numbered menu under the settings opens one page at a time.
 - **ORGANISMS: EMPTY** on the DRAW page removes all organisms, keeps the barriers and selects the organism brush. In an empty sandbox, barriers apply immediately. **FILLED** goes back to a normal start. **START: BLANK** is the same empty state.
 - Children you breed inherit their parent's barriers. RANDOM keeps the current barriers too. Use **CLEAR**, then **GROW**, to remove them.
 - **ORGANISM** places the chosen species wherever you hold or swipe the mouse. It moves existing or parked agents to the brush, so the total pool stays constant and performance is unaffected.
-- Painted organisms are recorded by simulation step, so REPLAY and saves re-enact them. REROLL, MUTATE, RANDOM and breeding start without them.
+- Painted organisms are recorded by simulation step, so REPLAY and saved slides re-enact them. REROLL, MUTATE, RANDOM and breeding start without them.
 
 ## Inheritance and early life
 
@@ -77,24 +77,24 @@ Every organism has two parts. The **rules** are its settings. The **body** is th
 
 ## Saves and breeding
 
-- **SAVE always stores the body and the rules**, so a save reopens exactly as it looked. Each save uses about 5 to 20 MB. With CELLS on, expect about 7 MB at LOW or from a Batch tile, 27 MB at MED and 49 MB at HIGH.
+- **SAVE always stores the body and the rules**, so a saved slide reopens exactly as it looked. Each uses about 5 to 20 MB. With CELLS on, expect about 7 MB at LOW or from a Batch tile, 27 MB at MED and 49 MB at HIGH.
 - **No duplicates.** Saving the same organism again updates its existing entry, keeping its name, tags and family links. "Same organism" means the same seed, start, rules, biology, barriers and painting. Colors don't count.
-- Opening the Archive folds any older duplicate saves into their newest copy. The kept save takes over their names, tags and family links, and the copies move to `saves/removed/`.
+- Opening the Archive folds any older duplicate slides into their newest copy. The kept slide takes over their names, tags and family links, and the copies move to `saves/removed/`.
 - **Automatic names.** Everything alive is named like a lab strain: a genus for its form, then a code, such as "Reticulum T-182".
   - The genus comes from the measured shape: Reticulum (web), Retiola (lace), Favella (honeycomb), Amoeba (islands), Hypha (branches), Fluvia (rivers), Vitta (ribbons), Filum (threads), Coccus (spores), Volvox (living cells) and Plasmodium (not yet measured).
   - The code's letters are **M**, **D** or **T** for one, two or three species, with **F** when it carries a reaction field. The number comes from the seed and rules, so the same organism always gets the same one; it moves on only if the name is taken.
   - A cut adds its body letter ("Reticulum T-182 A", or "disc" for a round cut). A wild organism's code starts with **W**, and a body kept from the Incubator is **K** in the genus of the strain it mostly came from ("Reticulum K-499"), or **C** when it was kept as a cell ("Reticulum C-389").
   - A saved dish is a **Monoculture**, **Coculture** or **Consortium** by how many strains live in it, with **S**, **M** or **L** for its size ("Coculture S-718").
   - Typing a name replaces it. Unnamed older saves are named when the Archive opens.
-- **Older names were renamed once.** The first time the saves folder is read, every save with an automatic name, every specimen and every saved dish takes a name in the new form, together with the names they hold of each other: the save a cut came from, a kept body's origins and a dish's strains. A name you typed stays. Each keeps its old name as `formerName`: searching for it still finds it, specimen and dish cards show it as FORMERLY, and pointing at a save's name shows it.
+- **Older names were renamed once.** The first time the saves folder is read, every slide with an automatic name, every specimen and every saved dish takes a name in the new form, together with the names they hold of each other: the slide a cut came from, a kept body's origins and a dish's strains. A name you typed stays. Each keeps its old name as `formerName`: searching for it still finds it, specimen and dish cards show it as FORMERLY, and pointing at a slide's name shows it.
 - Each slide card shows **BODY + RULES** or **RULES ONLY**. RULES ONLY marks an older save that regrows from settings. Open it and SAVE again to store its body.
 - Archive **BREED** passes on whatever PASS ON says, so with BODY + RULES the children start inside the saved body.
-- Archive **CUT** puts a save on the Incubator's cutting bench, so a body cut from it goes into the specimen deck. Every card shows OPEN, BREED and CUT, whichever room you came from. See [The Incubator](#the-incubator). The save itself is never changed.
-- **SLIDES** has a **GRID / TREE** switch under the Archive's top bar, and opens on GRID. GRID shows every save as a card, sorted by NEWEST, LIFE or A-Z. TREE shows your families, parents on the left and children on the right, with saves that have no relatives below them. Click a slide in the tree to light up its family and get OPEN, CUT and BREED for it at the bottom; double-click to open it.
+- Archive **CUT** puts a slide on the Incubator's cutting bench, so a body cut from it goes into the specimen deck. Every card shows OPEN, BREED and CUT, whichever room you came from. See [The Incubator](#the-incubator). The slide itself is never changed.
+- **SLIDES** has a **GRID / TREE** switch under the Archive's top bar, and opens on GRID. GRID shows every slide as a card, sorted by NEWEST, LIFE or A-Z. TREE shows your families, parents on the left and children on the right, with slides that have no relatives below them. Click a slide in the tree to light up its family and get OPEN, CUT and BREED for it at the bottom; double-click to open it.
 - In the tree, a label like **+2 GEN** on a line is not a copy. It means two generations were bred in between without being saved.
-- Removed saves don't appear in the tree. Their children connect straight to the removed save's own parents, and the +GEN label counts the removed generation.
+- Removed slides don't appear in the tree. Their children connect straight to the removed slide's own parents, and the +GEN label counts the removed generation.
 
-Breeding never changes a save file. Children are new organisms until you save them.
+Breeding never changes a saved slide. Children are new organisms until you save them.
 
 ## The Incubator
 
@@ -102,19 +102,19 @@ Breeding never changes a save file. Children are new organisms until you save th
 
 The two pages are two levels of selection. In Solo and Batch you choose bodies for their structure. In the Incubator, specimens of those bodies compete for food, and only the ones that can sustain themselves last.
 
-1. Press **A**, or click **INCUBATOR** in the room bar. The INCUBATOR page replaces the organism pages. A new dish waits, paused, while you place specimens: nothing runs until you press **PLAY** (`Space`), which glows once specimens are in and the display reads PRESS SPACE TO START. EMPTY makes a new dish that waits again. The Microscope keeps its own PLAY and PAUSE.
+1. Press **A**, or click **INCUBATOR** in the room bar. The Incubator replaces the Microscope on screen. A new dish waits, paused, while you place specimens: nothing runs until you press **PLAY** (`Space`), which glows once specimens are in and the display reads PRESS SPACE TO START. EMPTY makes a new dish that waits again. The Microscope keeps its own PLAY and PAUSE.
 2. Choose what to cut. **CUT** (`X`) in the Microscope sends the organism on screen, or a Batch slide, straight to the cutting bench. In the Incubator, the **ADD FROM** row does the same:
    - **SOLO** puts the organism you last had in Solo on the cutting bench. To use a different organism, open it in Solo first.
-   - **LIBRARY** opens the Archive. Press **CUT** on any save to put it on the cutting bench. A save without a body is regrown out of sight first.
+   - **ARCHIVE** opens the Archive. Press **CUT** on any slide to put it on the cutting bench. A slide saved without a body is regrown out of sight first.
    - **WILD** grows a random organism, cuts its best body (or its densest part if it has none) and places it in the most open spot.
 <p align="center"><img src="screenshots/cutting-bench.webp" alt="The cutting bench showing Amoeba DF-349 with six bodies outlined and labelled, the ring-shaped body A chosen, and a bar reading BODY A, STEADY AT HOME, with CANCEL and CUT buttons" width="80%"></p>
 
 3. **The cutting bench** shows the organism with the bodies found in it outlined, best first, labeled A, B, C. Everything outside the chosen cut is dimmed.
    - Click an outlined body to choose it. A body inside another can be clicked directly.
    - Click anywhere else for a round cut, and scroll to size it.
-   - **Steady at home.** While the bench opens, the organism runs on out of sight for 900 more steps, and each body is checked: did it keep its shape and size? The info bar says **STEADY AT HOME** or **CHANGES AT HOME**, and a changing body's letter is amber. A save is one moment, and some bodies change on their own even at home, such as a ring that pulls into a knot. Those will keep changing in the dish too. The cut's card in the deck says STEADY or CHANGES.
+   - **Steady at home.** While the bench opens, the organism runs on out of sight for 900 more steps, and each body is checked: did it keep its shape and size? The info bar says **STEADY AT HOME** or **CHANGES AT HOME**, and a changing body's letter is amber. A saved slide is one moment, and some bodies change on their own even at home, such as a ring that pulls into a knot. Those will keep changing in the dish too. The cut's card in the deck says STEADY or CHANGES.
    - **CUT** (`Enter`, or the ADD pad) takes it. Esc cancels. The Incubator holds still while the bench is open.
-   - The cut goes to the front of the **specimen deck**, named after its save and body, such as "Reticulum T-182 A", and placing begins. One save can give several specimens.
+   - The cut goes to the front of the **specimen deck**, named after its slide and body, such as "Reticulum T-182 A", and placing begins. One slide can give several specimens.
 4. **The specimen deck** stands beside the dish. It holds the specimens you are working with, as cards with a picture and an edge in the color of how each was made, newest in front. The card in front is full size, and the others stand behind it above and below, smaller and tilted back, with a gap between each. **Scroll over the deck** to flip through it, one card per notch; the arrow keys work too. The counter shows which card is in front.
    - **The empty slot** at the bottom of the deck opens your whole collection, every specimen you have, with a search box. Pointing at one grows it a little to show what its test found. Choose one and its card joins the deck, in front, picked and ready to place. A new cut or keep joins the deck on its own.
    - **PUT AWAY**, above the deck, takes the card in front out of the deck. The specimen stays in the Archive, and the slot brings it back. **REMOVE**, beside it, deletes the specimen: press it, then SURE? within three seconds, and its files move to `saves/removed/specimens/`, as REMOVE on its Archive card does. Either way, strains already in the dish live on.
@@ -130,9 +130,10 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
    - **EMPTY** (`R`) removes every strain. It shows SURE? and empties on the second press.
 7. **DISH** sets how much room the dish has: **1×**, **1.5×** or **2×**, which hold about 1, 2¼ and 4 times as much. Every specimen keeps its true size in every dish, so a larger dish holds more copies, not larger ones. Changing the size places the strains again where they were, measured from the middle, and starts the run over.
 8. **Zoom and look around.** Scroll on the dish to zoom toward the pointer, and drag to look around; the round window never looks past the glass. While placing, the scroll wheel sizes the copy instead, and Ctrl with the wheel (or a touchpad pinch) zooms. **SHOW ALL**, bottom left, returns to the whole dish.
-9. **Saving a dish.** **SAVE** (`S`) keeps the whole dish as it is now in the Archive under **DISHES**: every particle with its genes, both trail maps, the broth, any reaction field, and each strain with its chemistry, size limit and history.
+9. **Saving a dish.** **SAVE** (`S`) keeps the whole dish as it is now in the Archive under **DISHES**: every particle with its genes, both trail maps, the broth, any reaction field, and each strain with its chemistry and history.
    - **One entry per dish.** Saving the same dish again, in the same session or after opening it, updates its entry with the newest state; only the newest can be opened. A dish becomes a new one when you EMPTY it or change its size.
    - **Snapshots.** Each save also keeps a round picture of the dish at that step. The card shows the newest, and pointing at it plays every snapshot from the first to the newest, with its step. A new dish is also pictured as placed, the moment it first runs; that picture is only kept in memory, and the dish's first save adds it as its first snapshot, at step 0.
+   - **Membranes.** A dish saved while the membrane prototype was on (a research setting with no control on screen; see [A membrane prototype](RESEARCH.md#a-membrane-prototype)) keeps it: its card has a MEMBRANES line, and opening it turns the prototype back on and says MEMBRANES ON. Any other dish, and EMPTY, turn it off.
    - **OPEN** on its card puts it back in the Incubator exactly as it was last saved, at its own size, and it carries on. You can add more specimens to it. **REPLAY** then returns to its last save, with any copies placed since placed again, and **UNDO** only removes copies placed since.
    - Dishes are saved in `saves/dishes/`. Separate saves of one dish made before this change were folded into one entry: the newest state, the first save's name and a snapshot from each, with the older files moved to `saves/removed/dishes/`.
 10. **Cells.** A dish grown from several specimens sometimes forms structures nobody placed: closed membranes around a living inside, often with a body inside like a nucleus. **CELLS: SHOW** puts a box over each one with its name and score.
@@ -174,7 +175,7 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
 - **Inherited cohesion.** Each particle also carries its own **homing** (how reliably it turns back when lost) and **crowding** (how hard it is pushed out of places denser than its set point), as multiples of HOMEOSTASIS. Both start at 1 and mutate with GENE DRIFT, so a strain can evolve to hold together more or less, and holding together can win or lose. A kept body keeps them. Dishes saved before this open with both fixed at 1, so they run exactly as they did.
 - **HUNTING** (a slider under the settings) sets how much predation pays; 0 turns it off. Every particle carries a **hunting** gene from 0 (grazes) to 1 (hunts):
   - A hunter digests food less well the more it hunts, is drawn to smells unlike its own, and bites strangers it bumps into, taking part of their stored energy. Only half of what it takes reaches it; the rest is lost, as in real food chains. A particle drained of energy dies and its matter returns to the broth.
-  - **Kin are spared by a kin mark**, a gene every particle of a placed specimen shares, sister species included, like the immunity genes that let bacteria kill strangers on contact but spare their kin. It drifts slowly by mutation, so distant lineages can become strangers to each other.
+  - **Kin are spared by a kin mark**, a gene every particle of a placed specimen shares, sister species included, like the immunity genes that let bacteria kill strangers on contact but spare their kin. It drifts slowly by mutation, so distant branches of a strain can become strangers to each other.
   - **Safety in numbers:** a particle surrounded by its own kind gives up only half as much to a bite, measured the same way digestion measures company. Loners and frayed edges are easy prey.
   - In tests, a strain whose particles came to hunt grew, ate its prey down and crashed; afterwards three strains shared the dish for 70,000 steps with none taking over, in a much thinner dish. Higher HUNTING thins the dish more.
   - Particles start with their own hunting, drawn separately for each: most near 0, about one in five above 0.5, the same spread for every specimen. Which strains end up hunting is decided in the dish, and the strain stats show it.
@@ -193,12 +194,12 @@ The two pages are two levels of selection. In Solo and Batch you choose bodies f
   - energy;
   - how each gene has drifted since it was placed: set point, speed, sensor angle and reach, deposit, foraging, diet (with two foods), homing and crowding (as multiples of HOMEOSTASIS; "fixed in this older dish" for a dish saved before they existed), hunting (with HUNTING above 0), and chemistry shown as a color swatch.
   - **KEEP LARGEST BODY** saves that body as a specimen.
-- **How bodies are found:** where a lineage is dense on a grid of 20-pixel cells (96x54 in a 1× dish), each connected patch is a body. Bodies are counted every 100 steps of the dish, at any speed, and followed by overlap from one count to the next.
+- **How bodies are found:** where a strain is dense on a grid of 20-pixel cells (96x54 in a 1× dish), each connected patch is a body. Bodies are counted every 100 steps of the dish, at any speed, and followed by overlap from one count to the next.
 - **Divisions.** Most times one body becomes two, it is a thin bridge breaking and rejoining or a network's walls coming apart. A split only counts as a **division** if both pieces are solid bodies rather than thin walls, the smaller holds at least 15% of the parent, and both live on, apart, for 2,000 steps. Two bodies that touch and part again do not count: a body that has just absorbed another cannot divide for 2,000 steps. The display says DIVISION when one is confirmed. In tests so far no dish has shown one: the nearest, Amoeba K-461, split a body's core in two inside a figure-eight halo but never separated (see [Looking for division](RESEARCH.md#looking-for-division)).
 - **Clicking a strain row** also flips the specimen deck to that strain's card, if it is in the deck.
 - Each species shows in its organism's own colors, unless another species already shows in them, in which case it borrows a free gradient. A strain's swatch blends the colors of the chemicals it gives off.
 
-**Specimens.** A cut specimen holds the particles inside its outline with their species' rules, and the trail beneath. A kept specimen holds every particle inside the ring, of any lineage, with every gene it evolved, plus the trail and veins beneath; a kept cell holds those inside its outline instead. Both are saved in `saves/specimens/` and listed in the Archive under **SPECIMENS**; the deck holds the ones you choose.
+**Specimens.** A cut specimen holds the particles inside its outline with their species' rules, and the trail beneath. A kept specimen holds every particle inside the ring, of any strain, with every gene it evolved, plus the trail and veins beneath; a kept cell holds those inside its outline instead. Both are saved in `saves/specimens/` and listed in the Archive under **SPECIMENS**; the deck holds the ones you choose.
 
 **Specimen cards.** In the Archive every specimen is a card of the same size, its picture seen through a porthole, as it goes into a dish:
 - **Type:** the ridged grip down the left, the porthole's ring and the icon in the readouts show how it was made: microscope and teal for a cut from a slide, a filled body and blue for a body kept from the Incubator (such as the largest body of a strain), a ring with a nucleus and amber for a kept cell, a spark and orange for a cut from a wild organism.
@@ -229,7 +230,7 @@ Cutting the same body from the same moment twice brings the existing card to the
   | 2× | 3840x2160 | 2,000,000 | 6.0 ms | about 2x |
 - **REPLAY** places the same strains again and reproduces the same history exactly.
 
-The design reasoning, the research behind it and what was measured are in [RESEARCH.md](RESEARCH.md#the-arena).
+The design reasoning, the research behind it and what was measured are in [RESEARCH.md](RESEARCH.md#the-incubator).
 
 ## The LIFE score
 
@@ -241,19 +242,19 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 - **NOISE** now also requires that no closed structure formed, so jagged crystal lattices are no longer called noise.
 - It was checked against saves tagged as scoring too high or too low. All five moved the right way: 99→55, 95→52, 92→19 (GRID), 75→87 and 19→81.
 - Older saves keep the score they were saved with.
-- In the Archive, with Help on (`H`), pointing at a card's LIFE chip shows its parts. Saves from before version 2 lack BODIES and VARIETY, and the card says so.
+- In the Archive, with Help on (`H`), pointing at a card's LIFE chip shows its parts. Slides saved before version 2 lack BODIES and VARIETY, and the card says so.
 
 ## Known limitations
 
 - Older RULES ONLY saves regrow at most 3,000 steps when reopened. Saving them again stores their body.
 - A browser without folder access can only download the rules.
-- After a save is reopened, REPLAY returns to the saved moment rather than the organism's birth.
+- After a slide is reopened, REPLAY returns to the saved moment rather than the organism's birth.
 - A body file is compressed with very slightly rounded trail values. Agents, genes and chemical are exact.
 - An automatic name's genus comes from a few measurements of form, so organisms of the same form share a genus and differ only in their code. Colors no longer appear in names.
 - Undo and old generations may fall back to their recipe once the 1.5 GB body memory fills.
 - A child inherits one parent's body. In the Incubator, separate bodies share a world, but they never fuse into one organism.
 - Incubator membranes are rings of particles held by density preferences. Their wall is not built from a material the cell makes itself.
-- In the Incubator, whole bodies have not yet been seen dividing into two. Runs of 3,000 to 4,000 steps showed coexistence, spreading networks, persistent rings and lineages invading each other.
+- In the Incubator, whole bodies have not yet been seen dividing into two; every attempt so far is in [The search for division](DIVISION.md).
 - A dish's strains and history are lost when the page closes unless the dish is saved with SAVE. A saved dish rounds its trails very slightly, like a body file; everything else is exact.
 - A strain that came with a saved dish can't be placed again from scratch, because the dish keeps the strain, not the specimen it grew from. KEEP a body to make a new specimen of it. A saved dish always opens at the size it was saved at.
 - A saved dish file is large: about 19 MB for a 1× dish and 30 MB for a lightly filled 2× dish.
@@ -264,6 +265,5 @@ The LIFE score is a rough 0 to 99 measure of life-like structure. Help mode show
 - A reaction field in the dish lives only where a strain keeps it, so the field that filled the whole picture at home covers only the body and a margin around it. All fields in the dish glow in the colors of the first strain that brought one.
 - A copy placed smaller than ×1 has its field's pattern scaled down with it. A copy placed larger keeps the field's pattern at full size, because spreading it further would make the reaction unstable.
 - The dish has six chemicals. Past six species, a new species shares the chemical whose trail behaves most like its own, so it fades at an average rate and smells like the species it shares with.
-- A strain's size limit counts the whole strain, so in a strain of several species one species can fill the room left by another that dies out.
 - There is no WebGL2 fallback.
 - A hidden browser tab or preview pane throttles animation, so frame-rate measurements there are not meaningful.

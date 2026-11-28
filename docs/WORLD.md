@@ -28,13 +28,13 @@ A round chamber of nutrient broth behind thick glass, kept alive by machinery th
 
 The Incubator is the closest thing the lab has to nature. What survives there was not chosen by you.
 
-*In the app:* the Arena. The broth is food, the round glass is the world's edge, and kept bodies are specimens.
+*In the app:* the Incubator. The broth is food, the round glass is the world's edge, and kept bodies are specimens.
 
 ### The Archive
 
 Cold storage. Every slide you save is filed here with its photograph, its rules and, when the lab could spare the space, its whole frozen body. Specimens kept from the Incubator have their own drawer. A family chart on the wall traces which slide came from which.
 
-*In the app:* the Library, with its grid, family tree and specimens.
+*In the app:* the Archive, with its grid, family tree, specimens and saved dishes.
 
 ## The lab's vocabulary
 
@@ -46,8 +46,8 @@ Cold storage. Every slide you save is filed here with its photograph, its rules 
 | Slide | A culture growing on its own | A Solo or Batch organism |
 | Tray | Nine slides side by side | Batch |
 | Specimen | A living piece cut from a slide or the Incubator | Specimen |
-| Broth | The Incubator's food | Arena food |
-| Strain | A placed specimen and all its descendants, still traceable | A lineage: one row in the Incubator list |
+| Broth | The Incubator's food | BROTH (set by FOOD) |
+| Strain | A placed specimen and all its descendants, still traceable | One row in the Incubator's list of strains |
 | Cohesion | How hard a body's motes keep together | HOMEOSTASIS |
 | Vitality | How life-like a culture looks to the instrument | LIFE score |
 

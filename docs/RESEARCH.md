@@ -2,6 +2,14 @@
 
 This explains which published ideas shaped the sandbox's early-life features, what was changed to fit them into a GPU agent simulation, and what has been measured. These sources **inspire mechanisms**. The sandbox does not reproduce their models or claim to simulate real biology.
 
+**How to read this.** It is a lab notebook, kept in the order the work was done. Each section reports what was true and
+measured at the time, and later sections supersede earlier ones: the strain cap that early sections describe was
+removed in [Which rules carry the cells](#which-rules-carry-the-cells); food regrowth was halved in [Food sets the
+limit](#food-sets-the-limit) and raised by half in [Why dishes grew sparse](#why-dishes-grew-sparse); new dishes start
+without predators, patches or a second food since that section too. Names follow the app today: the Incubator was
+first called the Arena, the Archive the Library, the specimen deck the drawer, and a strain a lineage or founder; older
+commits and changelog entries keep the old names. The search for division is gathered in [DIVISION.md](DIVISION.md).
+
 ## The central idea
 
 Breeding originally copied only settings, so every child regrew from nothing. Living things also inherit **organized matter**: a cell receives its parent's membrane, cytoplasm and internal structure, along with its genes. The sandbox now does the same. A child wakes up inside its parent's grown body with changed rules, and that body has to adapt or dissolve.
@@ -49,7 +57,7 @@ Living cells were then run for 3,000 steps on 8 random organisms:
 - Offspring developed real inherited variation.
 - The average speed gene fell slightly below its starting value in all 8 runs, and preferred density rose in all 8. This is consistent with weak selection, but the effect is small and the sample is limited.
 
-## The Arena
+## The Incubator
 
 Organisms in these notes are named as they were when each test ran, such as "Silver Web V". They have since been renamed like lab strains ("Reticulum T-182"), and each keeps its old name, so searching the Archive for a name used here still finds it.
 
@@ -64,9 +72,9 @@ Each time a design seemed settled, the next step was to ask whether it was truly
 1. **Map settings to a particle-life force table.** Rejected: the grown structure is lost.
 2. **Cut a living piece of the body.** Keep its particles, trail, veins and each particle's rules. This keeps the structure, but alone it gives nothing that keeps a piece together.
 3. **A slime agent is nearly a Particle Lenia particle.** Its three sensors sample a field on a ring at sensor distance, which is Particle Lenia's ring kernel. The trail plays the part of Particle Lenia's field U. The difference is the growth curve: slime always wants more trail, while Particle Lenia prefers one density. Adding a crowding penalty above a preferred density turns slime sensing into Particle Lenia's energy, *E = R − G*. With the penalty off, it is classic slime again.
-4. **Slime has memory that particle life lacks.** The trail records where particles *were*, the way Physarum's extracellular slime and a biofilm's matrix do. Specimens carry this memory into the arena.
+4. **Slime has memory that particle life lacks.** The trail records where particles *were*, the way Physarum's extracellular slime and a biofilm's matrix do. Specimens carry this memory into the Incubator.
 5. **Imprint the structure into the rules.** Each particle's preferred density is set from the density it actually lived at when cut. The body's grown form becomes heritable rules, much like Waddington's genetic assimilation, where a form first produced by circumstance becomes encoded.
-6. **Chemical identity instead of a hand-made force table.** Each founder gives off a mix of three shared chemicals. Its responses are solved so its own species' FOLLOW settings hold exactly. How it treats other founders then follows from how alike their chemicals are. With only three channels the interactions are low-rank, as in real signalling, and identity can drift, so mimicry and recognition can evolve.
+6. **Chemical identity instead of a hand-made force table.** Each strain gives off a mix of three shared chemicals. Its responses are solved so its own species' FOLLOW settings hold exactly. How it treats other strains then follows from how alike their chemicals are. With only three channels the interactions are low-rank, as in real signalling, and identity can drift, so mimicry and recognition can evolve.
 7. **Shared fate.** A particle digests food only with chemicals it is drawn to, and best near its preferred density. Matter is conserved, and only regrowing food adds energy.
 
 ### Rules as implemented
@@ -82,7 +90,7 @@ Each time a design seemed settled, the next step was to ask whether it was truly
 
 ### What happened as it was built
 
-Every run below used the same four cached specimens, the same seed and LOW-to-MED founders on the RTX 4070.
+Every run below used the same four cached specimens, the same seed and LOW-to-MED specimens on the RTX 4070.
 
 | Version | Result |
 |---|---|
@@ -91,20 +99,20 @@ Every run below used the same four cached specimens, the same seed and LOW-to-ME
 | Eat only what you can digest | Populations held, but colonies still spread into territories that fill the world |
 | Stronger homeostasis | Preferred density still **evolved downward**, from 2.0 to 0.8 |
 | Cooperative Hill curve, foraging only near kin | **Bounded bodies formed**: rings and cell clusters. They starved slowly, with up to about 200 particles per food cell |
-| Food flows through veins, faster eating | Populations stable or growing. A network lineage spread while ring bodies persisted |
-| Acclimation, thinning large specimens | A body grown in a reaction-diffusion world survived transplant as a **membrane ring with particles of its second species inside**. All five lineages coexisted after 3,200 steps with food steady near 77%. Arena LIFE score 88, bodies part at maximum |
+| Food flows through veins, faster eating | Populations stable or growing. A network strain spread while ring bodies persisted |
+| Acclimation, thinning large specimens | A body grown in a reaction-diffusion world survived transplant as a **membrane ring with particles of its second species inside**. All five strains coexisted after 3,200 steps with food steady near 77%. Incubator LIFE score 88, bodies part at maximum |
 
 The downward drift of preferred density matches a known effect called **spatial sorting**. In an expanding population, the best dispersers end up at the front and breed with each other, as with cane toads evolving longer legs at their invasion front. Here, pioneers at the edge found fresh food. Individuality only held once cooperation made loners pay a real price.
 
 Checks:
 
-- Two replays of the same founders gave identical trail hashes.
+- Two replays of the same strains gave identical trail hashes.
 - All five Solo regression hashes are unchanged.
-- An arena step costs about 0.97 ms at MED, against 0.44 ms for Solo.
+- An Incubator step costs about 0.97 ms at MED, against 0.44 ms for Solo.
 
 ### Why bodies frayed, and homing
 
-Before homing, the HOMEOSTASIS slider barely mattered. With two of the user's saves side by side, settings 0 and 1 looked almost the same after 4,000 steps. In a four-save arena, the winning lineage turned into a single network covering the world by step 8,000.
+Before homing, the HOMEOSTASIS slider barely mattered. With two of the user's slides side by side, settings 0 and 1 looked almost the same after 4,000 steps. In a dish of four slides' specimens, the winning strain turned into a single network covering the world by step 8,000.
 
 The cause: a particle only senses trail at three points just ahead of it. Once it wanders past that distance from its body, it sees nothing and drifts. Its trail then recruits others, and the body frays into a network. The crowding penalty only pushes particles *out* of dense spots, so nothing pulled wanderers back.
 
@@ -114,25 +122,25 @@ With homing, the same comparisons, run with copies of the user's saves on the sa
 |---|---|---|---|
 | "Silver Web IV" after 4,000 steps | Its second species spreads into a network, 162K particles | A few separate ribbon-shaped bodies, 113K | Ribbons, 97K |
 
-In the four-save arena at the default 0.5, run for 12,000 steps:
+In the dish of four slides' specimens at the default 0.5, run for 12,000 steps:
 
 - No network formed.
 - The cell-like save stayed a C-shaped membrane holding its organelles (62K particles).
 - The winner grew to 283K as separate ribbons and rings, not one sprawl.
-- One lineage went extinct, and food stayed near 80%.
+- One strain went extinct, and food stayed near 80%.
 
 Replays still gave identical trail hashes.
 
 ### Measuring individuals, not just population
 
-A lineage's share of the world is an ecological measure only. It says how much matter a lineage holds, not whether that matter forms individuals. For particle life, the questions that matter are:
+A strain's share of the world is an ecological measure only. It says how much matter a strain holds, not whether that matter forms individuals. For particle life, the questions that matter are:
 
 - How many separate bodies are there, and how big are they?
 - How long do they last?
 - Do whole bodies divide?
 - How far have their genes drifted?
 
-The census now counts each lineage on a 96x54 grid and sums its genes. The Arena page tracks bodies by overlap between counts and reports bodies, divisions, deaths, lifespans and trait drift. In a first test, a ring-forming lineage held 2 to 5 bodies over 3,000 steps, with 8 recorded divisions and 7 deaths. At this resolution, many of these are pieces pinching off and rejoining, so they are best read as a measure of how often bodies split and fuse, not as clean reproduction.
+The census now counts each strain on a 96x54 grid and sums its genes. The Incubator tracks bodies by overlap between counts and reports bodies, divisions, deaths, lifespans and trait drift. In a first test, a ring-forming strain held 2 to 5 bodies over 3,000 steps, with 8 recorded divisions and 7 deaths. At this resolution, many of these are pieces pinching off and rejoining, so they are best read as a measure of how often bodies split and fuse, not as clean reproduction.
 
 ### Cutting along the body
 
@@ -159,7 +167,7 @@ The particles inside the outline are cut, and the trail is masked with a soft ed
 
 ### Copies and sizes
 
-A specimen from the drawer can be placed many times. The copies placed while one card is picked form one strain, with one chemical identity, so they treat each other as kin instead of as rivals. A copy's size can be changed from ×0.5 to what fits the dish. A body's size comes from its rules, mostly how far its particles sense and how far they move each step, so a plain enlargement would shrink back. Each copy therefore has its sensing reach and speed scaled with it, and its particle count scaled with its area, so its density stays the same. This is close to a true scaled copy but not exact, because trail spreads and fades by the same amount per step at any size.
+A specimen from the deck can be placed many times. The copies placed while one card is picked form one strain, with one chemical identity, so they treat each other as kin instead of as rivals. A copy's size can be changed from ×0.5 to what fits the dish. A body's size comes from its rules, mostly how far its particles sense and how far they move each step, so a plain enlargement would shrink back. Each copy therefore has its sensing reach and speed scaled with it, and its particle count scaled with its area, so its density stays the same. This is close to a true scaled copy but not exact, because trail spreads and fades by the same amount per step at any size.
 
 In a test, a cut of Feathered Silver Honeycomb was placed at ×0.6, ×1 and ×1.35. The ×0.6 copy kept its membrane-bound shape for 2,500 steps. The ×1 and ×1.35 copies were placed overlapping and fused into one body, which is what kin are expected to do.
 
@@ -201,7 +209,7 @@ Two results are left open. Sparse Silver Islands' bright blob turned into a ring
 
 ### Acting on it: six chemicals, food that reaches bodies, strains that keep their size
 
-**Six chemicals.** The dish now has six chemicals in two trail maps, each with its own fade and spread. Each species placed gets one of its own while any are free, so its trail behaves exactly as at home. Once all six are taken, a new species shares the chemical whose trail lasts and spreads most like its own. A founder keeps the chemicals it was given, so placing a new one never changes those already in the dish, and replays stay exact. Each species shows in its organism's own colors. Toward a chemical that is not its own organism's, a species behaves as toward a stranger: with half the attitude it had toward its partners at home, or a slight wariness (−0.25) if it had none. Rivals at home avoid strangers, and allies are drawn to them.
+**Six chemicals.** The dish now has six chemicals in two trail maps, each with its own fade and spread. Each species placed gets one of its own while any are free, so its trail behaves exactly as at home. Once all six are taken, a new species shares the chemical whose trail lasts and spreads most like its own. A strain keeps the chemicals it was given, so placing a new one never changes those already in the dish, and replays stay exact. Each species shows in its organism's own colors. Toward a chemical that is not its own organism's, a species behaves as toward a stranger: with half the attitude it had toward its partners at home, or a slight wariness (−0.25) if it had none. Rivals at home avoid strangers, and allies are drawn to them.
 
 **Keeping bodies fed.** With the six chemicals in place, the same eight bodies were placed alone and run for 3,000 steps under several food economies. The table gives the range across the eight of particles alive relative to placed (1 means the same number), and the contact sheet shows the final versions ([sheet](research/keeping-fed.webp)):
 
@@ -421,7 +429,7 @@ structure inside it, lasting over time.**
    - **Homeostasis:** how steady its outline stays, times the share of its particles still inside 150 steps later.
    - **Inner life:** how far the particles that stayed inside moved, against the cell's radius.
    - **Complexity:** bodies inside it (organelles), how many strains live inside (the effective number, from the
-     particles' lineages), and how varied its inside looks (the López-Ruiz measure).
+     particles' strains), and how varied its inside looks (the López-Ruiz measure).
    - **Persistence:** its age, saturating over about 1,500 steps.
 4. The score multiplies the five parts, each weighted, so a cell must have all of them: a closed ring with a dead inside,
    or a busy patch with no wall, scores low. A cell with at least one body inside is marked EU (eukaryote-like), the rest
@@ -700,7 +708,7 @@ Patches alone kept bodies together (clumped 79% against 49%) but still let two s
 second food let three strains share the dish almost equally. Limits so far:
 
 - **Diet hardly drifts in 20,000 steps.** The strains kept close to the diets they were placed with (0.21, 0.77, 0.39 and
-  0.83), so the sharing came from founders that already differed, not from strains evolving apart. Longer runs are
+  0.83), so the sharing came from strains that already differed, not from strains evolving apart. Longer runs are
   needed to see whether diets split further.
 - **Behavior did not widen.** The spread in speed between strains stayed about 2.8 times in all three setups. The dish now
   keeps different strains alive, but it does not yet push them to move differently.
@@ -874,6 +882,9 @@ dish's places and set b 29%.
 | Plus digestion needing company (fe0853e) | 50 / 24 / 31% | 26 / 14 / 34% |
 | Plus patches, two foods, inherited cohesion and predators, with new dishes at PATCHES 0.5, TWO foods, HUNTING 0.5 (22f8b88) | 45 / 24 / 8% | 26 / 12 / 19% |
 
+Pictures: [set a](research/sparse-versions-set-a.webp) and [set b](research/sparse-versions-set-b.webp) on each version,
+and [what caused the starving](research/sparse-causes.webp).
+
 - **Not the step rate.** At 8X every version ran 360 to 480 steps a second in a 1× dish on an RTX 4070; the newest
   took 1.5 ms a step, no more than older ones.
 - **Slow to take shape was a die-back.** Before energy was conserved, a dish filled within 1,000 to 2,500 steps. Since,
@@ -905,7 +916,8 @@ With the new defaults, places used:
 | Set a at FOOD 1 | 45% | 59% | 79% | 92% |
 
 Every strain lived. Set a's membrane strain spread into a network of cell-like chambers across the dish, with both of
-its ringed bodies lasting all 40,000 steps; set b's lace strain grew across much of the glass.
+its ringed bodies lasting all 40,000 steps; set b's lace strain grew across much of the glass
+([before and after](research/gentler-dishes-before-after.webp)).
 
 Limits:
 
@@ -918,6 +930,8 @@ Limits:
   specimens. Specimens bred under the dish's own physics ([IDEAS](IDEAS.md), C3) are probably the real answer.
 
 ### Looking for division
+
+The whole search for division, with pictures, is gathered in [DIVISION.md](DIVISION.md).
 
 Reproduction is the one hallmark of life the dish does not yet show at the level of whole bodies: particles divide,
 but does a body? The body tracker already counts a "division" whenever one body becomes two, but most of these are
@@ -946,7 +960,8 @@ body map show these are stretches of a membrane network coming apart as it rearr
 The nearest thing to reproduction is **Amoeba K-461**. Its bodies are glowing cores in round halos. By 4,000 steps one
 core had stretched into a streak; by 12,000 it had become two cores in a halo pinched into a figure eight, the shape of
 a cell about to divide, and another body held two cores in one halo. Over 40,000 steps neither pair separated, and one
-pair's cores ran back together. Division begins here but is never finished. (Bold Azure Islands, grown on FED, shows the
+pair's cores ran back together. Division begins here but is never finished
+([K-461 and the walls that were counted as divisions](research/division-search-k461-and-walls.webp)). (Bold Azure Islands, grown on FED, shows the
 same figure eight the other way round: two cores whose halos fuse; see [Breeding on real food](#breeding-on-real-food-fed).)
 
 So no whole body divides in these dishes yet. Nothing in the rules makes splitting pay: a body that holds together eats
@@ -1003,13 +1018,14 @@ FED slides hold fewer agents (20 to 80% of their places), so their cuts start sm
 the particles each actually had at 10,000 steps. The largest gains were Feathered Silver Honeycomb (19,000 particles as
 saved, 134,000 fed), Flowing Blue Islands, Silver Honeycomb and Azure Lace; in the three of these pictured, a thread or
 scrap as saved became a network of chambers fed. The four losses (Silver Web V, Sparse Azure Islands, Bold Silver Islands, Bold Cyan Web) were
-specimens that already did well as saved. Bold Azure Islands, fed, ended as two ringed cells joined in a figure eight,
+specimens that already did well as saved ([four slides as saved and fed, with their cuts](research/fed-slides-and-their-cuts.webp)).
+Bold Azure Islands, fed, ended as two ringed cells joined in a figure eight,
 which looked like a division under way. Watched alone for 60,000 steps on three dish seeds, it was the opposite: its cut
 broke into up to 30 pieces, two cores from the cut survived (about 9,000 particles by step 10,000), each grew its own
 halo, the halos pressed into the figure eight, and by 35,000 to 40,000 steps they merged into one compact body
 (solidity 0.82) that kept growing, to 37,000 to 39,000 particles, with both cores still inside, like a cell with two
 nuclei. The app judged no division; its 8 to 10 candidate splits a run each lost a piece within 100 to 1,100 steps.
-Cores that sit together in one body, as in Amoeba K-461, are fusion, not fission.
+Cores that sit together in one body, as in Amoeba K-461, are fusion, not fission ([the pair fusing](research/fed-pair-fusing.webp)).
 
 **Does a food supply through the edge make bodies split?** A real cell is fed through its surface but eats with its
 whole volume, so the bigger it gets the hungrier its middle, which is one reason cells divide. In the dish food flows
@@ -1029,7 +1045,8 @@ own does not divide a body here; something has to turn a hungry middle into a pi
 One run logged a division, at step 35,200 with no vein flow. Pictures showed the two cores never parted: they touched
 for one count, read as one body, then as two again, and both "pieces" lasted. The tracker now rules that out: a body
 that has just absorbed another cannot divide for 2,000 steps, and a body that runs into another counts as absorbed
-even when the joined body takes its identity from the other. Rerun, the case reads 0.
+even when the joined body takes its identity from the other. Rerun, the case reads 0 ([pictures around the logged
+division](research/touch-and-part.webp)).
 
 Limits: one seed and one growth length each, the cut taken automatically, and no breeding yet: these slides lived on
 food for one lifetime. Breeding on FED over generations, picking in Batch, is where selection should do the most.
@@ -1064,7 +1081,8 @@ The one new form was Bold Azure Islands with the strong pump: instead of fusing 
 body rimmed with vacuole-like holes and holding 23 to 32 small granules, 35,000 particles against 18,000 without the
 rules. It hardly changed from 5,000 to 30,000 steps. Of its 190 splits, 37 were small pieces, and the 6 that lasted
 2,000 steps all broke off while the cut first came apart (steps 1,000 to 3,500): the granules are pieces of the cut
-kept alive, not buds.
+kept alive, not buds ([rules off against the strong pump](research/membrane-prototype.webp),
+[close-ups](research/membrane-vacuoles-close-up.webp)).
 
 So food that has to come through a rim, as prototyped, gives neither division nor budding, and the pumps did not raise
 the food inside bodies. My reading: our bodies hold together equally well at any size, because homing, crowding and
@@ -1075,7 +1093,7 @@ probably a better lever than food transport.
 
 ### What is new here, honestly
 
-- **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each founder's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
+- **Likely new:** cutting evolved slime bodies into specimens with **imprinted density set points**, treating slime agents as Particle Lenia particles with a memory field, and deriving cross-species interactions from a **low-rank chemical identity** solved to keep each strain's own relations. A literature search for these combinations was not done, so this is a judgment, not a claim.
 - **Known ideas, combined:** Particle Lenia's energy, Flow-Lenia's rules carried with matter and conserved mass, cooperative digestion, nutrient transport through veins, and non-reciprocal chemical interactions between particle types.
 - **Not achieved yet:** whole bodies dividing into two, a membrane made of material the cell produces, as in Cabaret's vesicles, and long-run open-ended evolution.
 

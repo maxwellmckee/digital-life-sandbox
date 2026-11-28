@@ -6826,6 +6826,7 @@ function buildDishCard(item) {
   if (Number.isFinite(m.food)) row('BROTH', Math.round(m.food * 100) + '%');
   if (m.ecosystem) { const e = m.ecosystem.parts; row('ECOSYSTEM', `${m.ecosystem.score} · coexist ${Math.round(e.coexist * 100)} · persist ${Math.round(e.persist * 100)} · exchange ${Math.round(e.exchange * 100)} · balance ${Math.round(e.balance * 100)}${e.structure != null ? ` · structure ${Math.round(e.structure * 100)}` : ''}`); }
   if (m.formerName) row('FORMERLY', m.formerName);
+  if (m.membrane) row('MEMBRANES', 'on: the research prototype, where crowding shades and blocks food and rims pump it in');
   const total = m.strains.reduce((t, x) => t + x.particles, 0) || 1;
   for (const x of [...m.strains].sort((a, b) => b.particles - a.particles).filter(x => x.particles).slice(0, 4)) {
     const sp = el('span'), sw = el('i');
@@ -6941,9 +6942,10 @@ const ARENA = {
   // dishes had grown too poor to hold their shapes; at twice, dishes filled every place at FOOD 1 (docs/RESEARCH.md, "Why
   // dishes grew sparse"). A dish saved at another rate has its FOOD rescaled when opened, so it gets the same food.
   regrow: .009,
-  // Membrane research, off at 0 and not on screen (docs/RESEARCH.md, "A membrane prototype"): shade, how much each
-  // particle in a food cell slows its regrowth; block, how much crowding slows flow between cells; pump, the food a rim
-  // particle draws in from a thinner neighboring cell each step; cost, the energy it pays per unit pumped.
+  // Membrane research, off at 0, with no control on screen (docs/RESEARCH.md, "A membrane prototype"): shade, how much
+  // each particle in a food cell slows its regrowth; block, how much crowding slows flow between cells; pump, the food a
+  // rim particle draws in from a thinner neighboring cell each step; cost, the energy it pays per unit pumped. A dish
+  // saved with them on keeps them and turns them back on when opened; any other dish, and EMPTY, turns them off.
   membrane: { shade: 0, block: 0, pump: 0, cost: .2 },
   // The least density of kin that cooperative digestion is measured against, whatever a particle's set point. Without it
   // a particle with a low set point digests as well spread thin as in a body, and shares its food with fewer, so
@@ -6951,6 +6953,9 @@ const ARENA = {
   // turned to mush"). With it, eating well needs real company, and bodies last.
   kinFloor: 5,
 };
+// The membrane prototype switched off, and whether it is on.
+const MEMBRANE_OFF = Object.freeze({ shade: 0, block: 0, pump: 0, cost: .2 });
+const membraneOn = () => ARENA.membrane.shade > 0 || ARENA.membrane.block > 0 || ARENA.membrane.pump > 0;
 // The dish's chemicals: three in each of its two trail maps.
 const CHEM = 6;
 // A new particle's genes as 28 plain numbers: energy, lineage, sensor angle, reach, turn, speed, deposit, set point,
@@ -8370,6 +8375,7 @@ function arenaClear() {
   arena.params.cohesion = 1;
   arena.startPicture = null;
   running = false; // A new dish waits for PLAY.
+  Object.assign(ARENA.membrane, MEMBRANE_OFF);
   arenaChemistry();
   resetArena();
   syncUi();
@@ -9016,6 +9022,7 @@ async function packDish(id, exact = false) {
     format: 'digital-life-dish', version: 1, id, createdAt: new Date().toISOString(),
     name: dishName(alive.length, d.key, id),
     dish: d.key, w, h, agents, particles: live.length, step: s.step, seed: arena.seed, params: { ...arena.params }, regrow: ARENA.regrow,
+    ...(membraneOn() ? { membrane: { ...ARENA.membrane } } : {}),
     food: c?.food ?? null, bodies: arena.founders.reduce((n, f) => n + (f.track?.bodies.length || 0), 0), strains,
     ecosystem: (eco => eco && { score: eco.score, parts: Object.fromEntries(Object.entries(eco.parts).map(([k, v]) => [k, +v.toFixed(2)])) })(dishEcosystem()),
     recipes: arena.recipes, history: arena.history,
@@ -9131,6 +9138,8 @@ async function putDish(meta, raw) {
   // A dish from before PATCHES, FOODS, inherited cohesion or HUNTING runs on as it did: even food, one food, fixed
   // cohesion, no hunting.
   Object.assign(arena.params, { patches: 0, foods: 1, cohesion: 0, hunting: 0 }, meta.params);
+  // The membrane prototype is on only for a dish saved with it.
+  Object.assign(ARENA.membrane, MEMBRANE_OFF, meta.membrane || {});
   device.queue.writeBuffer(arena.econ, arena.d.econ.clock * 4, new Uint32Array([meta.step]));
   // A dish saved when food grew back at another rate keeps the same food: its FOOD is rescaled, to at most 1.
   // Not rounded, so a dish saved at another rate gets the food it had.
@@ -9160,7 +9169,7 @@ async function openDish(item) {
   });
   if (!done) return;
   syncUi();
-  flash('DISH OPENED');
+  flash(item.meta.membrane ? 'MEMBRANES ON' : 'DISH OPENED');
   flashIcon('dish');
 }
 
@@ -9328,6 +9337,8 @@ async function setAsideDish() {
   // The dish is packed as a save would be, so it comes back exactly; the strains keep their own objects, so REPLAY,
   // UNDO and their specimens work as before.
   const { meta, parts } = await packDish(arena.dishId || 'set-aside', true);
+  // Tests run without the membrane prototype; the dish brings it back when it is put back.
+  Object.assign(ARENA.membrane, MEMBRANE_OFF);
   return Object.assign(keep, {
     packed: { meta, raw: await new Blob(parts).arrayBuffer() },
     origin: arena.origin, dishId: arena.dishId, census: arena.census, history: arena.history, open: arena.open, zoom: { ...arena.zoom },
