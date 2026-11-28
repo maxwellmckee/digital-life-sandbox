@@ -40,7 +40,7 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 |---|---|---|---|---|
 | C1 | **A test dish for every specimen.** Each runs alone in a small standard dish for a few thousand steps; its card shows how much it moves, holds together, grows and divides. | You could see and compare how specimens behave, not only how they look. | Medium | **done** (TEST, BEHAVIOR line), ba6df22 |
 | C2 | **A diversity breeding mode for BATCH**, which fills in behaviors your collection does not have yet (novelty search, MAP-Elites) instead of steering toward past picks. | Steering toward what you liked narrows the search over time; this widens it on purpose. | Medium | idea |
-| C3 | **Breed slides under the Incubator's physics**, with real food in the Microscope. | Specimens would arrive already adapted to the dish and keep their differences. To be a switch, so today's Microscope stays as it is. | Medium to large | idea |
+| C3 | **Breed slides under the Incubator's physics**, with real food in the Microscope. | Specimens would arrive already adapted to the dish and keep their differences. To be a switch, so today's Microscope stays as it is. | Medium to large | **in progress** |
 | C4 | **Let trail deposit mutate.** It is 1 in every saved slide. | Frees one gene that never varies. | Small | idea |
 
 ## D. Further out
@@ -48,8 +48,8 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 - **Membrane material made by the particles themselves, and whole bodies that divide** (in the README's next steps).
 - **A secreted enzyme in place of cooperative digestion**, so cooperation becomes a public good that cheaters can
   exploit (from the emergence audit, `update_notes/`).
-- **Detecting division:** one body becoming two that both last as separate, compact bodies. **In progress:** the
-  research tracker found none yet ([Looking for division](RESEARCH.md#looking-for-division)); next is showing it in the app.
+- **Detecting division:** one body becoming two that both last as separate, compact bodies. **Done** (783e3b3): no
+  dish shows one yet ([Looking for division](RESEARCH.md#looking-for-division)); a strain's DIVISIONS counts them.
 - **Using the ECOSYSTEM score to compare dishes** over long runs, to see which settings and strains make the richest
   ecosystems.
 - **Telling a network from a mush in STRUCTURE.** A full dish of membrane chambers reads as spread out as an even mush
@@ -72,3 +72,4 @@ room to differ. First results: [More than one way to win](RESEARCH.md#more-than-
 | Inherited homing and crowding; kept bodies wider than the dish are placed in the middle | 739031a |
 | Predators: a hunting gene, bites on contact, kin immunity, HUNTING slider | 10b54f0 |
 | Gentler, richer dishes: challenges off to start, sunlight 0.009; a new dish waits for PLAY and keeps its starting snapshot | 1e05ed3 |
+| Real divisions only, judged every 100 steps at any speed; research found none yet | 783e3b3 |
